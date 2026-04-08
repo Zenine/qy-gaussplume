@@ -411,7 +411,7 @@
                         <span>网格分辨率</span>
                         <span id="gridResolutionValue">100 m</span>
                     </div>
-                    <input type="range" id="gridResolutionSlider" class="apple-slider" min="50" max="500" value="100" step="25" oninput="updateSliderValue('gridResolution')">
+                    <input type="range" id="gridResolutionSlider" class="apple-slider" min="10" max="500" value="100" step="10" oninput="updateSliderValue('gridResolution')">
                 </div>
                 <div class="slider-container">
                     <div class="slider-label">
@@ -419,6 +419,13 @@
                         <span id="simulationHeightValue">0 m</span>
                     </div>
                     <input type="range" id="simulationHeightSlider" class="apple-slider" min="0" max="100" value="0" step="1" oninput="updateSliderValue('simulationHeight')">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>渲染精度</span>
+                        <span id="renderScaleValue">2x</span>
+                    </div>
+                    <input type="range" id="renderScaleSlider" class="apple-slider" min="0" max="5" value="1" step="1" oninput="updateSliderValue('renderScale')">
                 </div>
             </div>
         </aside>
@@ -487,6 +494,7 @@
                                     <button class="btn btn-sm btn-default" onclick="addPresetWinds('16方向')">16方向</button>
                                     <button class="btn btn-sm btn-default" onclick="addPresetWinds('32方向')">32方向</button>
                                     <button class="btn btn-sm btn-default" onclick="addPresetWinds('64方向')">64方向</button>
+                                    <button class="btn btn-sm btn-default" onclick="addPresetWinds('72方向')">72方向</button>
                                     <button class="btn btn-sm btn-default" onclick="clearWindCombinations()">清空</button>
                                 </div>
                             </div>
@@ -613,7 +621,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map, sourceMarkers = [], receptorMarkers = [], plumeLayer, shpLayer;
+        let map, sourceMarkers = [], receptorMarkers = [], shpLayer;
         let windDirection = 0, windSpeed = 2;
         let currentTileLayer = null;
         let shpGeojson = null;
@@ -622,6 +630,7 @@
         let lastReceptorContributions = null;
         let customConcRange = null;
         let windCombinations = [];
+        let imageOverlayLayer = null;
         
         function toggleSimulationType() {
             const type = document.getElementById('simulationType').value;
@@ -659,6 +668,11 @@
                 directions = [];
                 for (let i = 0; i < 64; i++) {
                     directions.push(i * 5.625);
+                }
+            } else if (type === '72方向') {
+                directions = [];
+                for (let i = 0; i < 72; i++) {
+                    directions.push(i * 5);
                 }
             }
             directions.forEach(dir => addWindCombination(dir.toFixed(2), 2));
@@ -817,6 +831,7 @@
                 domainSize: document.getElementById('domainSizeSlider').value,
                 gridResolution: document.getElementById('gridResolutionSlider').value,
                 simulationHeight: document.getElementById('simulationHeightSlider').value,
+                renderScale: document.getElementById('renderScaleSlider').value,
                 hasSimulation: hasSimulation
             };
             
@@ -880,6 +895,11 @@
                 if (state.simulationHeight) {
                     document.getElementById('simulationHeightSlider').value = state.simulationHeight;
                     updateSliderValue('simulationHeight');
+                }
+                
+                if (state.renderScale !== undefined) {
+                    document.getElementById('renderScaleSlider').value = state.renderScale;
+                    updateSliderValue('renderScale');
                 }
                 
                 if (state.hasSimulation) {
@@ -1043,7 +1063,6 @@
             
             sourceMarkers.forEach(m => m.addTo(map));
             receptorMarkers.forEach(m => m.addTo(map));
-            if (plumeLayer) plumeLayer.addTo(map);
             saveState();
         }
         
@@ -1679,7 +1698,7 @@
         
         function visualizePlume(result) {
             lastSimulationResult = result;
-            if (plumeLayer) map.removeLayer(plumeLayer);
+            if (imageOverlayLayer) map.removeLayer(imageOverlayLayer);
             
             const {concentrations, grid_lat, grid_lon} = result;
             const dataMaxConc = Math.max(...concentrations.flat());
@@ -1697,85 +1716,135 @@
                 displayMaxConc = customConcRange.max;
             }
             
-            const minThreshold = displayMinConc > 0 ? displayMinConc * 0.01 : displayMaxConc * 0.00001;
-            
             const scaleType = document.getElementById('colorScaleSelect').value;
             const colors = COLOR_SCALES[scaleType].colors;
-            const numLevels = colors.length;
             
-            const maxDisplayGrids = 150;
-            const gridSize = grid_lat.length;
-            const step = Math.max(1, Math.ceil(gridSize / maxDisplayGrids));
+            const minLat = Math.min(...grid_lat);
+            const maxLat = Math.max(...grid_lat);
+            const minLon = Math.min(...grid_lon);
+            const maxLon = Math.max(...grid_lon);
             
-            const layers = [];
-            let processedCount = 0;
-            const maxLayers = 40000;
+            const gcj02_min = wgs84ToGcj02(minLon, minLat);
+            const gcj02_max = wgs84ToGcj02(maxLon, maxLat);
             
-            for (let lat = 0; lat < grid_lat.length - 1 && processedCount < maxLayers; lat += step) {
-                for (let lon = 0; lon < grid_lon.length - 1 && processedCount < maxLayers; lon += step) {
-                    let sumConc = 0;
-                    let count = 0;
+            const scaleValues = [1, 2, 4, 8, 12, 16];
+            const renderIndex = parseInt(document.getElementById('renderScaleSlider').value) || 1;
+            const renderScale = scaleValues[renderIndex];
+            
+            const maxCanvasSize = 4096;
+            
+            let actualRenderScale = renderScale;
+            let width = grid_lon.length * actualRenderScale;
+            let height = grid_lat.length * actualRenderScale;
+            
+            while ((width > maxCanvasSize || height > maxCanvasSize) && actualRenderScale > 1) {
+                actualRenderScale--;
+                width = grid_lon.length * actualRenderScale;
+                height = grid_lat.length * actualRenderScale;
+            }
+            
+            if (width > maxCanvasSize) width = maxCanvasSize;
+            if (height > maxCanvasSize) height = maxCanvasSize;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(width, height);
+            const data = imageData.data;
+            
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    const origI = i / actualRenderScale;
+                    const origJ = j / actualRenderScale;
                     
-                    const latEnd = Math.min(lat + step, grid_lat.length - 1);
-                    const lonEnd = Math.min(lon + step, grid_lon.length - 1);
+                    const i0 = Math.floor(origI);
+                    const j0 = Math.floor(origJ);
+                    const i1 = Math.min(i0 + 1, grid_lat.length - 1);
+                    const j1 = Math.min(j0 + 1, grid_lon.length - 1);
                     
-                    for (let dl = 0; dl < step && lat + dl < grid_lat.length - 1; dl++) {
-                        for (let dn = 0; dn < step && lon + dn < grid_lon.length - 1; dn++) {
-                            const c00 = concentrations[lat + dl][lon + dn];
-                            const c10 = concentrations[lat + dl + 1][lon + dn];
-                            const c01 = concentrations[lat + dl][lon + dn + 1];
-                            const c11 = concentrations[lat + dl + 1][lon + dn + 1];
-                            if (isFinite(c00) && isFinite(c10) && isFinite(c01) && isFinite(c11)) {
-                                sumConc += (c00 + c10 + c01 + c11) / 4;
-                                count++;
-                            }
-                        }
-                    }
+                    const di = origI - i0;
+                    const dj = origJ - j0;
                     
-                    if (count === 0) continue;
-                    const avgConc = sumConc / count;
+                    const c00 = concentrations[i0][j0] || 0;
+                    const c01 = concentrations[i0][j1] || 0;
+                    const c10 = concentrations[i1][j0] || 0;
+                    const c11 = concentrations[i1][j1] || 0;
                     
-                    if (avgConc <= minThreshold) continue;
+                    const c = c00 * (1 - di) * (1 - dj) +
+                              c01 * (1 - di) * dj +
+                              c10 * di * (1 - dj) +
+                              c11 * di * dj;
+                    
+                    if (!isFinite(c) || c <= 0) continue;
                     
                     let normalizedValue;
                     if (displayMaxConc > displayMinConc) {
-                        normalizedValue = (avgConc - displayMinConc) / (displayMaxConc - displayMinConc);
+                        normalizedValue = (c - displayMinConc) / (displayMaxConc - displayMinConc);
                     } else {
-                        normalizedValue = avgConc / displayMaxConc;
+                        normalizedValue = c / displayMaxConc;
                     }
                     normalizedValue = Math.max(0, Math.min(1, normalizedValue));
                     
-                    if (normalizedValue < 0.00000001) continue;
+                    if (normalizedValue < 1e-10) continue;
                     
-                    const colorIndex = Math.min(Math.floor(normalizedValue * numLevels), numLevels - 1);
+                    const rgb = getGradientColor(colors, normalizedValue);
+                    if (!rgb) continue;
                     
-                    const polygon = L.polygon([
-                        wgs84ToGcj02(grid_lon[lon], grid_lat[lat]),
-                        wgs84ToGcj02(grid_lon[lon], grid_lat[latEnd]),
-                        wgs84ToGcj02(grid_lon[lonEnd], grid_lat[latEnd]),
-                        wgs84ToGcj02(grid_lon[lonEnd], grid_lat[lat])
-                    ].map(c => [c[1], c[0]]), {
-                        color: colors[colorIndex],
-                        fillColor: colors[colorIndex],
-                        fillOpacity: 0.5,
-                        weight: 0,
-                        stroke: false
-                    });
-                    layers.push(polygon);
-                    processedCount++;
+                    const flippedI = height - 1 - i;
+                    const idx = (flippedI * width + j) * 4;
+                    data[idx] = rgb.r;
+                    data[idx + 1] = rgb.g;
+                    data[idx + 2] = rgb.b;
+                    data[idx + 3] = 200;
                 }
             }
             
-            if (layers.length === 0) {
-                console.log('No layers to display, dataMax:', dataMaxConc, 'displayRange:', displayMinConc, '-', displayMaxConc);
-            } else {
-                console.log('Rendered', layers.length, 'polygons, step:', step, 'gridSize:', gridSize);
-            }
+            ctx.putImageData(imageData, 0, 0);
             
-            plumeLayer = L.layerGroup(layers);
-            plumeLayer.addTo(map);
+            const imageUrl = canvas.toDataURL('image/png');
+            
+            const imageBounds = [[gcj02_min[1], gcj02_min[0]], [gcj02_max[1], gcj02_max[0]]];
+            
+            imageOverlayLayer = L.imageOverlay(imageUrl, imageBounds, {
+                opacity: 0.7,
+                interactive: false
+            });
+            
+            imageOverlayLayer.addTo(map);
+            
             updateLegendGradient(scaleType);
             updateLegendScale(displayMinConc, displayMaxConc);
+        }
+        
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+        
+        function getGradientColor(colors, value) {
+            const numColors = colors.length;
+            const scaledValue = value * (numColors - 1);
+            const lowerIndex = Math.floor(scaledValue);
+            const upperIndex = Math.min(lowerIndex + 1, numColors - 1);
+            
+            const lowerColor = hexToRgb(colors[lowerIndex]);
+            const upperColor = hexToRgb(colors[upperIndex]);
+            
+            if (!lowerColor || !upperColor) return null;
+            
+            const t = scaledValue - lowerIndex;
+            
+            return {
+                r: Math.round(lowerColor.r + (upperColor.r - lowerColor.r) * t),
+                g: Math.round(lowerColor.g + (upperColor.g - lowerColor.g) * t),
+                b: Math.round(lowerColor.b + (upperColor.b - lowerColor.b) * t)
+            };
         }
         
         function updateLegendScale(minVal, maxVal) {
@@ -1964,8 +2033,8 @@
         }
         
         function clearResults() {
-            if (plumeLayer) map.removeLayer(plumeLayer);
-            plumeLayer = null;
+            if (imageOverlayLayer) map.removeLayer(imageOverlayLayer);
+            imageOverlayLayer = null;
             lastSimulationResult = null;
             lastReceptorContributions = null;
             localStorage.removeItem('pollutionSimResult');
@@ -1989,6 +2058,19 @@
                 const value = slider.value;
                 document.getElementById('simulationHeightValue').textContent = value + ' m';
                 updateSliderTrack(slider);
+            } else if (type === 'renderScale') {
+                const slider = document.getElementById('renderScaleSlider');
+                const index = parseInt(slider.value);
+                const scaleValues = [1, 2, 4, 8, 12, 16];
+                const value = scaleValues[index];
+                document.getElementById('renderScaleValue').textContent = value + 'x';
+                updateSliderTrack(slider);
+                
+                saveState();
+                
+                if (lastSimulationResult) {
+                    visualizePlume(lastSimulationResult);
+                }
             }
         }
         
@@ -1996,9 +2078,11 @@
             const domainSlider = document.getElementById('domainSizeSlider');
             const gridSlider = document.getElementById('gridResolutionSlider');
             const heightSlider = document.getElementById('simulationHeightSlider');
+            const renderSlider = document.getElementById('renderScaleSlider');
             updateSliderTrack(domainSlider);
             updateSliderTrack(gridSlider);
             updateSliderTrack(heightSlider);
+            updateSliderTrack(renderSlider);
         }
         
         function updateSliderTrack(slider) {
