@@ -6,6 +6,11 @@ from fastapi import Request
 from contextlib import asynccontextmanager
 import os
 import sys
+import warnings
+
+os.environ['OPENBLAS_VERBOSE'] = '0'
+warnings.filterwarnings('ignore', message='.*loaded more than 1 DLL from.*')
+warnings.filterwarnings('ignore', category=UserWarning, module='numpy')
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

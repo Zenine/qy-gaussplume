@@ -792,7 +792,7 @@
         
         const PI = Math.PI;
         const A = 6378245.0;
-        const EE = 0.00669342162296594323;
+        const EE = 0.00669342196594323;
         
         function wgs84ToGcj02(lng, lat) {
             let dLat = transformLat(lng - 105.0, lat - 35.0);
@@ -1580,137 +1580,86 @@
                         document.getElementById('runBtn').disabled = false;
                         return;
                     }
-                    
-                    const totalWeight = windCombos.reduce((sum, w) => sum + w.weight, 0);
-                    let aggregatedConcentrations = null;
-                    let aggregatedPollutantConcentrations = null;
-                    let aggregatedReceptorContributions = {};
-                    let gridLat = null, gridLon = null;
-                    let availablePollutants = [];
-                    
-                    for (let i = 0; i < windCombos.length; i++) {
-                        const combo = windCombos[i];
-                        document.getElementById('runBtn').textContent = `模拟中 (${i+1}/${windCombos.length})...`;
-                        
-                        const res = await fetch('/api/simulation/run_with_wind', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                meteorology_id: parseInt(metId),
-                                pollutant_type: pollutantType,
-                                grid_resolution: parseInt(document.getElementById('gridResolutionSlider').value),
-                                domain_size: parseInt(document.getElementById('domainSizeSlider').value) * 1000,
-                                wind_direction: combo.direction,
-                                wind_speed: combo.speed,
-                                receptor_height: parseFloat(document.getElementById('simulationHeightSlider').value)
-                            })
-                        });
-                        
-                        if (!res.ok) {
-                            throw new Error(`风向${combo.direction}°模拟失败`);
+
+                    document.getElementById('runBtn').textContent = `⚡ 并行计算中 (${windCombos.length}个风向)...`;
+
+                    const windDirections = windCombos.map(c => c.direction);
+                    const windSpeeds = windCombos.map(c => c.speed);
+                    const weights = windCombos.map(c => c.weight);
+
+                    console.log(`🚀 开始并行计算: ${windDirections.length}个风向, 分辨率${document.getElementById('gridResolutionSlider').value}m`);
+
+                    const res = await fetch('/api/simulation/run_parallel', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            meteorology_id: parseInt(metId),
+                            pollutant_type: pollutantType,
+                            grid_resolution: parseInt(document.getElementById('gridResolutionSlider').value),
+                            domain_size: parseInt(document.getElementById('domainSizeSlider').value) * 1000,
+                            wind_speed: windSpeeds[0],
+                            wind_directions: windDirections,
+                            weights: weights,
+                            receptor_height: parseFloat(document.getElementById('simulationHeightSlider').value),
+                            num_workers: null,
+                            return_aggregated_only: true
+                        })
+                    });
+
+                    if (!res.ok) {
+                        let errMsg = '并行模拟请求失败';
+                        try {
+                            const errData = await res.json();
+                            errMsg = errData.detail || errMsg;
+                        } catch (e) {
+                            errMsg = await res.text() || errMsg;
                         }
-                        
-                        const result = await res.json();
-                        const weight = combo.weight / totalWeight;
-                        
-                        if (!aggregatedConcentrations) {
-                            aggregatedConcentrations = result.concentrations.map(row => row.map(v => v * weight));
-                            gridLat = result.grid_lat;
-                            gridLon = result.grid_lon;
-                            availablePollutants = result.available_pollutants || [];
-                            
-                            if (result.pollutant_concentrations) {
-                                aggregatedPollutantConcentrations = {};
-                                for (const [p, conc] of Object.entries(result.pollutant_concentrations)) {
-                                    aggregatedPollutantConcentrations[p] = conc.map(row => row.map(v => v * weight));
-                                }
-                            }
-                        } else {
-                            for (let r = 0; r < result.concentrations.length; r++) {
-                                for (let c = 0; c < result.concentrations[r].length; c++) {
-                                    aggregatedConcentrations[r][c] += result.concentrations[r][c] * weight;
-                                }
-                            }
-                            
-                            if (result.pollutant_concentrations) {
-                                for (const [p, conc] of Object.entries(result.pollutant_concentrations)) {
-                                    if (!aggregatedPollutantConcentrations[p]) {
-                                        aggregatedPollutantConcentrations[p] = conc.map(row => row.map(v => v * weight));
-                                    } else {
-                                        for (let r = 0; r < conc.length; r++) {
-                                            for (let c = 0; c < conc[r].length; c++) {
-                                                aggregatedPollutantConcentrations[p][r][c] += conc[r][c] * weight;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if (result.receptor_contributions) {
-                            for (const [receptorName, pollutantData] of Object.entries(result.receptor_contributions)) {
-                                if (!aggregatedReceptorContributions[receptorName]) {
-                                    aggregatedReceptorContributions[receptorName] = {};
-                                }
-                                for (const [pollutant, sources] of Object.entries(pollutantData)) {
-                                    if (!aggregatedReceptorContributions[receptorName][pollutant]) {
-                                        aggregatedReceptorContributions[receptorName][pollutant] = [];
-                                    }
-                                    sources.forEach(s => {
-                                        const existing = aggregatedReceptorContributions[receptorName][pollutant].find(e => e.source_id === s.source_id);
-                                        if (existing) {
-                                            existing.concentration += s.concentration * weight;
-                                        } else {
-                                            aggregatedReceptorContributions[receptorName][pollutant].push({
-                                                ...s,
-                                                concentration: s.concentration * weight
-                                            });
-                                        }
-                                    });
-                                }
-                            }
-                        }
+                        throw new Error(errMsg);
                     }
-                    
-                    for (const receptorName of Object.keys(aggregatedReceptorContributions)) {
-                        for (const pollutant of Object.keys(aggregatedReceptorContributions[receptorName])) {
-                            const sources = aggregatedReceptorContributions[receptorName][pollutant];
-                            const total = sources.reduce((sum, s) => sum + s.concentration, 0);
-                            sources.forEach(s => {
-                                s.percentage = total > 0 ? (s.concentration / total * 100) : 0;
-                            });
-                            sources.sort((a, b) => b.concentration - a.concentration);
-                        }
+
+                    const parallelResult = await res.json();
+
+                    if (!parallelResult.success || parallelResult.failed_simulations > 0) {
+                        throw new Error(`部分风向计算失败: ${parallelResult.errors?.map(e => e.error).join(', ') || '未知错误'}`);
                     }
+
+                    console.log(`✅ 并行计算完成！模式: ${parallelResult.mode}`);
+                    console.log(`   耗时: ${parallelResult.computation_time_seconds}秒`);
+                    console.log(`   加速比: ${parallelResult.speedup_factor}x`);
                     
+                    const dataSize = (JSON.stringify(parallelResult.concentrations).length / 1024 / 1024).toFixed(1);
+                    console.log(`   数据大小: ~${dataSize}MB`);
+
                     const finalResult = {
-                        concentrations: aggregatedConcentrations,
-                        grid_lat: gridLat,
-                        grid_lon: gridLon,
-                        receptor_contributions: aggregatedReceptorContributions,
-                        pollutant_concentrations: aggregatedPollutantConcentrations,
-                        available_pollutants: availablePollutants
+                        concentrations: parallelResult.concentrations,
+                        grid_lat: parallelResult.grid_lat,
+                        grid_lon: parallelResult.grid_lon,
+                        receptor_contributions: parallelResult.receptor_contributions || {},
+                        pollutant_concentrations: parallelResult.pollutant_concentrations || null,
+                        available_pollutants: parallelResult.available_pollutants || []
                     };
-                    
+
                     lastSimulationResult = finalResult;
-                    lastReceptorContributions = aggregatedReceptorContributions;
-                    
+                    lastReceptorContributions = finalResult.receptor_contributions;
+
                     const pollutantSelect = document.getElementById('displayPollutantSelect');
                     pollutantSelect.innerHTML = '';
-                    if (availablePollutants.length > 0) {
-                        availablePollutants.forEach(p => {
+                    if (parallelResult.available_pollutants && parallelResult.available_pollutants.length > 0) {
+                        parallelResult.available_pollutants.forEach(p => {
                             const option = document.createElement('option');
                             option.value = p;
                             option.textContent = p;
                             pollutantSelect.appendChild(option);
                         });
-                        pollutantSelect.value = availablePollutants[0];
+                        pollutantSelect.value = parallelResult.available_pollutants[0];
                     }
-                    
+
                     visualizePlume(finalResult);
                     document.getElementById('resultCard').style.display = 'block';
-                    
-                    if (availablePollutants.length > 0) {
+
+                    alert(`🎉 并行计算完成！\n⏱️ 耗时: ${parallelResult.computation_time_seconds}秒\n⚡ 加速比: ${parallelResult.speedup_factor}x\n✅ 成功: ${parallelResult.successful_simulations}/${parallelResult.total_wind_directions} 个风向\n📦 模式: 后端聚合（节省${dataSize}MB内存）`);
+
+                    if (parallelResult.available_pollutants && parallelResult.available_pollutants.length > 0) {
                         switchDisplayPollutant();
                     }
                 }
@@ -1731,9 +1680,16 @@
             if (imageOverlayLayer) map.removeLayer(imageOverlayLayer);
             
             const {concentrations, grid_lat, grid_lon} = result;
-            const dataMaxConc = Math.max(...concentrations.flat());
             
-            if (dataMaxConc <= 0) {
+            let dataMaxConc = -Infinity;
+            for (let i = 0; i < concentrations.length; i++) {
+                const row = concentrations[i];
+                for (let j = 0; j < row.length; j++) {
+                    if (row[j] > dataMaxConc) dataMaxConc = row[j];
+                }
+            }
+            
+            if (!isFinite(dataMaxConc) || dataMaxConc <= 0) {
                 console.log('No valid concentration data to display');
                 return;
             }
@@ -1749,10 +1705,17 @@
             const scaleType = document.getElementById('colorScaleSelect').value;
             const colors = COLOR_SCALES[scaleType].colors;
             
-            const minLat = Math.min(...grid_lat);
-            const maxLat = Math.max(...grid_lat);
-            const minLon = Math.min(...grid_lon);
-            const maxLon = Math.max(...grid_lon);
+            let minLat = Infinity, maxLat = -Infinity;
+            let minLon = Infinity, maxLon = -Infinity;
+            
+            for (let i = 0; i < grid_lat.length; i++) {
+                if (grid_lat[i] < minLat) minLat = grid_lat[i];
+                if (grid_lat[i] > maxLat) maxLat = grid_lat[i];
+            }
+            for (let j = 0; j < grid_lon.length; j++) {
+                if (grid_lon[j] < minLon) minLon = grid_lon[j];
+                if (grid_lon[j] > maxLon) maxLon = grid_lon[j];
+            }
             
             const gcj02_min = wgs84ToGcj02(minLon, minLat);
             const gcj02_max = wgs84ToGcj02(maxLon, maxLat);

@@ -287,8 +287,8 @@ Lambda × (1 + 0.1 ×
         """
         计算最大扩散距离
         
-        基于边界层高度和稳定度计算最大有效扩散距离
-        使用Turner公式
+        基于边界层高度、稳定度和风速计算最大有效扩散距离
+        使用改进的Turner公式（包含风速修正）
         
         Returns:
             最大扩散距离
@@ -304,7 +304,11 @@ Lambda × (1 + 0.1 ×
         
         factor = stability_factors.get(self.stability_class, 1.0)
         
-        max_distance = factor * self.boundary_layer_height * 10
+        u_factor = np.clip(4 / self.wind_speed, 0.7, 1.5) if self.wind_speed > 0 else 1.0
+        
+        base = self.boundary_layer_height * 10
+        
+        max_distance = factor * u_factor * base
         
         return max_distance
     
@@ -313,12 +317,13 @@ Lambda × (1 + 0.1 ×
         计算扩散参数 σy 和 σz
         
         使用Pasquill-Gifford经验公式
+        使用软限制处理边界层高度影响
         
         Args:
             distance: 下风向距离
         
         Returns:
-            (σy, σz): 横向和垂直扩散参数
+            (σy, σz): 横向和垂直扩散参数（已应用BLH软限制）
         """
         params = self.PASQUILL_GIFFORD_PARAMS[self.stability_class]
         
@@ -328,7 +333,8 @@ Lambda × (1 + 0.1 ×
         sigma_y = max(sigma_y, 1.0)
         sigma_z = max(sigma_z, 1.0)
         
-        sigma_z = min(sigma_z, self.boundary_layer_height * 0.8)
+        if self.boundary_layer_height > 0:
+            sigma_z = sigma_z / np.sqrt(1 + (sigma_z / self.boundary_layer_height)**2)
         
         return sigma_y, sigma_z
     
@@ -442,56 +448,71 @@ Lambda × (1 + 0.1 ×
         receptor_height: float = 0.0,
         pollutant_type: str = 'PM2.5'
     ) -> np.ndarray:
-        """
-        计算网格浓度场
-        
-        Args:
-            source_lat: 源纬度
-            source_lon: 源经度
-            source_height: 源高度
-            emission_rate: 排放速率
-            grid_lat: 网格纬度数组
-            grid_lon: 网格经度数组
-            temperature: 烟气温度 (K)
-            velocity: 烟气出口速度
-            diameter: 烟囱直径
-            receptor_height: 受体高度
-            pollutant_type: 污染物类型 (默认PM2.5)
-        
-        Returns:
-            浓度场 (μg/m³)
-        """
         effective_height = self.calculate_effective_height(
             source_height, emission_rate, temperature, velocity, diameter
         )
-        
+
         wind_angle = np.radians(270 - self.wind_direction)
-        
+
         lat_to_m = 111000
         lon_to_m = 111000 * np.cos(np.radians(source_lat))
-        
-        concentration_field = np.zeros((len(grid_lat), len(grid_lon)))
-        
+
+        lon_grid, lat_grid = np.meshgrid(grid_lon, grid_lat)
+
+        dy_lat = (lat_grid - source_lat) * lat_to_m
+        dx_lon = (lon_grid - source_lon) * lon_to_m
+
+        cos_theta = np.cos(wind_angle)
+        sin_theta = np.sin(wind_angle)
+
+        x_rotated = dx_lon * cos_theta + dy_lat * sin_theta
+        y_rotated = -dx_lon * sin_theta + dy_lat * cos_theta
+
         max_distance = self.calculate_max_diffusion_distance()
+
+        valid_mask = (x_rotated > 0) & (x_rotated <= max_distance)
+
+        concentration_field = np.zeros_like(x_rotated)
+
+        if not valid_mask.any():
+            return concentration_field
+
+        x_valid = x_rotated[valid_mask]
+        y_valid = y_rotated[valid_mask]
+
+        sigma_y_arr = np.zeros_like(x_valid)
+        sigma_z_arr = np.zeros_like(x_valid)
+
+        params = self.PASQUILL_GIFFORD_PARAMS[self.stability_class]
+        sigma_y_arr = params['ay'] * (x_valid ** params['by'])
+        sigma_z_arr = params['az'] * (x_valid ** params['bz'])
+
+        sigma_y_arr = np.maximum(sigma_y_arr, 1.0)
+        sigma_z_arr = np.maximum(sigma_z_arr, 1.0)
+
+        if self.boundary_layer_height > 0:
+            sigma_z_arr = sigma_z_arr / np.sqrt(1 + (sigma_z_arr / self.boundary_layer_height)**2)
+
+        H = effective_height
+        emission_rate_ug = emission_rate * 1e6
+
+        term1 = emission_rate_ug / (2 * np.pi * self.wind_speed * sigma_y_arr * sigma_z_arr)
+        term2 = np.exp(-y_valid**2 / (2 * sigma_y_arr**2))
+        term3 = np.exp(-(receptor_height - H)**2 / (2 * sigma_z_arr**2)) + np.exp(-(receptor_height + H)**2 / (2 * sigma_z_arr**2))
+
+        conc_valid = term1 * term2 * term3
+
+        vd = self.calculate_dry_deposition_velocity(pollutant_type)
+        Lambda = self.calculate_wet_scavenging_coefficient(pollutant_type)
         
-        for i, lat in enumerate(grid_lat):
-            for j, lon in enumerate(grid_lon):
-                dy_lat = (lat - source_lat) * lat_to_m
-                dx_lon = (lon - source_lon) * lon_to_m
-                
-                x_rotated = dx_lon * np.cos(wind_angle) + dy_lat * np.sin(wind_angle)
-                y_rotated = -dx_lon * np.sin(wind_angle) + dy_lat * np.cos(wind_angle)
-                
-                if x_rotated > 0 and x_rotated <= max_distance:
-                    concentration_field[i, j] = self.calculate_concentration(
-                        x=x_rotated,
-                        y=y_rotated,
-                        z=receptor_height,
-                        source_height=source_height,
-                        emission_rate=emission_rate,
-                        effective_height=effective_height
-                    )
+        k_dry = vd / self.boundary_layer_height if self.boundary_layer_height > 0 else 0
+        k_total = k_dry + Lambda
         
+        total_decay = np.exp(-k_total * x_valid / self.wind_speed)
+        conc_valid = conc_valid * total_decay
+
+        concentration_field[valid_mask] = conc_valid
+
         return concentration_field
     
     def calculate_receptor_concentration(
@@ -614,47 +635,70 @@ Lambda × (1 + 0.1 ×
         half_length = area_length / 2
         half_width = area_width / 2
         
-        for i, lat in enumerate(grid_lat):
-            for j, lon in enumerate(grid_lon):
-                dy_lat = (lat - center_lat) * lat_to_m
-                dx_lon = (lon - center_lon) * lon_to_m
-                
-                x_rotated = dx_lon * np.cos(wind_angle) + dy_lat * np.sin(wind_angle)
-                y_rotated = -dx_lon * np.sin(wind_angle) + dy_lat * np.cos(wind_angle)
-                
-                x_eff = x_rotated + x_virtual
-                
-                if x_eff <= 0:
-                    concentration_field[i, j] = 0.0
-                    continue
-                
-                if x_eff > max_distance:
-                    concentration_field[i, j] = 0.0
-                    continue
-                
-                in_source = (abs(dx_lon) <= half_length and abs(dy_lat) <= half_width)
-                
-                sigma_y, sigma_z = self.calculate_sigma(x_eff)
-                sigma_y_eff = np.sqrt(sigma_y**2 + sigma_y0**2)
-                sigma_z_eff = np.sqrt(sigma_z**2 + sigma_z0**2)
-                
-                emission_rate_ug = emission_rate * 1e6
-                
-                H = area_height
-                
-                term1 = emission_rate_ug / (2 * np.pi * self.wind_speed * sigma_y_eff * sigma_z_eff)
-                term2 = np.exp(-y_rotated**2 / (2 * sigma_y_eff**2))
-                term3 = np.exp(-(receptor_height - H)**2 / (2 * sigma_z_eff**2)) + np.exp(-(receptor_height + H)**2 / (2 * sigma_z_eff**2))
-                
-                conc = term1 * term2 * term3
-                
-                total_decay = self.calculate_total_decay(x_eff, pollutant_type)
-                conc = conc * total_decay
-                
-                if is_equivalent and max_concentration is not None and in_source:
-                    conc = min(conc, max_concentration)
-                
-                concentration_field[i, j] = conc
+        lon_grid, lat_grid = np.meshgrid(grid_lon, grid_lat)
+        
+        dy_lat = (lat_grid - center_lat) * lat_to_m
+        dx_lon = (lon_grid - center_lon) * lon_to_m
+        
+        cos_theta = np.cos(wind_angle)
+        sin_theta = np.sin(wind_angle)
+        
+        x_rotated = dx_lon * cos_theta + dy_lat * sin_theta
+        y_rotated = -dx_lon * sin_theta + dy_lat * cos_theta
+        
+        x_eff = x_rotated + x_virtual
+        
+        valid_mask = (x_eff > 0) & (x_eff <= max_distance)
+        in_source_mask = (abs(dx_lon) <= half_length) & (abs(dy_lat) <= half_width)
+        
+        sigma_y_raw = np.zeros_like(x_eff)
+        sigma_z_raw = np.zeros_like(x_eff)
+        
+        params = self.PASQUILL_GIFFORD_PARAMS[self.stability_class]
+        
+        valid_x_eff = np.where(valid_mask, x_eff, 1.0)
+        sigma_y_raw[valid_mask] = params['ay'] * (valid_x_eff[valid_mask] ** params['by'])
+        sigma_z_raw[valid_mask] = params['az'] * (valid_x_eff[valid_mask] ** params['bz'])
+        
+        sigma_y_raw = np.maximum(sigma_y_raw, 1.0)
+        sigma_z_raw = np.maximum(sigma_z_raw, 1.0)
+        
+        if self.boundary_layer_height > 0:
+            sigma_z_raw = sigma_z_raw / np.sqrt(1 + (sigma_z_raw / self.boundary_layer_height)**2)
+        
+        sigma_y_eff_sq = sigma_y_raw**2 + sigma_y0**2
+        sigma_z_eff_sq = sigma_z_raw**2 + sigma_z0**2
+        
+        sigma_y_eff = np.sqrt(sigma_y_eff_sq)
+        plume_mask = abs(y_rotated) < 4 * sigma_y_eff
+        
+        valid_mask = valid_mask & plume_mask
+        
+        inv_2_sigma_y_eff_sq = 1.0 / (2 * sigma_y_eff_sq)
+        inv_2_sigma_z_eff_sq = 1.0 / (2 * sigma_z_eff_sq)
+        
+        emission_rate_ug = emission_rate * 1e6
+        H = area_height
+        
+        term1 = emission_rate_ug / (2 * np.pi * self.wind_speed * np.sqrt(sigma_y_eff_sq) * np.sqrt(sigma_z_eff_sq))
+        term2 = np.exp(-y_rotated**2 * inv_2_sigma_y_eff_sq)
+        term3 = np.exp(-(receptor_height - H)**2 * inv_2_sigma_z_eff_sq) + np.exp(-(receptor_height + H)**2 * inv_2_sigma_z_eff_sq)
+        
+        conc = term1 * term2 * term3
+        
+        total_decay = np.ones_like(conc)
+        if valid_mask.any():
+            total_decay[valid_mask] = [self.calculate_total_decay(x, pollutant_type) for x in x_eff[valid_mask].flatten()]
+            total_decay[valid_mask] = total_decay[valid_mask].reshape(conc[valid_mask].shape)
+        
+        conc = conc * total_decay
+        
+        if is_equivalent and max_concentration is not None:
+            source_limit_mask = valid_mask & in_source_mask
+            conc[source_limit_mask] = np.minimum(conc[source_limit_mask], max_concentration)
+        
+        concentration_field[~valid_mask] = 0.0
+        concentration_field[valid_mask] = conc[valid_mask]
         
         return concentration_field
     
