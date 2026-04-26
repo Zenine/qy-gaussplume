@@ -1,0 +1,6 @@
+@GnnSimulation.Api_HostAddress = http://localhost:5207
+
+GET {{GnnSimulation.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
