@@ -2,6 +2,18 @@
   box-sizing: border-box;
 }
 
+:root {
+  --app-bg: #eef3f4;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f7faf9;
+  --app-border: #dbe6ec;
+  --app-text: #102a43;
+  --app-muted: #64748b;
+  --app-primary: #0f9f8f;
+  --app-primary-strong: #0b756d;
+  --app-amber: #b7791f;
+}
+
 html,
 body,
 #app {
@@ -19,6 +31,109 @@ body {
     'Hiragino Sans GB',
     'Microsoft YaHei',
     sans-serif;
-  color: #1f2937;
-  background: #f5f7fa;
+  color: var(--app-text);
+  background:
+    linear-gradient(180deg, rgba(15, 159, 143, 0.06), rgba(255, 255, 255, 0) 260px),
+    var(--app-bg);
+  letter-spacing: 0;
+}
+
+#app {
+  min-width: 320px;
+}
+
+.el-main {
+  padding: 16px;
+  background: transparent;
+}
+
+.el-button {
+  border-radius: 7px;
+  font-weight: 600;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--app-primary);
+  --el-button-border-color: var(--app-primary);
+  --el-button-hover-bg-color: var(--app-primary-strong);
+  --el-button-hover-border-color: var(--app-primary-strong);
+}
+
+.el-input__wrapper,
+.el-select__wrapper {
+  border-radius: 7px;
+}
+
+.table-page {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.page-toolbar {
+  margin-bottom: 0 !important;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(15, 46, 60, 0.05);
+}
+
+.page-toolbar > span:not(.spacer) {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.table-shell {
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 30px rgba(15, 46, 60, 0.07);
+}
+
+.table-shell .el-table {
+  --el-table-border-color: #e2ebef;
+  --el-table-header-bg-color: #f3f8f7;
+  --el-table-header-text-color: #2f4858;
+  --el-table-row-hover-bg-color: #f5fbf9;
+  border-radius: 8px;
+}
+
+.table-shell .el-table th.el-table__cell {
+  font-weight: 700;
+}
+
+.table-shell .el-table .cell {
+  line-height: 1.35;
+}
+
+.table-shell .el-table td.el-table__cell {
+  vertical-align: middle;
+}
+
+.table-shell .el-table--border::after,
+.table-shell .el-table--border::before {
+  display: none;
+}
+
+.el-dialog {
+  border-radius: 8px;
+}
+
+.el-tag {
+  border-radius: 6px;
+}
+
+@media (max-width: 760px) {
+  .el-main {
+    padding: 12px;
+  }
+
+  .page-toolbar {
+    align-items: flex-start !important;
+  }
 }

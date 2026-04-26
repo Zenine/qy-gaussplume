@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
+import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { receptorsApi } from '@/api'
 import type { Receptor, ReceptorCreate } from '@/types'
 import { downloadBlob } from '@/utils/download'
@@ -137,58 +138,60 @@ onMounted(refresh)
 </script>
 
 <template>
-  <div>
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">新增受体点</el-button>
-      <el-button @click="downloadTemplate">下载模板</el-button>
+  <div class="table-page receptors-page">
+    <div class="toolbar page-toolbar">
+      <el-button type="primary" :icon="Plus" @click="openCreate">新增受体点</el-button>
+      <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
       <el-upload
         :auto-upload="true"
         :show-file-list="false"
         accept=".xlsx,.xls"
         :before-upload="importFile"
       >
-        <el-button>导入 Excel</el-button>
+        <el-button :icon="Upload">导入 Excel</el-button>
       </el-upload>
-      <el-button :disabled="selected.length === 0" @click="exportSelected">
+      <el-button :icon="Download" :disabled="selected.length === 0" @click="exportSelected">
         导出已选 ({{ selected.length }})
       </el-button>
       <span class="spacer" />
-      <el-button link @click="refresh">刷新</el-button>
+      <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 
-    <el-table
-      v-loading="loading"
-      :data="items"
-      stripe
-      border
-      row-key="id"
-      @selection-change="(v: Receptor[]) => (selected = v)"
-    >
-      <el-table-column type="selection" width="46" />
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="名称" min-width="140" />
-      <el-table-column prop="latitude" label="纬度" width="120" />
-      <el-table-column prop="longitude" label="经度" width="120" />
-      <el-table-column prop="height" label="高度 (m)" width="100" />
-      <el-table-column label="标记" width="120">
-        <template #default="{ row }">
-          <el-tag :color="row.markerColor" effect="dark">{{ row.markerSymbol }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="isActive" label="启用" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.isActive ? 'success' : 'info'">
-            {{ row.isActive ? '是' : '否' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" link @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" link type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-shell">
+      <el-table
+        v-loading="loading"
+        :data="items"
+        stripe
+        border
+        row-key="id"
+        @selection-change="(v: Receptor[]) => (selected = v)"
+      >
+        <el-table-column type="selection" width="46" />
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="名称" min-width="140" />
+        <el-table-column prop="latitude" label="纬度" width="150" show-overflow-tooltip />
+        <el-table-column prop="longitude" label="经度" width="150" show-overflow-tooltip />
+        <el-table-column prop="height" label="高度 (m)" width="100" />
+        <el-table-column label="标记" width="120">
+          <template #default="{ row }">
+            <el-tag :color="row.markerColor" effect="dark">{{ row.markerSymbol }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="isActive" label="启用" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.isActive ? 'success' : 'info'">
+              {{ row.isActive ? '是' : '否' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" link :icon="Edit" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" link type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"

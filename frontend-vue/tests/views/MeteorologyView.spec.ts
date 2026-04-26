@@ -40,6 +40,15 @@ afterEach(() => {
 })
 
 describe('MeteorologyView', () => {
+  it('使用统一的数据管理页面骨架', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.table-page.meteorology-page').exists()).toBe(true)
+    expect(wrapper.find('.page-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.table-shell').exists()).toBe(true)
+  })
+
   it('挂载后渲染气象场', async () => {
     const wrapper = mountView()
     await flushPromises()

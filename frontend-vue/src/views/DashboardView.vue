@@ -1,6 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
+import {
+  ArrowDown,
+  Compass,
+  Grid,
+  Histogram,
+  Location,
+  MagicStick,
+  OfficeBuilding,
+  RefreshLeft,
+  SetUp,
+  VideoPlay,
+  WindPower,
+} from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import {
   meteorologyApi,
@@ -150,10 +163,29 @@ onMounted(loadAll)
 <template>
   <div class="dashboard">
     <el-card shadow="never" class="control-panel">
-      <div class="ctrl-row">
+      <div class="metric-strip" aria-label="数据状态">
+        <div class="metric-card">
+          <el-icon><OfficeBuilding /></el-icon>
+          <span class="metric-copy">排放源 {{ sources.length }}</span>
+        </div>
+        <div class="metric-card">
+          <el-icon><Location /></el-icon>
+          <span class="metric-copy">受体点 {{ receptors.length }}</span>
+        </div>
+        <div class="metric-card">
+          <el-icon><WindPower /></el-icon>
+          <span class="metric-copy">气象场 {{ meteorologies.length }}</span>
+        </div>
+        <div class="metric-card metric-card-wide">
+          <el-icon><Grid /></el-icon>
+          <span class="metric-copy">网格 {{ gridResolution }}m / {{ Math.round(domainSize / 1000) }}km</span>
+        </div>
+      </div>
+
+      <div class="ctrl-row main-controls">
         <div class="ctrl-group">
           <label>气象场</label>
-          <el-select v-model="selectedMeteorologyId" size="small" style="width: 200px">
+          <el-select v-model="selectedMeteorologyId" size="small" class="select-meteorology">
             <el-option
               v-for="m in meteorologies"
               :key="m.id"
@@ -186,27 +218,33 @@ onMounted(loadAll)
           <el-input-number v-model="domainSize" size="small" :min="1000" :max="50000" :step="1000" />
         </div>
 
-        <el-button
-          type="primary"
-          :loading="running"
-          :disabled="running || !selectedMeteorologyId"
-          @click="runSimulation"
-        >
-          ▶ 运行模拟
-        </el-button>
+        <div class="simulation-actions">
+          <el-button
+            type="primary"
+            :icon="VideoPlay"
+            :loading="running"
+            :disabled="running || !selectedMeteorologyId"
+            @click="runSimulation"
+          >
+            运行模拟
+          </el-button>
 
-        <el-button :disabled="!selectedMeteorologyId" @click="showParallel = true">
-          多风向并行
-        </el-button>
+          <el-button :icon="Compass" :disabled="!selectedMeteorologyId" @click="showParallel = true">
+            多风向并行
+          </el-button>
 
-        <el-button :disabled="!result" @click="showContribution = true">
-          受体贡献
-        </el-button>
+          <el-button :icon="Histogram" :disabled="!result" @click="showContribution = true">
+            受体贡献
+          </el-button>
+        </div>
 
         <span class="spacer" />
 
         <el-dropdown trigger="click" @command="applyPreset">
-          <el-button size="small" plain>预设 ▾</el-button>
+          <el-button size="small" plain :icon="MagicStick">
+            预设
+            <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
+          </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item :command="{ gridResolution: 100, domainSize: 5000 }">
@@ -277,6 +315,7 @@ onMounted(loadAll)
           <el-button
             size="small"
             link
+            :icon="RefreshLeft"
             @click="
               customMin = null;
               customMax = null
@@ -290,7 +329,7 @@ onMounted(loadAll)
 
         <el-popconfirm title="恢复默认会清除所有可视化偏好" @confirm="prefs.reset()">
           <template #reference>
-            <el-button size="small" link>恢复默认</el-button>
+            <el-button size="small" link :icon="SetUp">恢复默认</el-button>
           </template>
         </el-popconfirm>
       </div>
@@ -336,32 +375,87 @@ onMounted(loadAll)
 .dashboard {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
-  gap: 12px;
+  height: calc(100vh - 96px);
+  gap: 14px;
 }
 .control-panel {
   flex-shrink: 0;
+  border: 1px solid #dbe6ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 26px rgba(15, 46, 60, 0.06);
+}
+.control-panel :deep(.el-card__body) {
+  padding: 14px;
+}
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(132px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.metric-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #e0ece9;
+  border-radius: 8px;
+  color: #3b5561;
+  background: linear-gradient(180deg, #f8fcfb, #f2f7f4);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.metric-card .el-icon {
+  color: #0f9f8f;
+}
+.metric-copy {
+  color: #102a43;
+  font-weight: 800;
+}
+.metric-card-wide {
+  background: linear-gradient(180deg, #fffaf0, #f7fbf8);
 }
 .ctrl-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 .ctrl-row + .ctrl-row {
-  border-top: 1px dashed #e5e7eb;
-  margin-top: 8px;
+  border-top: 1px solid #e5edf0;
+  margin-top: 10px;
   padding-top: 12px;
+}
+.main-controls {
+  align-items: flex-end;
 }
 .ctrl-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .ctrl-group label {
   font-size: 13px;
-  color: #6b7280;
+  color: #5f7180;
+  font-weight: 600;
+}
+.select-meteorology {
+  width: 220px;
+}
+.simulation-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.simulation-actions .el-button + .el-button {
+  margin-left: 0;
+}
+.dropdown-icon {
+  margin-left: 4px;
 }
 .spacer {
   flex: 1;
@@ -369,15 +463,37 @@ onMounted(loadAll)
 .map-wrapper {
   flex: 1;
   min-height: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border: 1px solid #cfdde4;
+  border-radius: 8px;
   overflow: hidden;
   position: relative;
+  background: #eef3f4;
+  box-shadow: 0 10px 30px rgba(18, 47, 61, 0.08);
 }
 .legend-overlay {
   position: absolute;
   right: 12px;
   bottom: 12px;
   z-index: 1000;
+}
+
+@media (max-width: 980px) {
+  .dashboard {
+    height: auto;
+    min-height: calc(100vh - 96px);
+  }
+  .metric-strip {
+    grid-template-columns: repeat(2, minmax(132px, 1fr));
+  }
+  .select-meteorology {
+    width: 100%;
+  }
+  .ctrl-group {
+    flex: 1 1 190px;
+  }
+  .map-wrapper {
+    height: 520px;
+    flex: 0 0 520px;
+  }
 }
 </style>

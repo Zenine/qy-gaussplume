@@ -105,6 +105,15 @@ afterEach(() => {
 })
 
 describe('SourcesView', () => {
+  it('使用统一的数据管理页面骨架', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.table-page.sources-page').exists()).toBe(true)
+    expect(wrapper.find('.page-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.table-shell').exists()).toBe(true)
+  })
+
   it('渲染全部排放源_含污染物标签', async () => {
     const wrapper = mountView()
     await flushPromises()

@@ -32,7 +32,7 @@ dotnet test --nologo
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（55 用例，~7s）
+# 前端（60 用例，~7s）
 cd frontend-vue
 npm test
 
@@ -137,7 +137,7 @@ cd backend-dotnet && dotnet test --nologo | tail -3
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 13 passed, Tests 55 passed
+# 预期：Test Files 15 passed, Tests 60 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

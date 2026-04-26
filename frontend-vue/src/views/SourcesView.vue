@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
+import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { sourcesApi } from '@/api'
 import type {
   EmissionSource,
@@ -228,9 +229,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">新增排放源</el-button>
+  <div class="table-page sources-page">
+    <div class="toolbar page-toolbar">
+      <el-button type="primary" :icon="Plus" @click="openCreate">新增排放源</el-button>
       <el-divider direction="vertical" />
       <span>类型：</span>
       <el-select v-model="importType" style="width: 120px">
@@ -241,14 +242,14 @@ onMounted(() => {
           :label="t.label"
         />
       </el-select>
-      <el-button @click="downloadTemplate">下载模板</el-button>
+      <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
       <el-upload
         :auto-upload="true"
         :show-file-list="false"
         accept=".xlsx,.xls"
         :before-upload="importFile"
       >
-        <el-button>导入 Excel</el-button>
+        <el-button :icon="Upload">导入 Excel</el-button>
       </el-upload>
       <span class="spacer" />
       <span>过滤：</span>
@@ -260,49 +261,51 @@ onMounted(() => {
           :label="t.label"
         />
       </el-select>
-      <el-button link @click="refresh">刷新</el-button>
+      <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="filteredItems()" stripe border row-key="id">
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="名称" min-width="140" />
-      <el-table-column label="类型" width="90">
-        <template #default="{ row }">
-          <el-tag size="small">{{ labelOf(row.sourceType) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="latitude" label="纬度" width="110" />
-      <el-table-column prop="longitude" label="经度" width="110" />
-      <el-table-column label="高度 (m)" width="100">
-        <template #default="{ row }">{{ row.height }}</template>
-      </el-table-column>
-      <el-table-column label="污染物" min-width="160">
-        <template #default="{ row }">
-          <el-tag
-            v-for="p in row.pollutants"
-            :key="p.id"
-            size="small"
-            style="margin-right: 4px"
-          >
-            {{ p.pollutantType }}: {{ p.emissionRate }}
-          </el-tag>
-          <span v-if="row.pollutants.length === 0" class="muted">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="启用" width="70">
-        <template #default="{ row }">
-          <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-            {{ row.isActive ? '是' : '否' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" link @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" link type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-shell">
+      <el-table v-loading="loading" :data="filteredItems()" stripe border row-key="id">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="名称" min-width="140" />
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-tag size="small">{{ labelOf(row.sourceType) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="latitude" label="纬度" width="132" show-overflow-tooltip />
+        <el-table-column prop="longitude" label="经度" width="132" show-overflow-tooltip />
+        <el-table-column label="高度 (m)" width="100">
+          <template #default="{ row }">{{ row.height }}</template>
+        </el-table-column>
+        <el-table-column label="污染物" min-width="160">
+          <template #default="{ row }">
+            <el-tag
+              v-for="p in row.pollutants"
+              :key="p.id"
+              size="small"
+              style="margin-right: 4px"
+            >
+              {{ p.pollutantType }}: {{ p.emissionRate }}
+            </el-tag>
+            <span v-if="row.pollutants.length === 0" class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="启用" width="70">
+          <template #default="{ row }">
+            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
+              {{ row.isActive ? '是' : '否' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" link :icon="Edit" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" link type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"

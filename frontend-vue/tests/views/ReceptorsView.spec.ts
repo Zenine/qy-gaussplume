@@ -49,6 +49,15 @@ afterEach(() => {
 })
 
 describe('ReceptorsView', () => {
+  it('使用统一的数据管理页面骨架', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.table-page.receptors-page').exists()).toBe(true)
+    expect(wrapper.find('.page-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.table-shell').exists()).toBe(true)
+  })
+
   it('挂载后加载并渲染受体列表', async () => {
     const wrapper = mountView()
     await flushPromises()

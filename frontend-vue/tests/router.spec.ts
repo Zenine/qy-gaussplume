@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 import router from '@/router'
 
 describe('router', () => {
-  it('/ 重定向到 /dashboard', async () => {
-    await router.push('/')
-    await router.isReady()
-    expect(router.currentRoute.value.path).toBe('/dashboard')
+  it('/ 重定向到 /dashboard', () => {
+    const root = router.getRoutes().find((r) => r.path === '/')
+    expect(root?.redirect).toBe('/dashboard')
   })
 
   it('所有主要路由都存在', () => {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { meteorologyApi } from '@/api'
 import type { Meteorology, MeteorologyCreate } from '@/types'
 import { errorMessage } from '@/utils/error'
@@ -115,39 +116,41 @@ onMounted(refresh)
 </script>
 
 <template>
-  <div>
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">新增气象场</el-button>
+  <div class="table-page meteorology-page">
+    <div class="toolbar page-toolbar">
+      <el-button type="primary" :icon="Plus" @click="openCreate">新增气象场</el-button>
       <span class="spacer" />
-      <el-button link @click="refresh">刷新</el-button>
+      <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="items" stripe border row-key="id">
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="名称" min-width="120" />
-      <el-table-column label="风速" width="100">
-        <template #default="{ row }">{{ row.windSpeed }} m/s</template>
-      </el-table-column>
-      <el-table-column label="风向" width="100">
-        <template #default="{ row }">{{ row.windDirection }}°</template>
-      </el-table-column>
-      <el-table-column prop="stabilityClass" label="稳定度" width="80" />
-      <el-table-column label="边界层高度" width="120">
-        <template #default="{ row }">{{ row.boundaryLayerHeight }} m</template>
-      </el-table-column>
-      <el-table-column label="温度 (K)" width="100">
-        <template #default="{ row }">{{ row.temperature }}</template>
-      </el-table-column>
-      <el-table-column label="湿度 (%)" width="100">
-        <template #default="{ row }">{{ row.humidity }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" link @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" link type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-shell">
+      <el-table v-loading="loading" :data="items" stripe border row-key="id">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="名称" min-width="120" />
+        <el-table-column label="风速" width="100">
+          <template #default="{ row }">{{ row.windSpeed }} m/s</template>
+        </el-table-column>
+        <el-table-column label="风向" width="100">
+          <template #default="{ row }">{{ row.windDirection }}°</template>
+        </el-table-column>
+        <el-table-column prop="stabilityClass" label="稳定度" width="80" />
+        <el-table-column label="边界层高度" width="120">
+          <template #default="{ row }">{{ row.boundaryLayerHeight }} m</template>
+        </el-table-column>
+        <el-table-column label="温度 (K)" width="100">
+          <template #default="{ row }">{{ row.temperature }}</template>
+        </el-table-column>
+        <el-table-column label="湿度 (%)" width="100">
+          <template #default="{ row }">{{ row.humidity }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" link :icon="Edit" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" link type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"
