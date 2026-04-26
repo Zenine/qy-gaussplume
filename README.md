@@ -4,15 +4,6 @@
 
 本项目用于清华长三角研究院等团队开展大气污染扩散、受体贡献分析和工程方案快速评估。当前运行实现已从原 Python / FastAPI 版本迁移为 **ASP.NET Core 9 + Vue 3**。
 
-## 项目信息
-
-| 项 | 内容 |
-|---|---|
-| 开源项目名 | QY-GaussPlume |
-| 中文名 | 清源高斯烟羽扩散模拟平台 |
-| 仓库建议名 | `qy-gaussplume` |
-| 许可证 | MIT |
-| 主要维护者 | Zenine Xu <zeninexu@gmail.com> |
 
 ## 功能概览
 

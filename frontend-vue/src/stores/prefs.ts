@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import type { ColorScale } from '@/utils/colorScale'
 
 // 持久化到 localStorage 的用户偏好（每次修改即同步）。
@@ -44,6 +44,7 @@ function loadInitial(): PersistedPrefs {
 
 export const usePrefsStore = defineStore('prefs', () => {
   const initial = loadInitial()
+  let persistEnabled = true
   const scale = ref<ColorScale>(initial.scale)
   const opacity = ref(initial.opacity)
   const renderScale = ref(initial.renderScale)
@@ -70,6 +71,7 @@ export const usePrefsStore = defineStore('prefs', () => {
       useLogScale,
     ],
     () => {
+      if (!persistEnabled) return
       try {
         const payload: PersistedPrefs = {
           scale: scale.value,
@@ -92,8 +94,7 @@ export const usePrefsStore = defineStore('prefs', () => {
   )
 
   function reset() {
-    const d = loadInitial.call(null)
-    // 强制读默认（忽略已存储的值）
+    persistEnabled = false
     localStorage.removeItem(STORAGE_KEY)
     const def = loadInitial()
     scale.value = def.scale
@@ -106,7 +107,9 @@ export const usePrefsStore = defineStore('prefs', () => {
     customMin.value = def.customMin
     customMax.value = def.customMax
     useLogScale.value = def.useLogScale
-    return d
+    void nextTick(() => {
+      persistEnabled = true
+    })
   }
 
   return {

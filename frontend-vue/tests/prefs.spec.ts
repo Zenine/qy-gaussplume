@@ -45,8 +45,18 @@ describe('usePrefsStore', () => {
     const p = usePrefsStore()
     p.scale = 'turbo'
     await nextTick()
+    expect(localStorage.getItem(PREFS_STORAGE_KEY)).not.toBeNull()
+
     p.reset()
+    await nextTick()
+
     expect(p.scale).toBe('jet')
+    expect(localStorage.getItem(PREFS_STORAGE_KEY)).toBeNull()
+
+    p.scale = 'viridis'
+    await nextTick()
+    const stored = JSON.parse(localStorage.getItem(PREFS_STORAGE_KEY)!)
+    expect(stored.scale).toBe('viridis')
   })
 
   it('含未知字段的旧存储不破坏加载', () => {
