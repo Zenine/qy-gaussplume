@@ -6,7 +6,7 @@
 
 ---
 
-## [Unreleased]
+## [3.0.2] - 2026-05-19
 
 ### 新增
 - 主控台恢复地图悬浮式操作区：图层/风场/污染物工具条、左下模拟范围与网格分辨率、右侧绘制区域、气象控制、数据统计、模拟结果和受体点贡献分析卡片。
@@ -38,7 +38,7 @@
 
 ## [3.0.0] - 2026-04-20
 
-### 🚀 技术栈完全重写：Python → .NET + Vue
+### 🚀 技术栈完全重写：.NET + Vue
 
 从 FastAPI + 原生 HTML 迁移到 ASP.NET Core 9 + Vue 3，共 10 个阶段增量交付。
 
@@ -65,12 +65,12 @@
 
 #### 修复
 - **EF Core `HasDefaultValue` 陷阱**：CLR 值匹配默认会跳过 INSERT；全部清理改用 C# 属性初始化器
-- **老 Python DB 的 `is_active = NULL`**：`Program.cs` 启动时自愈 UPDATE
+- **历史数据库的 `is_active = NULL`**：`Program.cs` 启动时自愈 UPDATE
 - **Shapefile LinearRing 浮点漂移**：`CreateClosedRing` 强制首末点一致
 - **jsdom 无 Canvas 2D context**：测试用最小 stub 覆盖
 
 #### 性能
-- .NET 黄金值与 Python 原版按 **1e-9 绝对误差对齐**（72 个场景全覆盖）
+- .NET 黄金值与参考数据按 **1e-9 绝对误差对齐**（72 个场景全覆盖）
 - 多风向并行聚合：**逐格点 1e-9 精度** vs 算术平均期望值
 
 ### 代码规模
