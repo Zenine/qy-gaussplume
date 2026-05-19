@@ -1,0 +1,618 @@
+{
+  "sigma": [
+    {
+      "stability": "A",
+      "distance": 100.0,
+      "sigma_y": 28.30157566871232,
+      "sigma_z": 17.664049244119173
+    },
+    {
+      "stability": "A",
+      "distance": 500.0,
+      "sigma_y": 113.8727133121002,
+      "sigma_z": 74.99053359025416
+    },
+    {
+      "stability": "A",
+      "distance": 1000.0,
+      "sigma_y": 207.40088976519473,
+      "sigma_z": 138.9707086087156
+    },
+    {
+      "stability": "A",
+      "distance": 5000.0,
+      "sigma_y": 834.487179702001,
+      "sigma_z": 512.8238598026999
+    },
+    {
+      "stability": "B",
+      "distance": 100.0,
+      "sigma_y": 20.015844095311234,
+      "sigma_z": 11.526540582470185
+    },
+    {
+      "stability": "B",
+      "distance": 500.0,
+      "sigma_y": 80.66440475425358,
+      "sigma_z": 45.228032317693135
+    },
+    {
+      "stability": "B",
+      "distance": 1000.0,
+      "sigma_y": 147.01915070876802,
+      "sigma_z": 81.3366893545902
+    },
+    {
+      "stability": "B",
+      "distance": 5000.0,
+      "sigma_y": 592.4912395863796,
+      "sigma_z": 305.22310109645883
+    },
+    {
+      "stability": "C",
+      "distance": 100.0,
+      "sigma_y": 13.006075960035433,
+      "sigma_z": 8.758021849811625
+    },
+    {
+      "stability": "C",
+      "distance": 500.0,
+      "sigma_y": 55.096293057779846,
+      "sigma_z": 31.72342303243628
+    },
+    {
+      "stability": "C",
+      "distance": 1000.0,
+      "sigma_y": 102.59974611589405,
+      "sigma_z": 55.1773145503318
+    },
+    {
+      "stability": "C",
+      "distance": 5000.0,
+      "sigma_y": 434.63268221906554,
+      "sigma_z": 196.36320612541232
+    },
+    {
+      "stability": "D",
+      "distance": 100.0,
+      "sigma_y": 8.264374131643592,
+      "sigma_z": 6.622477203207026
+    },
+    {
+      "stability": "D",
+      "distance": 500.0,
+      "sigma_y": 35.46319201752974,
+      "sigma_z": 22.49765555097427
+    },
+    {
+      "stability": "D",
+      "distance": 1000.0,
+      "sigma_y": 66.40640498290703,
+      "sigma_z": 38.08157122663123
+    },
+    {
+      "stability": "D",
+      "distance": 5000.0,
+      "sigma_y": 284.9560116216961,
+      "sigma_z": 128.42103208646185
+    },
+    {
+      "stability": "E",
+      "distance": 100.0,
+      "sigma_y": 6.240596104897576,
+      "sigma_z": 4.326006774952573
+    },
+    {
+      "stability": "E",
+      "distance": 500.0,
+      "sigma_y": 26.64998811019572,
+      "sigma_z": 14.005440218411543
+    },
+    {
+      "stability": "E",
+      "distance": 1000.0,
+      "sigma_y": 49.79962537093494,
+      "sigma_z": 23.225982163531512
+    },
+    {
+      "stability": "E",
+      "distance": 5000.0,
+      "sigma_y": 212.6654892769093,
+      "sigma_z": 75.00913572652114
+    },
+    {
+      "stability": "F",
+      "distance": 100.0,
+      "sigma_y": 4.1391708859014535,
+      "sigma_z": 2.625304901595575
+    },
+    {
+      "stability": "F",
+      "distance": 500.0,
+      "sigma_y": 17.67601252206859,
+      "sigma_z": 7.717528024935098
+    },
+    {
+      "stability": "F",
+      "distance": 1000.0,
+      "sigma_y": 33.03036376643644,
+      "sigma_z": 12.27859021937396
+    },
+    {
+      "stability": "F",
+      "distance": 5000.0,
+      "sigma_y": 141.05364084692965,
+      "sigma_z": 36.07516828001722
+    }
+  ],
+  "dry_deposition": [
+    {
+      "pollutant": "PM2.5",
+      "vd": 0.0038714522947837114
+    },
+    {
+      "pollutant": "PM10",
+      "vd": 0.027072727322814884
+    },
+    {
+      "pollutant": "TSP",
+      "vd": 0.06488764054201904
+    },
+    {
+      "pollutant": "VOCs",
+      "vd": 0.0010986267177472181
+    },
+    {
+      "pollutant": "NOx",
+      "vd": 0.0016890595036613213
+    },
+    {
+      "pollutant": "O3",
+      "vd": 0.0014642262915477331
+    },
+    {
+      "pollutant": "PM2.5",
+      "stability": "A",
+      "wind_speed": 2.0,
+      "humidity": 30,
+      "vd": 0.003737987535150684
+    },
+    {
+      "pollutant": "PM2.5",
+      "stability": "F",
+      "wind_speed": 5.0,
+      "humidity": 80,
+      "vd": 0.004079429528642026
+    }
+  ],
+  "wet_scavenging": [
+    {
+      "pollutant": "PM2.5",
+      "precipitation": 0.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.3000000000000001e-05
+    },
+    {
+      "pollutant": "PM2.5",
+      "precipitation": 1.0,
+      "cloud_cover": 3.0,
+      "lambda_": 2.6000000000000002e-05
+    },
+    {
+      "pollutant": "PM2.5",
+      "precipitation": 5.0,
+      "cloud_cover": 3.0,
+      "lambda_": 6.011067813905022e-05
+    },
+    {
+      "pollutant": "NOx",
+      "precipitation": 0.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.3000000000000001e-05
+    },
+    {
+      "pollutant": "NOx",
+      "precipitation": 1.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.9500000000000003e-05
+    },
+    {
+      "pollutant": "NOx",
+      "precipitation": 5.0,
+      "cloud_cover": 3.0,
+      "lambda_": 3.305360053840031e-05
+    },
+    {
+      "pollutant": "VOCs",
+      "precipitation": 0.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.3000000000000001e-05
+    },
+    {
+      "pollutant": "VOCs",
+      "precipitation": 1.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.4300000000000002e-05
+    },
+    {
+      "pollutant": "VOCs",
+      "precipitation": 5.0,
+      "cloud_cover": 3.0,
+      "lambda_": 1.7010720107680064e-05
+    }
+  ],
+  "decay": [
+    {
+      "distance": 100.0,
+      "deposition": 0.9995377251388047,
+      "chemical": 0.9994770276326924,
+      "total": 0.9990149945284756
+    },
+    {
+      "distance": 1000.0,
+      "deposition": 0.9953868559552916,
+      "chemical": 0.9947825666830268,
+      "total": 0.9901934914097533
+    },
+    {
+      "distance": 5000.0,
+      "deposition": 0.9771461112908626,
+      "chemical": 0.9741836329511472,
+      "total": 0.9519197486214185
+    }
+  ],
+  "effective_height": [
+    {
+      "stack_height": 50,
+      "emission_rate": 1.0,
+      "stack_temp": 400,
+      "velocity": 15,
+      "diameter": 2,
+      "effective": 80.0
+    },
+    {
+      "stack_height": 80,
+      "emission_rate": 2.0,
+      "stack_temp": 450,
+      "velocity": 20,
+      "diameter": 3,
+      "effective": 141.20930304784625
+    },
+    {
+      "stack_height": 30,
+      "emission_rate": 0.5,
+      "stack_temp": 350,
+      "velocity": 10,
+      "diameter": 1.5,
+      "effective": 45.0
+    }
+  ],
+  "max_distance": [
+    {
+      "stability": "A",
+      "max_distance": 20000.0
+    },
+    {
+      "stability": "B",
+      "max_distance": 17333.333333333332
+    },
+    {
+      "stability": "C",
+      "max_distance": 14666.666666666668
+    },
+    {
+      "stability": "D",
+      "max_distance": 13333.333333333332
+    },
+    {
+      "stability": "E",
+      "max_distance": 10666.666666666666
+    },
+    {
+      "stability": "F",
+      "max_distance": 7999.999999999999
+    }
+  ],
+  "point_concentration": [
+    {
+      "x": 500,
+      "y": 0,
+      "z": 0,
+      "h": 50,
+      "Q": 1.0,
+      "concentration": 11.197427553894636
+    },
+    {
+      "x": 1000,
+      "y": 100,
+      "z": 10,
+      "h": 50,
+      "Q": 1.0,
+      "concentration": 5.78243134039664
+    },
+    {
+      "x": 2000,
+      "y": -50,
+      "z": 5,
+      "h": 80,
+      "Q": 2.0,
+      "concentration": 11.096668574463221
+    },
+    {
+      "x": 100,
+      "y": 0,
+      "z": 0,
+      "h": 30,
+      "Q": 0.5,
+      "concentration": 0.033879006494828466
+    }
+  ],
+  "receptor_concentration": [
+    {
+      "label": "north-wind",
+      "src_lat": 39.9,
+      "src_lon": 116.4,
+      "src_h": 50,
+      "Q": 1.0,
+      "rec_lat": 39.89,
+      "rec_lon": 116.4,
+      "rec_h": 1.5,
+      "wind_direction": 0.0,
+      "stack_temperature": 400.0,
+      "velocity": 15.0,
+      "diameter": 2.0,
+      "concentration": 5.314942135177775
+    },
+    {
+      "label": "far-downwind",
+      "src_lat": 39.9,
+      "src_lon": 116.4,
+      "src_h": 50,
+      "Q": 1.0,
+      "rec_lat": 39.85,
+      "rec_lon": 116.4,
+      "rec_h": 1.5,
+      "wind_direction": 0.0,
+      "stack_temperature": 400.0,
+      "velocity": 15.0,
+      "diameter": 2.0,
+      "concentration": 1.9569759000859697
+    },
+    {
+      "label": "west-wind",
+      "src_lat": 39.9,
+      "src_lon": 116.4,
+      "src_h": 50,
+      "Q": 1.0,
+      "rec_lat": 39.9,
+      "rec_lon": 116.45,
+      "rec_h": 1.5,
+      "wind_direction": 270.0,
+      "stack_temperature": 400.0,
+      "velocity": 15.0,
+      "diameter": 2.0,
+      "concentration": 2.833316361971372
+    }
+  ],
+  "concentration_field_samples": {
+    "grid_lat": [
+      39.85,
+      39.86,
+      39.870000000000005,
+      39.88,
+      39.89,
+      39.900000000000006,
+      39.910000000000004,
+      39.92,
+      39.93,
+      39.940000000000005,
+      39.95
+    ],
+    "grid_lon": [
+      116.35,
+      116.36,
+      116.36999999999999,
+      116.38,
+      116.39,
+      116.4,
+      116.41,
+      116.42,
+      116.43,
+      116.44,
+      116.45
+    ],
+    "samples": [
+      {
+        "i": 0,
+        "j": 5,
+        "lat": 39.85,
+        "lon": 116.4,
+        "concentration": 2.014703264631413
+      },
+      {
+        "i": 3,
+        "j": 5,
+        "lat": 39.88,
+        "lon": 116.4,
+        "concentration": 5.705595117602534
+      },
+      {
+        "i": 5,
+        "j": 5,
+        "lat": 39.900000000000006,
+        "lon": 116.4,
+        "concentration": 0.0
+      },
+      {
+        "i": 7,
+        "j": 5,
+        "lat": 39.92,
+        "lon": 116.4,
+        "concentration": 0.0
+      },
+      {
+        "i": 10,
+        "j": 5,
+        "lat": 39.95,
+        "lon": 116.4,
+        "concentration": 0.0
+      },
+      {
+        "i": 5,
+        "j": 0,
+        "lat": 39.900000000000006,
+        "lon": 116.35,
+        "concentration": 0.0
+      },
+      {
+        "i": 5,
+        "j": 10,
+        "lat": 39.900000000000006,
+        "lon": 116.45,
+        "concentration": 0.0
+      }
+    ]
+  },
+  "area_source_field_samples": {
+    "area": {
+      "center_lat": 39.9,
+      "center_lon": 116.4,
+      "length": 200,
+      "width": 100,
+      "height": 10,
+      "Q": 2.0
+    },
+    "grid_lat": [
+      39.85,
+      39.86,
+      39.870000000000005,
+      39.88,
+      39.89,
+      39.900000000000006,
+      39.910000000000004,
+      39.92,
+      39.93,
+      39.940000000000005,
+      39.95
+    ],
+    "grid_lon": [
+      116.35,
+      116.36,
+      116.36999999999999,
+      116.38,
+      116.39,
+      116.4,
+      116.41,
+      116.42,
+      116.43,
+      116.44,
+      116.45
+    ],
+    "samples": [
+      {
+        "i": 0,
+        "j": 5,
+        "concentration": 4.184721947541408
+      },
+      {
+        "i": 3,
+        "j": 5,
+        "concentration": 17.07605147153631
+      },
+      {
+        "i": 5,
+        "j": 5,
+        "concentration": 324.95433713566024
+      },
+      {
+        "i": 7,
+        "j": 5,
+        "concentration": 0.0
+      },
+      {
+        "i": 10,
+        "j": 5,
+        "concentration": 0.0
+      }
+    ]
+  },
+  "equivalent_emission_rate": {
+    "concentration": 100.0,
+    "length": 200,
+    "width": 100,
+    "height": 10,
+    "rate": 0.42426406871192857
+  },
+  "reverse_emission": {
+    "x": 1000.0,
+    "y": 50.0,
+    "z": 1.5,
+    "source_height": 50.0,
+    "forward_no_decay": 13.353786959713236,
+    "Q_expected": 1.0,
+    "Q_reversed": 1.0
+  },
+  "stability_classifier": [
+    {
+      "wind_speed": 1.5,
+      "solar": 800,
+      "cloud": null,
+      "daytime": true,
+      "result": "A"
+    },
+    {
+      "wind_speed": 4.0,
+      "solar": 400,
+      "cloud": null,
+      "daytime": true,
+      "result": "B-C"
+    },
+    {
+      "wind_speed": 6.5,
+      "solar": 500,
+      "cloud": null,
+      "daytime": true,
+      "result": "D"
+    },
+    {
+      "wind_speed": 2.0,
+      "solar": null,
+      "cloud": 0.1,
+      "daytime": false,
+      "result": "F"
+    },
+    {
+      "wind_speed": 2.0,
+      "solar": null,
+      "cloud": 0.8,
+      "daytime": false,
+      "result": "D"
+    }
+  ],
+  "chemical_decay_extras": [
+    {
+      "pollutant": "PM2.5",
+      "humidity": 50,
+      "temperature": 293.15,
+      "cloud_cover": 0.0,
+      "distance": 1000,
+      "decay": 0.9947825666830268
+    },
+    {
+      "pollutant": "VOCs",
+      "humidity": 80,
+      "temperature": 308.15,
+      "cloud_cover": 5.0,
+      "distance": 1000,
+      "decay": 0.6638095294554288
+    },
+    {
+      "pollutant": "NOx",
+      "humidity": 30,
+      "temperature": 280,
+      "cloud_cover": 2.0,
+      "distance": 1000,
+      "decay": 0.9635763545998078
+    }
+  ]
+}
