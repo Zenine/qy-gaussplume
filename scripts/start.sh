@@ -40,14 +40,19 @@ rm -f "$BACKEND_PID" "$FRONTEND_PID"
 sleep 1
 
 echo "启动后端 → http://localhost:5207  (日志: $BACKEND_LOG)"
-(cd "$ROOT/backend-dotnet/GnnSimulation.Api" && \
+nohup bash -c '
+  cd "$1" &&
   ASPNETCORE_URLS="http://localhost:5207" \
   ASPNETCORE_ENVIRONMENT="Development" \
-  dotnet run --launch-profile http > "$BACKEND_LOG" 2>&1) &
+  dotnet run --launch-profile http
+' _ "$ROOT/backend-dotnet/GnnSimulation.Api" > "$BACKEND_LOG" 2>&1 &
 echo $! > "$BACKEND_PID"
 
 echo "启动前端 → http://localhost:5173  (日志: $FRONTEND_LOG)"
-(cd "$ROOT/frontend-vue" && npm run dev > "$FRONTEND_LOG" 2>&1) &
+nohup bash -c '
+  cd "$1" &&
+  npm run dev
+' _ "$ROOT/frontend-vue" > "$FRONTEND_LOG" 2>&1 &
 echo $! > "$FRONTEND_PID"
 
 echo ""
