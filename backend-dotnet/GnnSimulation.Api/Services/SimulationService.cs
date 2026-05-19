@@ -13,10 +13,11 @@ public class SimulationService
     public SimulationService(GnnDbContext db) => _db = db;
 
     // 执行一次单风向模拟：
-    // 1. 加载气象/源/受体
-    // 2. 构建网格
-    // 3. 逐源累加浓度场（支持点/面/等效面/线）
-    // 4. 计算每受体×每污染物的贡献排名
+    // 1. 加载气象、排放源、受体点；首页框选时 SourceIds/ReceptorIds 会限制参与对象。
+    // 2. 用参与对象构建模拟网格，保持 domain_size/grid_resolution 的统一语义。
+    // 3. 按源类型派发点源、面源、等效面源、线源计算，并逐源叠加浓度场。
+    // 4. 额外生成每污染物独立浓度场，供前端“显示污染物”下拉切换。
+    // 5. 计算每受体×每污染物的贡献排名，供首页贡献卡片和抽屉展示。
     public async Task<SimulationResultDto> RunAsync(SimulationRequestDto request, CancellationToken ct = default)
     {
         var met = await _db.Meteorology.AsNoTracking()
@@ -49,7 +50,9 @@ public class SimulationService
             var srcField = ComputeSourceField(source, totalRate, grid, request, model, request.PollutantType);
             GridBuilder.AddInPlace(totalConc, srcField);
 
-            // 每种污染物独立的浓度场（用于前端按污染物切换显示）
+            // 每种污染物独立的浓度场（用于前端按污染物切换显示）。
+            // 单风向 /run 路径选择重新计算每个污染物，而不是用比例缩放总场，
+            // 这样能保留不同污染物沉降、化学衰减参数造成的差异。
             foreach (var kv in perPollutantRate)
             {
                 if (kv.Value <= 0) continue;
@@ -91,6 +94,8 @@ public class SimulationService
     }
 
     // ---------- 气象→模型参数 ----------
+    // 将数据库气象记录转成核心模型构造参数。null 值使用工程默认值，
+    // 避免老数据库或脱敏数据缺字段时影响模拟入口。
     private static GaussianPlumeModel BuildModel(Meteorology m) => new(
         windSpeed: m.WindSpeed,
         windDirection: m.WindDirection,
@@ -102,22 +107,26 @@ public class SimulationService
         precipitation: m.Precipitation ?? 0.0);
 
     // ---------- 数据加载 ----------
+    // 未传 ids 时加载激活数据；传空数组时返回空集合，表示调用方明确选择了空范围。
     private async Task<List<EmissionSource>> LoadSourcesAsync(List<int>? ids, CancellationToken ct)
     {
         var q = _db.EmissionSources.AsNoTracking().Include(s => s.Pollutants);
-        var filtered = ids is { Count: > 0 } ? q.Where(s => ids.Contains(s.Id)) : q.Where(s => s.IsActive);
+        if (ids is not null && ids.Count == 0) return new List<EmissionSource>();
+        var filtered = ids is not null ? q.Where(s => ids.Contains(s.Id)) : q.Where(s => s.IsActive);
         return await filtered.ToListAsync(ct);
     }
 
     private async Task<List<Receptor>> LoadReceptorsAsync(List<int>? ids, CancellationToken ct)
     {
         var q = _db.Receptors.AsNoTracking();
-        var filtered = ids is { Count: > 0 } ? q.Where(r => ids.Contains(r.Id)) : q.Where(r => r.IsActive);
+        if (ids is not null && ids.Count == 0) return new List<Receptor>();
+        var filtered = ids is not null ? q.Where(r => ids.Contains(r.Id)) : q.Where(r => r.IsActive);
         return await filtered.ToListAsync(ct);
     }
 
     // ---------- 排放速率聚合 ----------
     // 等效面源：将实测浓度转换为等效排放速率；其他类型：直接累加 emission_rate。
+    // 返回 Total 用于总浓度场，PerPollutant 用于污染物分场和贡献排名。
     private static (double Total, Dictionary<string, double> PerPollutant) ComputeEmissionRates(
         EmissionSource source, string? filterPollutant, GaussianPlumeModel model)
     {
@@ -150,11 +159,13 @@ public class SimulationService
         return (total, perPollutant);
     }
 
-    // Python 风格 `v or default`：null 或 0 → default
+    // 数据导入时 0 常表示未配置；这里将 null 或 0 统一替换为默认值。
     private static double OrDefault(double? v, double defaultValue) =>
         (v.HasValue && v.Value != 0) ? v.Value : defaultValue;
 
     // ---------- 源浓度场派发 ----------
+    // 将数据库 source_type 映射到核心模型的点源、面源、等效面源、线源计算函数。
+    // 这里是 API 层和 Core 层的主要边界：API 负责补默认值，Core 只做公式计算。
     private static double[,] ComputeSourceField(
         EmissionSource source, double rate,
         GridBuilder.Grid grid, SimulationRequestDto req, GaussianPlumeModel model,
@@ -213,7 +224,8 @@ public class SimulationService
         GridBuilder.Grid grid, SimulationRequestDto req, GaussianPlumeModel model,
         string pollutant)
     {
-        // 取该污染物的实测浓度（可能 req.PollutantType=null 时取最大的那个）
+        // 取该污染物的实测浓度（可能 req.PollutantType=null 时取最大的那个）。
+        // 等效面源需要用该浓度作为源区内部的最大浓度约束。
         double? maxConc = null;
         foreach (var p in source.Pollutants)
         {
@@ -249,6 +261,8 @@ public class SimulationService
     }
 
     // ---------- 受体贡献聚合 ----------
+    // 贡献排名按“受体点 -> 污染物 -> 排放源列表”组织。
+    // 每个污染物内部先计算各源对该受体的浓度，再按总和转成百分比并降序排序。
     private static Dictionary<string, Dictionary<string, List<ReceptorContributionEntryDto>>>
         ComputeReceptorContributions(
             IReadOnlyList<Receptor> receptors,

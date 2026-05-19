@@ -64,7 +64,7 @@ public class ParallelSimulationResultDto
     public double[]? GridLon { get; set; }
     public Dictionary<string, double[][]>? PollutantConcentrations { get; set; }
     public List<string>? AvailablePollutants { get; set; }
-    public List<object> Contributions { get; set; } = new(); // Python 原版返回 []
+    public List<object> Contributions { get; set; } = new(); // 聚合模式下暂不返回逐源贡献列表
     public Dictionary<string, Dictionary<string, List<ReceptorContributionEntryDto>>>? ReceptorContributions { get; set; }
 
     // 详细模式专用

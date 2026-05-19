@@ -1,7 +1,9 @@
 namespace GnnSimulation.Core.Atmosphere;
 
-// 高斯烟羽扩散模型。基于稳态高斯烟羽方程计算浓度分布。
-// 严格对齐 Python 原版 backend/core/gaussian_plume.py 行为。
+/// <summary>
+/// 高斯烟羽扩散模型。
+/// 基于稳态高斯烟羽方程计算地面浓度分布，支持点源、面源、线源、等效面源和受体点反算。
+/// </summary>
 public sealed class GaussianPlumeModel
 {
     // 纬度每度约 111 km（球面近似），经度随纬度缩放
@@ -20,6 +22,18 @@ public sealed class GaussianPlumeModel
 
     private readonly PasquillGiffordParams _sigmaParams;
 
+    /// <summary>
+    /// 初始化高斯烟羽模型。
+    /// 风速夹紧到不低于 0.1 m/s，稳定度等级使用 Pasquill-Gifford A-F 分类。
+    /// </summary>
+    /// <param name="windSpeed">风速，单位 m/s。</param>
+    /// <param name="windDirection">气象风向，单位度，表示风来自的方向。</param>
+    /// <param name="stabilityClass">大气稳定度等级，A-F。</param>
+    /// <param name="temperature">环境温度，单位 K。</param>
+    /// <param name="boundaryLayerHeight">边界层高度，单位 m。</param>
+    /// <param name="humidity">相对湿度，单位 %。</param>
+    /// <param name="cloudCover">云量，0-10。</param>
+    /// <param name="precipitation">降水强度，单位 mm/h。</param>
     public GaussianPlumeModel(
         double windSpeed,
         double windDirection,
@@ -44,15 +58,33 @@ public sealed class GaussianPlumeModel
 
     // ================== 衰减模型 ==================
 
+    /// <summary>
+    /// 计算重力沉降速度。
+    /// 按污染物类型返回沉降速度；气态污染物默认为 0。
+    /// </summary>
+    /// <param name="pollutant">污染物类型，例如 PM2.5、PM10、SO2。</param>
+    /// <returns>重力沉降速度，单位 m/s。</returns>
     public double CalculateGravitationalSettlingVelocity(string pollutant = "PM2.5")
         => PollutantProperties.GetGravitationalSettling(pollutant);
 
+    /// <summary>
+    /// 计算有效混合高度。
+    /// 使用稳定度对应的混合系数缩放边界层高度，稳定大气给更低的有效混合高度。
+    /// </summary>
+    /// <returns>有效混合高度，单位 m。</returns>
     public double CalculateEffectiveMixingHeight()
     {
         var factor = PasquillGifford.MixingFactors.TryGetValue(StabilityClass, out var f) ? f : 0.6;
         return BoundaryLayerHeight * factor;
     }
 
+    /// <summary>
+    /// 计算干沉降速度。
+    /// 使用阻力模型 <c>vd = vg + 1/(Ra + Rb + Rc)</c>，
+    /// 并按湿度、部分气态污染物的温度修正因子调整。
+    /// </summary>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>干沉降速度，单位 m/s。</returns>
     public double CalculateDryDepositionVelocity(string pollutant = "PM2.5")
     {
         var stabFactor = PasquillGifford.AerodynamicResistanceFactors.TryGetValue(StabilityClass, out var f) ? f : 1.5;
@@ -73,6 +105,13 @@ public sealed class GaussianPlumeModel
         return vd;
     }
 
+    /// <summary>
+    /// 计算湿沉降清除系数。
+    /// 使用公式 <c>Λ = a * precipitation^b + background_scavenging</c>，
+    /// 并乘以云量修正因子。
+    /// </summary>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>湿沉降清除系数，单位 1/s。</returns>
     public double CalculateWetScavengingCoefficient(string pollutant = "PM2.5")
     {
         var (a, b) = PollutantProperties.GetWetScavenging(pollutant);
@@ -84,6 +123,13 @@ public sealed class GaussianPlumeModel
         return lambda;
     }
 
+    /// <summary>
+    /// 计算沉降衰减系数。
+    /// 综合干沉降和湿清除：<c>decay = exp(-(vd/BLH + Λ) * distance / wind_speed)</c>。
+    /// </summary>
+    /// <param name="distance">下风向距离，单位 m。</param>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>0-1 之间的沉降衰减系数。</returns>
     public double CalculateDepositionCoefficient(double distance, string pollutant = "PM2.5")
     {
         var vd = CalculateDryDepositionVelocity(pollutant);
@@ -93,6 +139,13 @@ public sealed class GaussianPlumeModel
         return Math.Exp(-kTotal * distance / WindSpeed);
     }
 
+    /// <summary>
+    /// 计算化学转化衰减。
+    /// 基于污染物基础反应速率，并考虑温度、湿度、云量对有效反应速率的影响。
+    /// </summary>
+    /// <param name="distance">下风向距离，单位 m。</param>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>0-1 之间的化学衰减系数。</returns>
     public double CalculateChemicalDecay(double distance, string pollutant = "PM2.5")
     {
         var kBase = PollutantProperties.GetChemicalRate(pollutant);
@@ -111,9 +164,21 @@ public sealed class GaussianPlumeModel
         return Math.Exp(-kEffective * travelTime);
     }
 
+    /// <summary>
+    /// 计算总衰减系数。
+    /// 单点路径将沉降衰减和化学衰减相乘。
+    /// </summary>
+    /// <param name="distance">下风向距离，单位 m。</param>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>0-1 之间的总衰减系数。</returns>
     public double CalculateTotalDecay(double distance, string pollutant = "PM2.5")
         => CalculateDepositionCoefficient(distance, pollutant) * CalculateChemicalDecay(distance, pollutant);
 
+    /// <summary>
+    /// 计算最大有效扩散距离。
+    /// 使用改进 Turner 思路：边界层高度 × 10，再按稳定度和风速修正。
+    /// </summary>
+    /// <returns>最大扩散距离，单位 m。</returns>
     public double CalculateMaxDiffusionDistance()
     {
         var factor = PasquillGifford.MaxDistanceFactors.TryGetValue(StabilityClass, out var f) ? f : 1.0;
@@ -124,6 +189,12 @@ public sealed class GaussianPlumeModel
 
     // ================== 扩散参数 ==================
 
+    /// <summary>
+    /// 计算 Pasquill-Gifford 横向和垂直扩散参数 σy、σz。
+    /// σ 下限先夹到 1，再对 σz 应用边界层高度软限制。
+    /// </summary>
+    /// <param name="distance">下风向距离，单位 m。</param>
+    /// <returns>横向扩散参数 σy 与垂直扩散参数 σz。</returns>
     public (double SigmaY, double SigmaZ) CalculateSigma(double distance)
     {
         var sigmaY = _sigmaParams.Ay * Math.Pow(distance, _sigmaParams.By);
@@ -138,6 +209,16 @@ public sealed class GaussianPlumeModel
         return (sigmaY, sigmaZ);
     }
 
+    /// <summary>
+    /// 计算有效烟囱高度。
+    /// 包括物理烟囱高度、浮力抬升和动量抬升，最终取两类抬升中的较大值。
+    /// </summary>
+    /// <param name="stackHeight">烟囱物理高度，单位 m。</param>
+    /// <param name="emissionRate">排放速率，单位 g/s。</param>
+    /// <param name="stackTemperature">烟气温度，单位 K。</param>
+    /// <param name="velocity">烟气出口速度，单位 m/s。</param>
+    /// <param name="diameter">烟囱直径，单位 m。</param>
+    /// <returns>有效烟囱高度，单位 m。</returns>
     public double CalculateEffectiveHeight(
         double stackHeight, double emissionRate, double stackTemperature, double velocity, double diameter)
     {
@@ -156,8 +237,19 @@ public sealed class GaussianPlumeModel
 
     // ================== 单点浓度 ==================
 
-    // 高斯烟羽方程：
-    //   C = Q/(2π·u·σy·σz) · exp(-y²/(2σy²)) · (exp(-(z-H)²/(2σz²)) + exp(-(z+H)²/(2σz²)))
+    /// <summary>
+    /// 计算局部坐标系下单点浓度。
+    /// 高斯烟羽方程：
+    /// <c>C = Q/(2π·u·σy·σz) · exp(-y²/(2σy²)) · (exp(-(z-H)²/(2σz²)) + exp(-(z+H)²/(2σz²)))</c>。
+    /// </summary>
+    /// <param name="x">下风向距离，单位 m。</param>
+    /// <param name="y">横风向距离，单位 m。</param>
+    /// <param name="z">计算点高度，单位 m。</param>
+    /// <param name="sourceHeight">源高度，单位 m。</param>
+    /// <param name="emissionRate">排放速率，单位 g/s。</param>
+    /// <param name="effectiveHeight">有效高度；为空时使用源高度。</param>
+    /// <param name="pollutant">污染物类型。</param>
+    /// <returns>浓度，单位 μg/m³。</returns>
     public double CalculateConcentration(
         double x, double y, double z,
         double sourceHeight, double emissionRate,
@@ -181,6 +273,11 @@ public sealed class GaussianPlumeModel
         return concentration;
     }
 
+    /// <summary>
+    /// 计算单个受体点浓度。
+    /// 先将经纬度差转换为米，再旋转到以下风向为 x 轴的局部坐标系。
+    /// </summary>
+    /// <returns>受体点浓度，单位 μg/m³。</returns>
     public double CalculateReceptorConcentration(
         double sourceLat, double sourceLon, double sourceHeight, double emissionRate,
         double receptorLat, double receptorLon,
@@ -200,7 +297,10 @@ public sealed class GaussianPlumeModel
             sourceHeight, emissionRate, effectiveHeight, pollutant);
     }
 
-    // 气象风向（风来自的方向）→ 数学角度；以源为原点，x 轴指向下风方向
+    /// <summary>
+    /// 将 WGS84 经纬度点投影到局部下风坐标系。
+    /// 气象风向表示“风来自的方向”，这里转换为数学角度后让 x 轴指向下风方向。
+    /// </summary>
     private (double X, double Y) RotateToWindFrame(
         double originLat, double originLon,
         double targetLat, double targetLon,
@@ -219,6 +319,11 @@ public sealed class GaussianPlumeModel
 
     // ================== 浓度场（点源向量化） ==================
 
+    /// <summary>
+    /// 计算点源在规则经纬度网格上的浓度场。
+    /// 网格路径只应用沉降衰减，不叠加化学衰减，以保持批量场计算的稳定输出。
+    /// </summary>
+    /// <returns>二维浓度场，索引顺序为 [latIndex, lonIndex]。</returns>
     public double[,] CalculateConcentrationField(
         double sourceLat, double sourceLon,
         double sourceHeight, double emissionRate,
@@ -245,9 +350,8 @@ public sealed class GaussianPlumeModel
         var emissionRateUg = emissionRate * 1e6;
         var h = effectiveHeight;
 
-        // 预计算沉降相关项（在整个网格上共享）
-        // 注意：Python 向量化路径 **只使用** deposition（干+湿），不叠加 chemical decay。
-        // 这与非向量化的 CalculateConcentration 不同，这里刻意保留该差异以对齐。
+        // 预计算沉降相关项（在整个网格上共享）。
+        // 网格浓度场只使用沉降衰减；单点浓度会额外计算化学衰减。
         var vd = CalculateDryDepositionVelocity(pollutant);
         var lambda = CalculateWetScavengingCoefficient(pollutant);
         var kDry = BoundaryLayerHeight > 0 ? vd / BoundaryLayerHeight : 0.0;
@@ -289,7 +393,12 @@ public sealed class GaussianPlumeModel
 
     // ================== 面源（含等效面源） ==================
 
-    // 矩形面源使用虚拟点源法：σ_eff = sqrt(σ² + σ₀²)，其中 σ₀ 由面源尺寸确定。
+    /// <summary>
+    /// 计算矩形面源浓度场。
+    /// 使用虚拟点源法：<c>σ_eff = sqrt(σ² + σ₀²)</c>，其中初始 σ₀ 由面源尺寸确定。
+    /// 等效面源会将源区内部浓度夹紧到实测最大浓度。
+    /// </summary>
+    /// <returns>二维浓度场，索引顺序为 [latIndex, lonIndex]。</returns>
     public double[,] CalculateAreaSourceConcentrationField(
         double centerLat, double centerLon,
         double areaLength, double areaWidth, double areaHeight,
@@ -375,6 +484,11 @@ public sealed class GaussianPlumeModel
         return field;
     }
 
+    /// <summary>
+    /// 计算矩形面源对单个受体点的浓度贡献。
+    /// 与面源网格路径一致使用虚拟点源法；等效面源在源区内部使用实测浓度上限约束。
+    /// </summary>
+    /// <returns>受体点浓度，单位 μg/m³。</returns>
     public double CalculateAreaSourceReceptorConcentration(
         double centerLat, double centerLon,
         double areaLength, double areaWidth, double areaHeight,
@@ -431,6 +545,11 @@ public sealed class GaussianPlumeModel
 
     // ================== 线源（分段点源法） ==================
 
+    /// <summary>
+    /// 计算线源浓度场。
+    /// 将线源按 segmentLength 切成多个短面源/线段，每段独立计算后累加到总浓度场。
+    /// </summary>
+    /// <returns>二维浓度场，索引顺序为 [latIndex, lonIndex]。</returns>
     public double[,] CalculateLineSourceConcentrationField(
         double startLat, double startLon,
         double endLat, double endLon,
@@ -483,6 +602,11 @@ public sealed class GaussianPlumeModel
         return field;
     }
 
+    /// <summary>
+    /// 计算线源对单个受体点的浓度贡献。
+    /// 将线源分段后逐段计算受体浓度并求和。
+    /// </summary>
+    /// <returns>受体点浓度，单位 μg/m³。</returns>
     public double CalculateLineSourceReceptorConcentration(
         double startLat, double startLon,
         double endLat, double endLon,
@@ -528,6 +652,11 @@ public sealed class GaussianPlumeModel
 
     // ================== 反推排放速率 ==================
 
+    /// <summary>
+    /// 根据局部坐标下的目标浓度反推排放速率。
+    /// 该反推路径不包含衰减项，适用于与无衰减正向公式互逆的场景。
+    /// </summary>
+    /// <returns>排放速率，单位 g/s。</returns>
     public double CalculateEmissionRateFromConcentration(
         double x, double y, double z,
         double sourceHeight, double concentration,
@@ -550,6 +679,11 @@ public sealed class GaussianPlumeModel
         return emissionRateUg / 1e6;
     }
 
+    /// <summary>
+    /// 根据等效面源实测浓度估算等效排放速率。
+    /// 使用浓度、风速、面源高度和面积几何均值构造工程近似。
+    /// </summary>
+    /// <returns>等效排放速率，单位 g/s。</returns>
     public double CalculateEquivalentEmissionRate(
         double concentration, double areaLength, double areaWidth, double areaHeight)
     {
@@ -557,6 +691,11 @@ public sealed class GaussianPlumeModel
         return concentrationG * WindSpeed * areaHeight * Math.Sqrt(areaLength * areaWidth);
     }
 
+    /// <summary>
+    /// 根据受体点实测浓度反推点源排放速率。
+    /// 若受体处于上风向，则退化为 100 m 下风中心线点以保持可反推。
+    /// </summary>
+    /// <returns>排放速率，单位 g/s。</returns>
     public double CalculateEmissionRateFromReceptor(
         double sourceLat, double sourceLon, double sourceHeight,
         double receptorLat, double receptorLon, double concentration,

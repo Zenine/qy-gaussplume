@@ -10,7 +10,7 @@ namespace GnnSimulation.Api.Services;
 public class ShapefileOptions
 {
     public string? Path { get; set; }
-    // 对齐 Python 原版默认行为：默认不加载（SHP 文件可能很大，前端按需启用）
+    // 默认不加载 SHP 文件；文件体积较大，前端按需启用。
     public bool LoadByDefault { get; set; } = false;
 }
 

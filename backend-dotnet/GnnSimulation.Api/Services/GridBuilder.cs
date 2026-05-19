@@ -8,8 +8,9 @@ internal static class GridBuilder
 
     public record Grid(double[] Lat, double[] Lon);
 
-    // 基于源/受体的外包框 + domain_size + grid_resolution 构建方形网格
-    // 对齐 Python simulation.py 中的网格构建逻辑
+    // 基于源/受体的外包框 + domain_size + grid_resolution 构建方形网格。
+    // 先取全部参与对象的经纬度范围，再用 domain_size 保底扩展模拟域；
+    // 这里保留 50-500 的网格点夹紧，避免极小分辨率导致响应过大。
     public static Grid Build(
         IReadOnlyList<EmissionSource> sources,
         IReadOnlyList<Receptor> receptors,
@@ -43,7 +44,8 @@ internal static class GridBuilder
             Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, gridPoints));
     }
 
-    // np.linspace 等价实现（包含两端点）
+    // np.linspace 等价实现（包含两端点）。多风向并行和单风向网格都复用它，
+    // 以避免不同路径生成的坐标轴存在浮点步长差异。
     public static double[] Linspace(double start, double stop, int num)
     {
         if (num <= 0) return Array.Empty<double>();
@@ -54,7 +56,7 @@ internal static class GridBuilder
         return result;
     }
 
-    // double[,] → double[][] 转换，便于 JSON 序列化
+    // double[,] → double[][] 转换，便于 System.Text.Json 序列化成前端期望的二维数组。
     public static double[][] ToJagged(double[,] src)
     {
         var n0 = src.GetLength(0);
@@ -71,6 +73,7 @@ internal static class GridBuilder
 
     public static void AddInPlace(double[,] target, double[,] source)
     {
+        // 多个排放源的浓度场按网格逐点线性叠加，符合高斯烟羽稳态叠加假设。
         var n0 = target.GetLength(0);
         var n1 = target.GetLength(1);
         for (var i = 0; i < n0; i++)
@@ -80,6 +83,7 @@ internal static class GridBuilder
 
     public static double Sum(double[,] m)
     {
+        // 用于源贡献统计：表示该源在整个模拟域上的总浓度量级。
         var acc = 0.0;
         var n0 = m.GetLength(0);
         var n1 = m.GetLength(1);
@@ -91,6 +95,7 @@ internal static class GridBuilder
 
     public static double Max(double[,] m)
     {
+        // 用于前端结果面板的峰值展示；空矩阵或全未赋值时返回 0。
         var best = double.MinValue;
         var n0 = m.GetLength(0);
         var n1 = m.GetLength(1);

@@ -110,14 +110,16 @@
 ```json
 {
   "meteorologyId": 1,
-  "sourceIds": null,           // null = 所有 isActive
-  "receptorIds": null,
+  "sourceIds": null,           // null = 所有 isActive；[] = 空范围；[id] = 指定集合
+  "receptorIds": null,         // 同上，供地图框选等场景使用
   "pollutantType": null,       // null = 所有污染物
   "gridResolution": 100,       // 网格分辨率 (m)
   "domainSize": 10000,         // 域大小 (m)
   "receptorHeight": 0
 }
 ```
+
+`sourceIds` / `receptorIds` 使用三态语义：`null` 表示未指定过滤条件，空数组表示调用方明确选择空范围，非空数组表示只模拟指定 ID。
 
 **响应** `SimulationResultDto`:
 

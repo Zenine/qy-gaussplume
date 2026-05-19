@@ -75,8 +75,8 @@ SimulationController.Run
    ▼
 SimulationService.RunAsync
    ├─► 加载 Meteorology (by id)
-   ├─► 加载 EmissionSource 列表（IsActive 过滤）+ Include(Pollutants)
-   ├─► 加载 Receptor 列表（IsActive 过滤）
+   ├─► 加载 EmissionSource 列表（null=激活数据，[]=空集合，ids=指定集合）+ Include(Pollutants)
+   ├─► 加载 Receptor 列表（null=激活数据，[]=空集合，ids=指定集合）
    ├─► GridBuilder.Build → 外包框 + domain_size 构建方形网格 (clamp 50-500 点)
    │
    ├─► 遍历每个源：
@@ -144,7 +144,7 @@ src/
 ├── components/   ← 可复用：MapPanel、HeatmapCanvas（通过 composable）、
 │                    ColorLegend、ContributionPanel、ParallelSimulationDialog
 ├── composables/  ← useHeatmapRenderer（Canvas 渲染与 LatLng 计算）
-└── utils/        ← coords、colorScale、download、error（纯函数，好测）
+└── utils/        ← coords、colorScale、selection、download、error（纯函数，好测）
 ```
 
 **设计原则**：
@@ -167,8 +167,9 @@ src/
 | **P9** | Leaflet 地图 + Canvas 热力图 + 色阶 + GCJ02 | 136 | 44 |
 | **P10** | Prefs 持久化 + 贡献面板 + 并行对话框 + 图例 + E2E 联调 | 136 | 55 |
 | **P11** | 前端控制台视觉优化 + 应用外壳与页面骨架测试 | 136 | 60 |
+| **P12** | 主控台悬浮操作区恢复 + 矩形框选模拟 + 受体贡献摘要 | 137 | 65 |
 
-**最终**：196 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：202 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 

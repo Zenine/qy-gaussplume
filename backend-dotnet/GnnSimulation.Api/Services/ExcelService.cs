@@ -5,7 +5,7 @@ namespace GnnSimulation.Api.Services;
 
 public record ExcelImportResult(int ImportedCount, IReadOnlyList<string> Errors);
 
-// 基于 ClosedXML 的 Excel IO。所有表头用中文，保持和 Python 原版一致。
+// 基于 ClosedXML 的 Excel IO。所有表头使用中文，便于业务人员直接校验导入导出内容。
 public static class ExcelService
 {
     private static readonly XLColor HeaderFill = XLColor.FromHtml("#007AFF");

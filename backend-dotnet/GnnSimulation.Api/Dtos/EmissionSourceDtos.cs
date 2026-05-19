@@ -1,6 +1,6 @@
 namespace GnnSimulation.Api.Dtos;
 
-// 与 Python 版字段一一对应，便于前端迁移和人工比对
+// 与前端表单字段保持一一对应，便于导入、编辑和人工比对。
 public class EmissionSourceCreateDto
 {
     public required string Name { get; set; }

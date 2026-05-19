@@ -4,6 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { EmissionSource, Receptor, SimulationResult } from '@/types'
 import { wgs84ToGcj02 } from '@/utils/coords'
+import type { SelectionBounds } from '@/utils/selection'
 import {
   computeBounds,
   renderHeatmapToCanvas,
@@ -21,6 +22,11 @@ const props = defineProps<{
   max?: number | null
   renderScale?: number
   tileLayer?: 'street' | 'satellite' | 'hybrid'
+  selectionEnabled?: boolean
+}>()
+
+const emit = defineEmits<{
+  'selection-change': [bounds: SelectionBounds | null]
 }>()
 
 const mapEl = ref<HTMLDivElement | null>(null)
@@ -28,6 +34,8 @@ const map = shallowRef<L.Map | null>(null)
 const tileLayer = shallowRef<L.TileLayer | null>(null)
 const markers = shallowRef<L.Marker[]>([])
 const heatmapOverlay = shallowRef<L.ImageOverlay | null>(null)
+const selectionOverlay = shallowRef<L.Rectangle | null>(null)
+const selectionStart = shallowRef<L.LatLng | null>(null)
 
 // 高德瓦片：lang=zh_cn；坐标体系是 GCJ02
 // 街道：style=6, 卫星：style=6 + webst, 混合：lbs+shaded
@@ -130,6 +138,65 @@ function renderHeatmap() {
   }).addTo(map.value)
 }
 
+function normalizeBounds(bounds: L.LatLngBounds): SelectionBounds {
+  const north = bounds.getNorth()
+  const south = bounds.getSouth()
+  const east = bounds.getEast()
+  const west = bounds.getWest()
+  return { north, south, east, west }
+}
+
+function clearSelection() {
+  if (selectionOverlay.value) {
+    selectionOverlay.value.remove()
+    selectionOverlay.value = null
+  }
+  selectionStart.value = null
+  emit('selection-change', null)
+}
+
+function fitSelection() {
+  if (!map.value || !selectionOverlay.value) return
+  map.value.fitBounds(selectionOverlay.value.getBounds().pad(0.12), { animate: true })
+}
+
+function startSelection(e: L.LeafletMouseEvent) {
+  if (!props.selectionEnabled || !map.value) return
+  selectionStart.value = e.latlng
+  if (selectionOverlay.value) selectionOverlay.value.remove()
+  selectionOverlay.value = L.rectangle(L.latLngBounds(e.latlng, e.latlng), {
+    color: '#2563eb',
+    weight: 2,
+    dashArray: '6 4',
+    fillColor: '#60a5fa',
+    fillOpacity: 0.16,
+  }).addTo(map.value)
+  map.value.dragging.disable()
+}
+
+function cancelSelectionDrag() {
+  if (!selectionStart.value) return
+  selectionStart.value = null
+  if (selectionOverlay.value) {
+    selectionOverlay.value.remove()
+    selectionOverlay.value = null
+  }
+  if (map.value) map.value.dragging.enable()
+}
+
+function updateSelection(e: L.LeafletMouseEvent) {
+  if (!props.selectionEnabled || !selectionStart.value || !selectionOverlay.value) return
+  selectionOverlay.value.setBounds(L.latLngBounds(selectionStart.value, e.latlng))
+}
+
+function finishSelection(e: L.LeafletMouseEvent) {
+  if (!props.selectionEnabled || !map.value || !selectionStart.value || !selectionOverlay.value) return
+  selectionOverlay.value.setBounds(L.latLngBounds(selectionStart.value, e.latlng))
+  map.value.dragging.enable()
+  selectionStart.value = null
+  emit('selection-change', normalizeBounds(selectionOverlay.value.getBounds()))
+}
+
 function fitBounds() {
   if (!map.value) return
   const all: L.LatLngTuple[] = []
@@ -140,7 +207,7 @@ function fitBounds() {
   map.value.fitBounds(bounds.pad(0.2), { animate: true })
 }
 
-defineExpose({ fitBounds })
+defineExpose({ fitBounds, clearSelection, fitSelection })
 
 onMounted(() => {
   if (!mapEl.value) return
@@ -151,6 +218,10 @@ onMounted(() => {
     attributionControl: false,
   })
   setTileLayer(props.tileLayer ?? 'street')
+  map.value.on('mousedown', startSelection)
+  map.value.on('mousemove', updateSelection)
+  map.value.on('mouseup', finishSelection)
+  window.addEventListener('mouseup', cancelSelectionDrag)
   renderMarkers()
   renderHeatmap()
   // 初次加载若有数据则自适应
@@ -160,6 +231,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (map.value) {
+    map.value.off('mousedown', startSelection)
+    map.value.off('mousemove', updateSelection)
+    map.value.off('mouseup', finishSelection)
+  }
+  window.removeEventListener('mouseup', cancelSelectionDrag)
+  if (selectionOverlay.value) selectionOverlay.value.remove()
   if (heatmapOverlay.value) heatmapOverlay.value.remove()
   clearMarkers()
   if (tileLayer.value) tileLayer.value.remove()
@@ -179,6 +257,13 @@ watch(
   () => [props.result, props.scale, props.opacity, props.min, props.max, props.renderScale],
   () => renderHeatmap(),
   { deep: true },
+)
+watch(
+  () => props.selectionEnabled,
+  (enabled) => {
+    if (!enabled) selectionStart.value = null
+    if (!enabled && map.value) map.value.dragging.enable()
+  },
 )
 </script>
 

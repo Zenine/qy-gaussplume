@@ -31,8 +31,8 @@ builder.Services.AddSingleton<GnnSimulation.Api.Services.ShapefileService>();
 
 var app = builder.Build();
 
-// 启动自愈：把老 Python DB 里 is_active = NULL 的行修为 1，避免非空 bool 读取崩溃
-// （Python 原版用 SQLAlchemy 层默认，没有 DB 层 NOT NULL 约束）
+// 启动自愈：把历史数据库里 is_active = NULL 的行修为 1，避免非空 bool 读取崩溃。
+// 部分旧数据只有应用层默认值，没有数据库层 NOT NULL 约束。
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();

@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（136 用例，~30s）
+# 后端（137 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（60 用例，~7s）
+# 前端（65 用例）
 cd frontend-vue
 npm test
 
@@ -133,11 +133,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 136
+# 预期：已通过! - 失败: 0，通过: 137
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 15 passed, Tests 60 passed
+# 预期：Test Files 17 passed, Tests 65 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

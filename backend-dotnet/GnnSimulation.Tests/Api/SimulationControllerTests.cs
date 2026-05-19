@@ -140,6 +140,26 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 指定空receptor_ids_不回退到全部受体()
+    {
+        var met = await CreateMet();
+        await CreatePointSource();
+        await CreateReceptor(39.88, 116.40);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            ReceptorIds = new List<int>(),
+            GridResolution = 100,
+            DomainSize = 5000,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await resp.ReadJsonAsync<SimulationResultDto>();
+        result.ReceptorContributions.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task 指定污染物过滤_只累加该污染物()
     {
         var met = await CreateMet();

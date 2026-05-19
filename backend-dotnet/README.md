@@ -1,6 +1,6 @@
 # QY-GaussPlume 后端
 
-清源高斯烟羽扩散模拟平台的 .NET 9 后端。对齐原 Python / FastAPI 实现，支持四类源（点/面/等效面/线）+ 六种污染物，提供单风向与多风向并行两种模拟入口。
+清源高斯烟羽扩散模拟平台的 .NET 9 后端。支持四类源（点/面/等效面/线）+ 六种污染物，提供单风向与多风向并行两种模拟入口。
 
 ## 项目结构
 
@@ -28,7 +28,7 @@ backend-dotnet/
 │   ├── GnnDbContext.cs             # Fluent snake_case 映射 + 自动时间戳 + 级联删除
 │   ├── Migrations/                 # 初始 Migration（新库用）
 │   └── Design/DesignTimeDbContextFactory.cs
-└── GnnSimulation.Tests/            # xUnit 测试（136 用例）
+└── GnnSimulation.Tests/            # xUnit 测试（137 用例）
     ├── Core/                       # 算法单测 + 黄金值对齐
     ├── Data/                       # 实体 + DbContext
     ├── Api/                        # WebApplicationFactory 集成测试
@@ -48,7 +48,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 136 个测试
+dotnet test                                      # 跑全部 137 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -71,7 +71,7 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 ```
 
 - 默认使用仓库内匿名演示库 `backend/air_pollution.db`
-- Shapefile `LoadByDefault: false` 对齐 Python 原版，避免 60 MB → 100+ MB GeoJSON 的爆炸响应；`/api/map/geojson?force=true` 可临时强制加载
+- Shapefile `LoadByDefault: false`，避免 60 MB → 100+ MB GeoJSON 的爆炸响应；`/api/map/geojson?force=true` 可临时强制加载
 
 ## 测试矩阵
 
@@ -79,8 +79,8 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 28 |
 | **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 45 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 63 |
-| **合计** | | **136** |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 64 |
+| **合计** | | **137** |
 
 ## 黄金值对齐
 
@@ -126,6 +126,16 @@ e.Property(x => x.SourceType).HasColumnName("source_type").HasMaxLength(20);
 ### 老 DB 历史 NULL 兼容
 
 `Program.cs` 启动时执行一次 `UPDATE receptors SET is_active = 1 WHERE is_active IS NULL`（及 `emission_sources`），避免历史数据 NULL 导致 `GetBoolean` 崩溃。测试环境（`ASPNETCORE_ENVIRONMENT=Testing`）跳过。
+
+### ID 过滤语义
+
+`SimulationRequestDto.SourceIds` / `ReceptorIds` 使用明确的三态语义：
+
+- `null`：未指定过滤条件，加载所有激活数据。
+- `[]`：调用方明确选择空范围，返回空集合。
+- `[1, 2, ...]`：只加载指定 ID。
+
+这用于支持前端地图矩形框选，避免区域内无受体点时回退到全部受体点。
 
 ### 并行模拟：线程替代进程
 

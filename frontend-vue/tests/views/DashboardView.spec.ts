@@ -98,7 +98,7 @@ function mountView() {
       stubs: {
         MapPanel: {
           template: '<div class="map-panel-stub" />',
-          methods: { fitBounds: vi.fn() },
+          methods: { fitBounds: vi.fn(), clearSelection: vi.fn(), fitSelection: vi.fn() },
         },
         ColorLegend: true,
         ContributionPanel: true,
@@ -116,14 +116,16 @@ beforeEach(() => {
 })
 
 describe('DashboardView', () => {
-  it('加载后展示数据状态条和分组操作区', async () => {
+  it('加载后展示地图悬浮工具条和数据统计卡片', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.find('.metric-strip').exists()).toBe(true)
-    expect(wrapper.find('.simulation-actions').exists()).toBe(true)
-    expect(wrapper.text()).toContain('排放源 1')
-    expect(wrapper.text()).toContain('受体点 2')
-    expect(wrapper.text()).toContain('气象场 1')
+    expect(wrapper.find('[data-test="floating-toolbar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="range-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="draw-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="weather-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="stats-card"]').text()).toContain('1')
+    expect(wrapper.find('[data-test="stats-card"]').text()).toContain('2')
+    expect(wrapper.text()).toContain('冬季北风')
   })
 })

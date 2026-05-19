@@ -5,7 +5,7 @@ using GnnSimulation.Data.Entities;
 namespace GnnSimulation.Api.Services;
 
 // 单个风向的完整计算。线程安全（无共享可变状态），可被 Parallel.ForEach 并发调用。
-// 对齐 Python simulation.py 中 process_single_wind_direction。
+// 与单风向 /run 不同，多风向入口会重复跑多个风向并在 ParallelSimulationService 中聚合结果。
 internal static class WindDirectionWorker
 {
     public record Context(
@@ -22,6 +22,8 @@ internal static class WindDirectionWorker
 
     public static WindDirectionResultDto Run(double windDirection, Context ctx)
     {
+        // Worker 不向外抛异常，而是把单个风向失败记录在结果中，
+        // 这样并行模拟可以保留其他成功风向的数据。
         try
         {
             var result = Compute(windDirection, ctx);
@@ -53,7 +55,8 @@ internal static class WindDirectionWorker
             cloudCover: met.CloudCover ?? 0.0,
             precipitation: met.Precipitation ?? 0.0);
 
-        // 网格中心 = 所有源的经纬度均值（Python 原版逻辑，不考虑受体）
+        // 网格中心 = 所有源的经纬度均值（不考虑受体）。
+        // 多风向场景通常关注排放源周边的平均影响，因此不使用 GridBuilder 的外包框逻辑。
         var centerLat = ctx.Sources.Count > 0 ? ctx.Sources.Average(s => s.Latitude) : 39.9;
         var centerLon = ctx.Sources.Count > 0 ? ctx.Sources.Average(s => s.Longitude) : 116.4;
 
@@ -81,8 +84,8 @@ internal static class WindDirectionWorker
             var srcField = DispatchSourceField(source, rate, gridLat, gridLon, model, ctx);
             GridBuilder.AddInPlace(totalConc, srcField);
 
-            // 性能优化路径：用 p_fraction 而不是每污染物独立重新计算
-            // （对齐 Python run_parallel 的行为，/run 是重新计算每污染物浓度场）
+            // 性能优化路径：用 p_fraction 而不是每污染物独立重新计算。
+            // 多风向路径使用比例缩放；单风向 /run 则重新计算每污染物浓度场。
             foreach (var kv in perPollutant)
             {
                 if (kv.Value <= 0) continue;
@@ -134,6 +137,7 @@ internal static class WindDirectionWorker
 
     private static void AddScaled(double[,] target, double[,] source, double scale)
     {
+        // 将某污染物的排放占比投影到总浓度场上，用于多风向聚合的快速污染物分场。
         var n0 = target.GetLength(0);
         var n1 = target.GetLength(1);
         for (var i = 0; i < n0; i++)
@@ -147,6 +151,8 @@ internal static class WindDirectionWorker
     private static (double Total, Dictionary<string, double> PerPollutant) AggregateRates(
         EmissionSource source, string? filterPollutant, GaussianPlumeModel model)
     {
+        // 与 SimulationService.ComputeEmissionRates 同源：
+        // 等效面源用浓度反算排放速率，其他源类型累加 emission_rate。
         var perPollutant = new Dictionary<string, double>();
         var total = 0.0;
 
