@@ -20,6 +20,16 @@
 - **完善结果展示控制**：运行后可在首页调整色阶类型、浓度范围、透明度、渲染精度，并查看当前受体点的贡献排名摘要。
 - **同步维护说明与测试**：关键算法、网格构建、风向聚合、地图渲染和框选流程补充中文维护注释；新增首页悬浮控件、区域筛选和空受体点请求回归测试。
 
+## 项目介绍图
+
+以下配图用于快速说明 GNN 首页、qy 后端架构和核心业务能力。图片由项目当前功能信息生成，已随文档入库，便于 README、汇报材料和交付说明复用。
+
+![QY-GaussPlume GNN 与 qy 总览](docs/assets/generated/qy-gnn-overview.png)
+
+| GNN 首页 Hero | qy 项目架构 | 核心功能介绍 |
+|---|---|---|
+| ![GNN 首页 Hero 图](docs/assets/generated/qy-gnn-hero.png) | ![qy 项目架构图](docs/assets/generated/qy-architecture.png) | ![核心功能介绍图](docs/assets/generated/qy-features.png) |
+
 ## 功能概览
 
 - **扩散模拟**：高斯烟羽模型，Pasquill-Gifford 扩散参数，Briggs 抬升，干沉降、湿清除和化学衰减。
