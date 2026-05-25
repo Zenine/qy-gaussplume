@@ -50,6 +50,58 @@ const sample: EmissionSource[] = [
     updatedAt: '',
   },
   {
+    id: 3,
+    name: '等效面源C',
+    sourceType: 'equivalent_area',
+    latitude: 39.82,
+    longitude: 116.32,
+    height: 0,
+    temperature: null,
+    velocity: null,
+    diameter: null,
+    areaShape: 'rectangle',
+    areaLength: 100,
+    areaWidth: 100,
+    areaHeight: 2,
+    areaTemperature: 300,
+    sigmaZ0Area: null,
+    lineType: null,
+    startLon: null,
+    startLat: null,
+    endLon: null,
+    endLat: null,
+    lineWidth: null,
+    lineHeight: null,
+    lineTemperature: null,
+    sigmaZ0Line: null,
+    lineSegmentLength: null,
+    markerSymbol: 'factory',
+    markerColor: '#FF5722',
+    isActive: true,
+    pollutants: [
+      {
+        id: 2,
+        sourceId: 3,
+        pollutantType: 'PM10',
+        emissionRate: 0,
+        concentration: 67,
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 3,
+        sourceId: 3,
+        pollutantType: 'VOCs',
+        emissionRate: 99,
+        concentration: 0,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ],
+    createdAt: '',
+    updatedAt: '',
+  },
+  {
     id: 2,
     name: '线源B',
     sourceType: 'line',
@@ -121,6 +173,17 @@ describe('SourcesView', () => {
     expect(wrapper.text()).toContain('点源A')
     expect(wrapper.text()).toContain('线源B')
     expect(wrapper.text()).toContain('PM2.5: 1.5')
+    expect(wrapper.text()).toContain('PM10: 67')
+    expect(wrapper.text()).not.toContain('PM10: 0')
+    expect(wrapper.text()).toContain('VOCs: 0')
+    expect(wrapper.text()).not.toContain('VOCs: 99')
+  })
+
+  it('工具栏提供批量导入入口', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('批量导入')
   })
 
   it('类型过滤为线源_只显示线源条目', async () => {

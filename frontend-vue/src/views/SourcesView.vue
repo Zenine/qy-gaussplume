@@ -166,9 +166,20 @@ function removePollutant(idx: number) {
   form.pollutants!.splice(idx, 1)
 }
 
+function pollutantValue(row: EmissionSource, pollutant: EmissionSource['pollutants'][number]) {
+  return row.sourceType === 'equivalent_area' && pollutant.concentration !== null
+    ? pollutant.concentration
+    : pollutant.emissionRate
+}
+
 async function submit() {
   try {
     const payload: EmissionSourceCreate = JSON.parse(JSON.stringify(form))
+    payload.pollutants = (payload.pollutants ?? []).map((p) => ({
+      ...p,
+      emissionRate: payload.sourceType === 'equivalent_area' ? 0 : (p.emissionRate ?? 0),
+      concentration: payload.sourceType === 'equivalent_area' ? (p.concentration ?? 0) : null,
+    }))
     if (dialogMode.value === 'create') {
       await sourcesApi.create(payload)
       ElMessage.success('创建成功')
@@ -249,7 +260,7 @@ onMounted(() => {
         accept=".xlsx,.xls"
         :before-upload="importFile"
       >
-        <el-button :icon="Upload">导入 Excel</el-button>
+        <el-button :icon="Upload">批量导入</el-button>
       </el-upload>
       <span class="spacer" />
       <span>过滤：</span>
@@ -286,7 +297,7 @@ onMounted(() => {
               size="small"
               style="margin-right: 4px"
             >
-              {{ p.pollutantType }}: {{ p.emissionRate }}
+              {{ p.pollutantType }}: {{ pollutantValue(row, p) }}
             </el-tag>
             <span v-if="row.pollutants.length === 0" class="muted">—</span>
           </template>
@@ -445,10 +456,11 @@ onMounted(() => {
             />
           </el-select>
           <el-input-number
+            v-if="form.sourceType !== 'equivalent_area'"
             v-model="p.emissionRate"
             :min="0"
             :step="0.1"
-            :placeholder="form.sourceType === 'equivalent_area' ? '速率' : '排放速率 g/s'"
+            placeholder="排放速率 g/s"
           />
           <el-input-number
             v-if="form.sourceType === 'equivalent_area'"
