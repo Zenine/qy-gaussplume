@@ -6,6 +6,7 @@ import DashboardView from '@/views/DashboardView.vue'
 import {
   meteorologyApi,
   receptorsApi,
+  simulationApi,
   sourcesApi,
 } from '@/api'
 import type { EmissionSource, Meteorology, Receptor } from '@/types'
@@ -113,6 +114,15 @@ beforeEach(() => {
   vi.spyOn(sourcesApi, 'list').mockResolvedValue(sources)
   vi.spyOn(receptorsApi, 'list').mockResolvedValue(receptors)
   vi.spyOn(meteorologyApi, 'list').mockResolvedValue(meteorologies)
+  vi.spyOn(simulationApi, 'run').mockResolvedValue({
+    concentrations: [[0, 1]],
+    gridLat: [39.9],
+    gridLon: [116.4, 116.41],
+    contributions: [],
+    receptorContributions: {},
+    pollutantConcentrations: null,
+    availablePollutants: ['PM2.5'],
+  })
 })
 
 describe('DashboardView', () => {
@@ -127,5 +137,17 @@ describe('DashboardView', () => {
     expect(wrapper.find('[data-test="stats-card"]').text()).toContain('1')
     expect(wrapper.find('[data-test="stats-card"]').text()).toContain('2')
     expect(wrapper.text()).toContain('冬季北风')
+  })
+
+  it('模拟完成后仍保留风速风向控制框', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="weather-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风向')
+    expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风速')
   })
 })

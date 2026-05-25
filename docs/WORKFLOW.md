@@ -32,7 +32,7 @@ dotnet test --nologo
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（65 用例）
+# 前端（69 用例）
 cd frontend-vue
 npm test
 
@@ -91,6 +91,13 @@ npm run test:watch
 3. 写/跑测试：`npm test -- tests/views/FooView.spec.ts`
 4. 发布前：`npm run build`（会跑 `vue-tsc -b` 做类型检查）
 
+### 改数据管理页
+
+1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
+2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
+3. 批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。
+4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView}.spec.ts`。
+
 ## 已知陷阱
 
 ### EF Core `HasDefaultValue` 不能乱用
@@ -137,7 +144,7 @@ cd backend-dotnet && dotnet test --nologo | tail -3
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 65 passed
+# 预期：Test Files 17 passed, Tests 69 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)
