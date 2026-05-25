@@ -1,6 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReceptorsView from '@/views/ReceptorsView.vue'
 import { receptorsApi } from '@/api'
@@ -91,34 +90,6 @@ describe('ReceptorsView', () => {
     await refreshBtn!.trigger('click')
     await flushPromises()
 
-    expect(receptorsApi.list).toHaveBeenCalledTimes(1)
-  })
-
-  it('工具栏提供批量导入和批量删除入口', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('批量导入')
-    expect(wrapper.text()).toContain('批量删除')
-  })
-
-  it('批量删除部分失败后仍刷新列表', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    vi.mocked(receptorsApi.list).mockClear()
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
-    vi.spyOn(receptorsApi, 'delete')
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('删除失败'))
-
-    wrapper.findComponent({ name: 'ElTable' }).vm.$emit('selection-change', sampleReceptors)
-    await flushPromises()
-
-    const deleteBtn = wrapper.findAll('button').find((b) => b.text().includes('批量删除'))
-    await deleteBtn!.trigger('click')
-    await flushPromises()
-
-    expect(receptorsApi.delete).toHaveBeenCalledTimes(2)
     expect(receptorsApi.list).toHaveBeenCalledTimes(1)
   })
 })

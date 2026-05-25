@@ -351,32 +351,6 @@ onMounted(loadAll)
     </div>
 
     <aside class="right-stack">
-      <section class="floating-card" data-test="weather-card">
-        <div class="card-title">
-          <span>气象控制</span>
-          <el-icon><Compass /></el-icon>
-        </div>
-        <div class="wind-rose">
-          <span>N</span>
-          <span>E</span>
-          <span>S</span>
-          <span>W</span>
-          <i :style="{ transform: `rotate(${draftWindDirection}deg)` }" />
-        </div>
-        <div class="field-grid">
-          <label>
-            风向 (°)
-            <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
-          </label>
-          <label>
-            风速 (m/s)
-            <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
-          </label>
-        </div>
-        <p v-if="weatherDirty" class="hint warning">临时参数未保存，运行仍使用已选气象场。</p>
-        <p v-else class="hint">运行模拟会使用当前选中的已保存气象场。</p>
-      </section>
-
       <template v-if="!result">
         <section class="floating-card" data-test="draw-card">
           <div class="card-title">
@@ -390,6 +364,32 @@ onMounted(loadAll)
             已选择 {{ effectiveSources.length }} 个排放源，{{ effectiveReceptors.length }} 个受体点
             <el-button link size="small" :icon="Close" @click="clearResult">清除</el-button>
           </div>
+        </section>
+
+        <section class="floating-card" data-test="weather-card">
+          <div class="card-title">
+            <span>气象控制</span>
+            <el-icon><Compass /></el-icon>
+          </div>
+          <div class="wind-rose">
+            <span>N</span>
+            <span>E</span>
+            <span>S</span>
+            <span>W</span>
+            <i :style="{ transform: `rotate(${draftWindDirection}deg)` }" />
+          </div>
+          <div class="field-grid">
+            <label>
+              风向 (°)
+              <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
+            </label>
+            <label>
+              风速 (m/s)
+              <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
+            </label>
+          </div>
+          <p v-if="weatherDirty" class="hint warning">临时参数未保存，运行仍使用已选气象场。</p>
+          <p v-else class="hint">运行模拟会使用当前选中的已保存气象场。</p>
         </section>
 
         <section class="floating-card" data-test="stats-card">

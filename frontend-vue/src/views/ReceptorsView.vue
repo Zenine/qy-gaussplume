@@ -101,30 +101,6 @@ async function remove(row: Receptor) {
   }
 }
 
-async function removeSelected() {
-  if (selected.value.length === 0) {
-    ElMessage.warning('请先勾选要删除的受体点')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(`确定删除已选的 ${selected.value.length} 个受体点？`, '批量删除确认', {
-      type: 'warning',
-    })
-    const results = await Promise.allSettled(selected.value.map((row) => receptorsApi.delete(row.id)))
-    const failed = results.filter((result) => result.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.error(`批量删除完成，${failed} 个受体点删除失败`)
-    } else {
-      ElMessage.success('已批量删除')
-    }
-    selected.value = []
-    await refresh()
-  } catch (e) {
-    if (e === 'cancel') return
-    ElMessage.error(errorMessage(e, '批量删除失败'))
-  }
-}
-
 async function downloadTemplate() {
   try {
     const blob = await receptorsApi.downloadTemplate()
@@ -172,18 +148,10 @@ onMounted(refresh)
         accept=".xlsx,.xls"
         :before-upload="importFile"
       >
-        <el-button :icon="Upload">批量导入</el-button>
+        <el-button :icon="Upload">导入 Excel</el-button>
       </el-upload>
       <el-button :icon="Download" :disabled="selected.length === 0" @click="exportSelected">
         导出已选 ({{ selected.length }})
-      </el-button>
-      <el-button
-        type="danger"
-        :icon="Delete"
-        :disabled="selected.length === 0"
-        @click="removeSelected"
-      >
-        批量删除 ({{ selected.length }})
       </el-button>
       <span class="spacer" />
       <el-button link :icon="Refresh" @click="refresh">刷新</el-button>

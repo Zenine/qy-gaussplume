@@ -48,7 +48,7 @@
 }
 ```
 
-对等效面源：`emissionRate=0` + `concentration=实测值`，后端自动调 `CalculateEquivalentEmissionRate` 反算。前端排放源管理页只暴露一个污染物数值输入框，等效面源读写 `concentration`，点源/面源/线源读写 `emissionRate`。
+对等效面源：`emissionRate=0` + `concentration=实测值`，后端自动调 `CalculateEquivalentEmissionRate` 反算。
 
 ## 受体点 `/api/receptors`
 
