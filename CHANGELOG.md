@@ -6,6 +6,18 @@
 
 ---
 
+## [3.0.4] - 2026-06-03
+
+### 新增
+- 使用 Meridian 规范补齐开源发布层：多语 README、VitePress 文档站、GitHub Pages workflow、SEO/GEO metadata、`llms.txt` 与 `llms-full.txt`。
+- 新增企业风格文档主题、Q 字母 hero、Open Graph 图片、SVG 图标资源和静态视觉检查脚本。
+- 新增 `AGENTS.md`、`CLAUDE.md`、Cursor/Windsurf 规则、`QUICK_START.md` 与 `checkpoint.md`，方便后续 AI agent 复用项目上下文。
+- 新增 `i18n/glossary.md` 和多语漂移检查脚本，约束 README 与文档站的 H1/H2 结构及关键标题翻译。
+
+### 变更
+- 根 README 重写为公开项目入口，并补充 English、日本語、繁體中文版本。
+- `docs/WORKFLOW.md` 的验证规模同步为后端 138 个、前端 70 个自动化测试。
+
 ## [3.0.3] - 2026-06-03
 
 ### 新增

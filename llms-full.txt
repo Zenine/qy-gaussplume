@@ -1,0 +1,1421 @@
+<!-- source: README.md -->
+> **语言 / Language**: **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [繁體中文](README.zh-TW.md)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-9.0-512bd4?style=flat-square)](backend-dotnet/)
+[![Vue](https://img.shields.io/badge/Vue-3-42b883?style=flat-square)](frontend-vue/)
+[![Powered by Meridian](https://img.shields.io/badge/Powered%20by-Meridian-8b5cf6?style=flat-square)](https://github.com/lordmos/meridian)
+
+# QY-GaussPlume（清源高斯烟羽扩散模拟平台）
+
+QY-GaussPlume 是给科研团队、环评工程师和方案评估人员使用的大气污染物扩散模拟平台。它把排放源、受体点、气象场和地图可视化放在同一个工作台里，让团队可以快速比较污染扩散影响、受体贡献和不同风场条件下的工程方案。
+
+## Quick Start
+
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+./scripts/start.sh
+```
+
+打开 <http://localhost:5173>。前端会把 `/api/*` 代理到后端 <http://localhost:5207>。
+
+提交前运行完整验证：
+
+```bash
+./scripts/verify.sh
+```
+
+## Why It Matters
+
+- 让污染扩散评估从脚本试算变成可操作的地图工作流。
+- 支持点源、面源、线源和等效面源，适合工程现场常见数据形态。
+- 支持单风向和多风向加权并行模拟，便于做风场敏感性分析。
+- 对每个受体点输出污染源贡献排名，帮助解释“影响来自哪里”。
+- 内置匿名演示数据与完整测试入口，便于交付、审阅和二次开发。
+
+## What You Can Do
+
+- 在主控台选择气象场、污染物、模拟范围和网格分辨率。
+- 直接调节临时风速和风向运行单风向模拟，不覆盖保存的气象记录。
+- 在地图上框选区域，只模拟区域内排放源对受体点的影响。
+- 通过 Excel 模板批量导入排放源和受体点。
+- 查看 PM2.5、PM10、TSP、VOCs、NOx、O3 的浓度场和贡献分析。
+
+## Screenshots
+
+| 主控台模拟 | 受体点贡献分析 |
+|---|---|
+| ![主控台浓度热力图](docs/assets/screenshots/dashboard-simulation.png) | ![受体点贡献分析抽屉](docs/assets/screenshots/contribution-analysis.png) |
+
+| 排放源管理 | 受体点管理 | 气象场管理 |
+|---|---|---|
+| ![排放源管理](docs/assets/screenshots/sources-management.png) | ![受体点管理](docs/assets/screenshots/receptors-management.png) | ![气象场管理](docs/assets/screenshots/meteorology-management.png) |
+
+## Architecture
+
+```text
+frontend-vue (Vue 3 + TypeScript + Leaflet)
+        |
+        | HTTP JSON /api/*
+        v
+backend-dotnet (ASP.NET Core 9)
+        |
+        +-- GnnSimulation.Core  高斯烟羽模型与贡献分析
+        +-- GnnSimulation.Data  EF Core + SQLite
+        +-- Shapefile / Excel   地图边界与批量导入导出
+```
+
+## Data And Privacy
+
+仓库内的 `backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。公开仓库不得提交真实项目名称、真实客户数据、密钥、账号凭证或未获授权的监测数据。
+
+## Documentation
+
+| 文档 | 说明 |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、数据流、演进说明 |
+| [docs/API.md](docs/API.md) | API 端点参考 |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | 日常开发、验证、常见陷阱 |
+| [backend-dotnet/README.md](backend-dotnet/README.md) | 后端结构、配置、测试与技术决策 |
+| [frontend-vue/README.md](frontend-vue/README.md) | 前端结构、状态管理、坐标与测试 |
+
+## Verification
+
+当前验证规模：后端 138 个 xUnit 用例、前端 70 个 Vitest 用例，并包含前端生产构建与类型检查。
+
+```bash
+./scripts/verify.sh
+```
+
+## Version
+
+当前版本为 3.0.4，最近更新聚焦 Meridian 开源发布层、VitePress 文档站、多语 README、GitHub Pages workflow 与 SEO/GEO 资源。详见 [CHANGELOG.md](CHANGELOG.md)。
+
+## License
+
+本项目采用 [MIT License](LICENSE)。
+
+<sub>Built with [Meridian](https://github.com/lordmos/meridian)</sub>
+
+---
+
+<!-- source: docs/API.md -->
+# API 参考
+
+所有 HTTP 端点一览。详细 schema 见 [OpenAPI](http://localhost:5207/openapi/v1.json)（启动后端后访问）。
+
+**基础信息**
+- 协议：HTTP
+- 默认端口：5207（dev）
+- JSON：**camelCase** 字段命名
+- 错误格式：`{ "detail": "错误描述" }` + 标准 HTTP 状态码（404 / 400 / 500）
+- 字符集：UTF-8（含中文）
+
+## 排放源 `/api/sources`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/sources?skip=0&limit=100` | 列表（含污染物 include） |
+| GET | `/api/sources/{id}` | 单个 |
+| POST | `/api/sources` | 创建，body `EmissionSourceCreateDto` |
+| POST | `/api/sources/batch` | 批量，body `EmissionSourceCreateDto[]` |
+| PUT | `/api/sources/{id}` | 部分更新（PATCH 语义：传 null 不改；`pollutants` 非 null 整体替换） |
+| DELETE | `/api/sources/{id}` | 删除（级联污染物） |
+| GET | `/api/sources/pollutant-types` | 六种污染物元数据 |
+| GET | `/api/sources/marker-symbols` | 十二种图标元数据 |
+| POST | `/api/sources/{id}/pollutants` | 追加或覆盖一个污染物排放 |
+| DELETE | `/api/sources/{id}/pollutants/{pid}` | 移除一个污染物 |
+| GET | `/api/sources/template/{type}` | 下载 Excel 模板（type ∈ point/area/equivalent_area/line） |
+| POST | `/api/sources/import/{type}` | 上传 Excel 导入，multipart/form-data `file` |
+
+**`EmissionSourceCreateDto` 关键字段**：
+
+```json
+{
+  "name": "...",
+  "sourceType": "point|area|equivalent_area|line",
+  "latitude": 39.9,
+  "longitude": 116.4,
+  "height": 50,
+  "temperature": 400, "velocity": 15, "diameter": 2,
+  "areaLength": 100, "areaWidth": 100, "areaHeight": 10, "areaTemperature": 300,
+  "startLat": ..., "startLon": ..., "endLat": ..., "endLon": ...,
+  "lineWidth": 10, "lineHeight": 1, "lineSegmentLength": 10,
+  "markerSymbol": "factory",
+  "markerColor": "#FF5722",
+  "isActive": true,
+  "pollutants": [
+    { "pollutantType": "PM2.5", "emissionRate": 1.5, "concentration": null }
+  ]
+}
+```
+
+对等效面源：`emissionRate=0` + `concentration=实测值`，后端自动调 `CalculateEquivalentEmissionRate` 反算。
+
+## 受体点 `/api/receptors`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/receptors?skip=0&limit=100` | 列表 |
+| GET | `/api/receptors/{id}` | 单个 |
+| POST | `/api/receptors` | 创建 |
+| POST | `/api/receptors/batch` | 批量 |
+| PUT | `/api/receptors/{id}` | 部分更新 |
+| DELETE | `/api/receptors/{id}` | 删除 |
+| GET | `/api/receptors/template` | 下载 Excel 模板 |
+| POST | `/api/receptors/import` | 上传 Excel 导入 |
+| POST | `/api/receptors/export` | 导出所选 id 的 xlsx（body：`int[]`） |
+
+```json
+{
+  "name": "学校",
+  "latitude": 39.9,
+  "longitude": 116.4,
+  "height": 1.5,
+  "markerSymbol": "monitor",
+  "markerColor": "#2196F3",
+  "isActive": true
+}
+```
+
+## 气象场 `/api/meteorology`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/meteorology` | 列表 |
+| GET | `/api/meteorology/{id}` | 单个 |
+| POST | `/api/meteorology` | 创建 |
+| POST | `/api/meteorology/batch` | 批量 |
+| PUT | `/api/meteorology/{id}` | 部分更新 |
+| DELETE | `/api/meteorology/{id}` | 删除 |
+
+```json
+{
+  "name": "冬季北风",
+  "windSpeed": 3.0,
+  "windDirection": 0,
+  "boundaryLayerHeight": 1000,
+  "stabilityClass": "D",
+  "temperature": 293.15,
+  "humidity": 50,
+  "cloudCover": 0,
+  "precipitation": 0
+}
+```
+
+## 模拟 `/api/simulation`
+
+### `POST /api/simulation/run` - 单风向
+
+**请求** `SimulationRequestDto`:
+
+```json
+{
+  "meteorologyId": 1,
+  "windSpeed": 3.0,            // 可选：临时覆盖气象场风速，不写回气象场
+  "windDirection": 277,        // 可选：临时覆盖气象场风向，不写回气象场
+  "sourceIds": null,           // null = 所有 isActive；[] = 空范围；[id] = 指定集合
+  "receptorIds": null,         // 同上，供地图框选等场景使用
+  "pollutantType": null,       // null = 所有污染物
+  "gridResolution": 100,       // 网格分辨率 (m)
+  "domainSize": 10000,         // 域大小 (m)
+  "receptorHeight": 0
+}
+```
+
+`sourceIds` / `receptorIds` 使用三态语义：`null` 表示未指定过滤条件，空数组表示调用方明确选择空范围，非空数组表示只模拟指定 ID。
+
+`windSpeed` / `windDirection` 为主控台临时调参入口：传入时只影响本次单风向模拟，不修改气象场管理中的已保存记录；省略时使用 `meteorologyId` 对应气象场的保存值。
+
+**响应** `SimulationResultDto`:
+
+```json
+{
+  "concentrations": [[...], ...],      // 2D [lat][lon] 网格
+  "gridLat": [...],                    // 1D 网格纬度
+  "gridLon": [...],
+  "contributions": [                   // 每个源的统计
+    { "sourceId": 1, "sourceName": "...", "totalConcentration": 0, "maxConcentration": 0, "pollutants": [...] }
+  ],
+  "receptorContributions": {
+    "受体名称": {
+      "PM2.5": [
+        { "sourceId": 1, "sourceName": "...", "concentration": 0, "pollutant": "PM2.5", "percentage": 0 }
+      ]
+    }
+  },
+  "pollutantConcentrations": {         // 每种污染物独立的网格（可选）
+    "PM2.5": [[...]], "NOx": [[...]]
+  },
+  "availablePollutants": ["PM2.5", "NOx"]
+}
+```
+
+**错误**:
+- 404: 气象场未找到
+- 400: 没有可用的排放源
+
+### `POST /api/simulation/run_parallel` - 多风向并行
+
+**请求** `ParallelSimulationRequestDto`:
+
+```json
+{
+  "meteorologyId": 1,
+  "windSpeed": 3.0,                    // 覆盖气象场风速
+  "windDirections": [0, 22.5, 45, ...],  // 任意数量
+  "weights": null,                     // null = 等权
+  "sourceIds": null, "receptorIds": null, "pollutantType": null,
+  "gridResolution": 10, "domainSize": 10000, "receptorHeight": 0,
+  "numWorkers": null,                  // null = min(CPU 核数, 风向数)
+  "returnAggregatedOnly": true         // false = 详细模式返回每风向
+}
+```
+
+**响应** `ParallelSimulationResultDto`:
+
+聚合模式（默认 / 内存超 0.5 GB 强制）：
+
+```json
+{
+  "success": true,
+  "mode": "aggregated",
+  "totalWindDirections": 72,
+  "successfulSimulations": 72,
+  "failedSimulations": 0,
+  "errors": null,
+  "numWorkersUsed": 8,
+  "computationTimeSeconds": 15.3,
+  "speedupFactor": 281.7,
+  "concentrations": [[...]],
+  "gridLat": [...], "gridLon": [...],
+  "pollutantConcentrations": {...},
+  "availablePollutants": [...],
+  "receptorContributions": {...}
+}
+```
+
+详细模式（`returnAggregatedOnly=false`）：
+
+```json
+{
+  "success": true,
+  "mode": "detailed",
+  "results": [
+    { "windDirection": 0, "success": true, "concentrations": [[...]], ... },
+    ...
+  ]
+}
+```
+
+## 标记配置 `/api/config`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/config` | 全部标记配置 |
+| GET | `/api/config/{type}` | 按 type 查询 |
+| POST | `/api/config` | 创建（type 唯一，冲突返回 400） |
+| PUT | `/api/config/{type}` | 更新 |
+
+## 地图 `/api/map`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/map/geojson?force=false` | 县级边界 GeoJSON；`force=true` 强制加载（约 100 MB） |
+| GET | `/api/map/bounds` | 地图边界 WGS84 `{ minLat, minLon, maxLat, maxLon }` |
+| GET | `/api/map/info` | 元信息：CRS / featureCount / columns / bounds |
+
+**默认 `/geojson` 返回空** `{"type":"FeatureCollection","features":[]}`，对齐 Python 原版 `LOAD_SHP_BY_DEFAULT=False`。生产环境如需加载，改 `appsettings.json` 的 `Shapefile:LoadByDefault`。
+
+## 在浏览器中探索 API
+
+开发环境启动后打开：
+```
+http://localhost:5207/openapi/v1.json
+```
+
+可以直接喂给 Postman/Bruno/OpenAPI Generator。
+
+---
+
+<!-- source: docs/ARCHITECTURE.md -->
+# 架构与演进
+
+## 总体架构
+
+```
+                       ┌─────────────────────────────────┐
+                       │   用户浏览器                      │
+                       └──────────────┬──────────────────┘
+                                      │
+                                      ▼
+    ┌──────────────────────────────────────────────────────────┐
+    │   frontend-vue (Vite dev :5173 / 生产静态资源)            │
+    │                                                          │
+    │  Vue 3 SFC ──────────── Pinia (持久化到 localStorage)    │
+    │      │                       │                           │
+    │      ▼                       ▼                           │
+    │  Element Plus UI      axios + TS 类型 (DTO 对齐)          │
+    │      │                       │                           │
+    │      ▼                       ▼                           │
+    │  Leaflet + 高德瓦片 ────► Canvas 热力图 (双线性插值)      │
+    │      │                                                   │
+    │      └─► WGS84 ↔ GCJ02 转换                              │
+    └──────────────────┬───────────────────────────────────────┘
+                       │ /api/* (Vite proxy → dev; Ingress → prod)
+                       ▼
+    ┌──────────────────────────────────────────────────────────┐
+    │   backend-dotnet (ASP.NET Core :5207)                    │
+    │                                                          │
+    │   GnnSimulation.Api ── Controllers (7 个)                 │
+    │         │                                                │
+    │         ▼                                                │
+    │   Services:                                              │
+    │     SimulationService  ───► GridBuilder                  │
+    │     ParallelSimulationService ─► WindDirectionWorker     │
+    │     ShapefileService (SHP → GeoJSON, Albers→WGS84)       │
+    │     ExcelService (模板/导入/导出)                         │
+    │         │                                                │
+    │         ▼                                                │
+    │   GnnSimulation.Core (无依赖)                            │
+    │     GaussianPlumeModel · PasquillGifford ·               │
+    │     PollutantProperties · StabilityClassifier ·          │
+    │     ContributionAnalysis                                 │
+    │         │                                                │
+    │         ▼                                                │
+    │   GnnSimulation.Data ── EF Core 9 ─────┐                 │
+    │     实体 × 5 · Fluent 映射 · 自动时间戳│                 │
+    └──────────────────────────────────────┬─┘                 │
+                                           │                   │
+                              ┌────────────┴────────────┐      │
+                              ▼                         ▼      │
+                         SQLite                    Shapefile   │
+                    air_pollution.db          县（等积投影）.shp│
+                    (匿名演示库)                  60 MB, Albers│
+```
+
+## 四层后端
+
+| 层 | 项目 | 职责 | 无依赖上游？ |
+|---|---|---|---|
+| API | `GnnSimulation.Api` | HTTP、DTO、DI、CORS、路由 | 依赖 Core + Data |
+| 服务 | `GnnSimulation.Api/Services` | 业务编排：加载数据→调用算法→聚合→返回 | 依赖 Core + Data |
+| 算法 | `GnnSimulation.Core` | 高斯烟羽 + 衰减 + 贡献排名（纯函数） | ✅ 零依赖，无数据库、无 HTTP |
+| 持久化 | `GnnSimulation.Data` | 实体 + DbContext + Migrations | 依赖 EF Core |
+
+**设计原则**：Core 不依赖 Data/Api，方便单独测试、复用到其他 UI（如 CLI 批处理）、甚至移植到其他语言。
+
+## 数据流：一次单风向模拟
+
+```
+POST /api/simulation/run
+   │
+   ▼
+SimulationController.Run
+   │
+   ▼
+SimulationService.RunAsync
+   ├─► 加载 Meteorology (by id)
+   ├─► 加载 EmissionSource 列表（null=激活数据，[]=空集合，ids=指定集合）+ Include(Pollutants)
+   ├─► 加载 Receptor 列表（null=激活数据，[]=空集合，ids=指定集合）
+   ├─► GridBuilder.Build → 外包框 + domain_size 构建方形网格 (clamp 50-500 点)
+   │
+   ├─► 遍历每个源：
+   │     ComputeEmissionRates (合并污染物速率；等效面源: 浓度→等效速率)
+   │     DispatchSourceField (按 source_type 派发到 Core 层):
+   │       point           → CalculateConcentrationField
+   │       area            → CalculateAreaSourceConcentrationField
+   │       equivalent_area → 带 isEquivalent=true 的面源，浓度夹紧
+   │       line            → CalculateLineSourceConcentrationField (分段点源法)
+   │     AddInPlace → 累加到总浓度场
+   │     每污染物独立再算一次 → pollutantConcentrations dict
+   │
+   ├─► 遍历每个受体：
+   │     对每个污染物 对每个源：
+   │       CalculateReceptor*Concentration (点/面/线/等效面分派)
+   │       < 1e-6 清零
+   │     按浓度降序排 + 计算 percentage
+   │
+   └─► 返回 SimulationResultDto (concentrations 2D + receptorContributions 嵌套字典 + ...)
+```
+
+## 数据流：多风向并行
+
+```
+POST /api/simulation/run_parallel
+   │
+   ▼
+ParallelSimulationService.RunAsync
+   ├─► 加载数据（同上，但一次性共享）
+   ├─► 构建 WindDirectionWorker.Context (无状态上下文)
+   ├─► Task.Run(() => Parallel.ForEach(windDirections, ctx =>
+   │       WindDirectionWorker.Run(wind, ctx)    // 每个风向独立计算
+   │   ))
+   │     → ConcurrentBag<WindDirectionResultDto>
+   │
+   ├─► 估算内存 > 0.5 GB ⇒ 强制 returnAggregatedOnly = true（防响应爆）
+   │
+   └─► 聚合：
+         权重归一化 (nullable → 等权)
+         总浓度场 = Σ (风向结果 × 权重)
+         污染物浓度场 = Σ (风向结果 × 权重) 按类别独立累加
+         受体贡献聚合 = Σ (同 source_id 加权合并) → 排序 + 百分比
+         附计算时间、加速比、失败列表
+```
+
+**与 Python 原版的关键差异**：
+
+| | Python | .NET |
+|---|---|---|
+| 并发模型 | `ProcessPoolExecutor` (进程) | `Parallel.ForEach` (线程) |
+| 数据传递 | pickle 序列化 | 零拷贝共享 |
+| 网格中心 | 源经纬度均值 | 同 |
+| 网格点数 | `int(domain/res)+1`，不夹 | 同 |
+| 每污染物场 | `source_conc × p_rate/total` | 同（p_fraction 优化） |
+
+## 前端分层
+
+```
+src/
+├── api/          ← Axios 封装，错误拦截器透传 { detail }
+├── types/        ← 手写 TS 类型镜像后端 DTO（camelCase）
+├── stores/       ← Pinia：app（折叠）+ prefs（localStorage 持久化）
+├── router/       ← Vue Router，懒加载 + document.title 自动设置
+├── views/        ← 4 个页面（Dashboard/Sources/Receptors/Meteorology）
+├── components/   ← 可复用：MapPanel、HeatmapCanvas（通过 composable）、
+│                    ColorLegend、ContributionPanel、ParallelSimulationDialog
+├── composables/  ← useHeatmapRenderer（Canvas 渲染与 LatLng 计算）
+└── utils/        ← coords、colorScale、selection、download、error（纯函数，好测）
+```
+
+**设计原则**：
+- 一切可纯函数化的逻辑进 `utils/` 或 `composables/`
+- 组件只负责渲染 + 用户交互，不直接管理持久化状态
+- Pinia store 仅作全局状态枢纽；业务数据放在 view 的 `ref`
+
+## 11 阶段演进史
+
+| 阶段 | 产出 | 后端测试 | 前端测试 |
+|---|---|---|---|
+| **P1** | .NET 骨架 + EF Core 实体 + Migration | 28 | — |
+| **P2** | 4 个 Controller CRUD + DTO + 映射 + 集成测试 | 57 | — |
+| **P3** | Core 层高斯烟羽算法完整移植 + Python 黄金值对齐 | 102 | — |
+| **P4** | `/api/simulation/run` 单风向编排 | 113 | — |
+| **P5** | `/api/simulation/run_parallel` 多风向并行 + 加权聚合 | 122 | — |
+| **P6** | Shapefile (ProjNet Albers→WGS84) + Excel IO | 136 | — |
+| **P7** | Vue 骨架 + Router + Pinia + API client + Vitest | 136 | 16 |
+| **P8** | 三页 CRUD UI（含排放源四种源类型动态表单） | 136 | 24 |
+| **P9** | Leaflet 地图 + Canvas 热力图 + 色阶 + GCJ02 | 136 | 44 |
+| **P10** | Prefs 持久化 + 贡献面板 + 并行对话框 + 图例 + E2E 联调 | 136 | 55 |
+| **P11** | 前端控制台视觉优化 + 应用外壳与页面骨架测试 | 136 | 60 |
+| **P12** | 主控台悬浮操作区恢复 + 矩形框选模拟 + 受体贡献摘要 | 137 | 65 |
+| **P13** | 主控台临时气象参数 + 排放源/受体点批量管理 + 等效面源污染物显示修复 | 138 | 70 |
+
+**当前**：208 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+
+## 关键权衡
+
+### 为什么用 ProjNet 而不是 NetTopologySuite 内置
+
+NTS 本身不做 CRS 变换。ProjNet 是微软系维护的轻量投影库，支持 WKT → 坐标系解析 + Albers 等复杂投影。比 DotSpatial 小很多。
+
+### 为什么 Map 的 `/geojson` 默认不加载
+
+60 MB shp 转成 GeoJSON 约 100+ MB 响应，浏览器解析卡死。沿用 Python 原版 `LOAD_SHP_BY_DEFAULT=False`，按需 `?force=true`。
+
+### 为什么并行模拟用线程不是进程
+
+.NET 无 GIL，线程共享内存，`Parallel.ForEach` 零拷贝。Python 必须进程是因为 GIL 限制 CPU 并行 + numpy 释放 GIL 有限。
+
+### 为什么污染物浓度场用 `p_fraction × total_field`
+
+避免每污染物独立重新算一次浓度场。单风向 `/run` 重算（精确），多风向 `/run_parallel` 比例拆分（快 N 倍，误差来自衰减的非线性叠加，但测试验证聚合结果一致）。
+
+---
+
+<!-- source: docs/WORKFLOW.md -->
+# 开发工作流
+
+日常写代码常用命令与标准步骤。
+
+## 起停
+
+```bash
+# 一键起（前后端同时）
+./scripts/start.sh
+
+# 一键停
+./scripts/stop.sh
+
+# 手动起（两个终端）
+cd backend-dotnet/GnnSimulation.Api && dotnet run
+cd frontend-vue && npm run dev
+```
+
+- 后端: <http://localhost:5207>
+- 前端: <http://localhost:5173>（自动代理 `/api` 到后端）
+
+## 跑测试
+
+```bash
+# 完整验证（提交前推荐）
+./scripts/verify.sh
+
+# 后端（138 用例，~30s）
+cd backend-dotnet
+dotnet test --nologo
+
+# 单个类
+dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
+
+# 前端（70 用例）
+cd frontend-vue
+npm test
+
+# 前端 watch
+npm run test:watch
+```
+
+### 改主控台气象控制
+
+1. 主控台风速、风向输入框用于本次单风向模拟的临时参数，不写回气象场管理记录。
+2. 前端运行模拟时必须随请求提交 `windSpeed` / `windDirection`；后端缺省时才回退到 `meteorologyId` 对应气象场保存值。
+3. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
+
+### 改数据管理页
+
+1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
+2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
+3. 批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。
+4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView}.spec.ts`。
+
+## 常见变更模板
+
+### 加一个新的数据实体
+
+1. **写实体类** `GnnSimulation.Data/Entities/Foo.cs`（继承 `EntityBase` 获得 id + 时间戳）
+2. **加 DbSet** `GnnSimulation.Data/GnnDbContext.cs`：
+   ```csharp
+   public DbSet<Foo> Foos => Set<Foo>();
+   ```
+3. **加 Fluent 映射**（在 `OnModelCreating` 里）：
+   ```csharp
+   e.ToTable("foos");
+   e.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+   // ⚠️ 不要用 HasDefaultValue(...)，用 CLR 属性初始化器代替
+   ```
+4. **生成迁移**：
+   ```bash
+   export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
+   export DOTNET_ROOT="$HOME/.dotnet"
+   dotnet ef migrations add AddFoo --project GnnSimulation.Data --startup-project GnnSimulation.Data
+   ```
+5. **写实体测试** `GnnSimulation.Tests/Data/FooTests.cs`（默认值、约束、关联）
+
+### 加一个新 API
+
+1. **DTO**：`GnnSimulation.Api/Dtos/FooDtos.cs`（Create/Update/Response 三件套）
+2. **映射**：`GnnSimulation.Api/Mapping/EntityMapping.cs` 补 `ToEntity/ToDto/ApplyUpdate` 扩展方法
+3. **Controller**：`GnnSimulation.Api/Controllers/FoosController.cs`
+4. **集成测试**：`GnnSimulation.Tests/Api/FoosControllerTests.cs`（用 `GnnWebApplicationFactory`）
+5. **前端类型**：`frontend-vue/src/types/index.ts` 加 `Foo / FooCreate / FooUpdate`
+6. **前端 API**：`frontend-vue/src/api/foos.ts` 导出 `foosApi`
+7. **前端 API 测试**：`frontend-vue/tests/api.spec.ts` 补用例
+
+### 改后端算法
+
+1. 先动 `GnnSimulation.Core/Atmosphere/*.cs`
+2. 跑单测：`dotnet test --filter "FullyQualifiedName~GaussianPlumeModelTests"`
+3. 如改了公式 → 重新生成黄金值：
+   ```bash
+   cd backend-dotnet/GnnSimulation.Tests/Data/golden
+   python3 generate_golden.py
+   ```
+4. 跑黄金值测试：`dotnet test --filter "FullyQualifiedName~GoldenValueTests"`
+
+### 改前端页面
+
+1. 动 `.vue` 文件
+2. `npm run dev` 自带 HMR，保存即刷新
+3. 写/跑测试：`npm test -- tests/views/FooView.spec.ts`
+4. 发布前：`npm run build`（会跑 `vue-tsc -b` 做类型检查）
+
+## 已知陷阱
+
+### EF Core `HasDefaultValue` 不能乱用
+
+EF 如果检测到属性值等于 `HasDefaultValue(x)` 里的 `x`，会**跳过 INSERT 这列**，让 DB 层 DEFAULT 生效。但如果 DB schema 没有 DEFAULT，列会被写成 NULL → 读回非空属性时崩。
+
+**规则**：
+- ✅ `HasDefaultValueSql("CURRENT_TIMESTAMP")` 用于 DB 层真的有默认的列（时间戳）
+- ❌ 不要用 `HasDefaultValue("point")` 之类
+- ✅ 在 C# 实体类用初始化器：`public string SourceType { get; set; } = "point";`
+
+### 老 Python DB 的历史 NULL 值
+
+Python SQLAlchemy 的 `Column(Boolean, default=True)` 是 **Python 层默认**，不是 DB 层 NOT NULL。历史行可能存在 `is_active = NULL`。
+
+**处理**：`Program.cs` 启动时已加 `UPDATE ... WHERE is_active IS NULL` 自愈。新加字段若有类似情况，在同一位置加 SQL。
+
+### Vitest 对 jsdom 的 Canvas 限制
+
+`<canvas>` 2D context 在 jsdom 里是 null。`tests/heatmap.spec.ts` 用 `vi.fn(() => ({ createImageData, putImageData }))` 做最小 stub。要测真实像素渲染，需改用 `@vitest/browser` 或引入 `canvas` node 模块（重）。
+
+### 并发 npm install 会相互死锁
+
+不要开多个 `npm install` 终端。如遇到僵尸进程：
+
+```bash
+pkill -9 -f "npm install"
+rm -rf frontend-vue/node_modules frontend-vue/package-lock.json
+cd frontend-vue && npm install --registry=https://registry.npmmirror.com
+```
+
+### 后端监听端口修改
+
+`backend-dotnet/GnnSimulation.Api/Properties/launchSettings.json` 有 http 和 https 两个 profile，默认 `5207`/`7067`。改了要同时更新：
+- `backend-dotnet/GnnSimulation.Api/Program.cs` 的 CORS 白名单
+- `frontend-vue/.env` 的 `VITE_API_PROXY_TARGET`
+
+## 验证全栈正常
+
+```bash
+# 1. 后端测试绿
+cd backend-dotnet && dotnet test --nologo | tail -3
+# 预期：已通过! - 失败: 0，通过: 138
+
+# 2. 前端测试绿
+cd frontend-vue && npm test 2>&1 | tail -3
+# 预期：Test Files 17 passed, Tests 70 passed
+
+# 3. 构建成功
+(cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)
+
+# 4. 跑起来并敲端到端
+./scripts/start.sh
+sleep 5
+curl -s http://localhost:5207/api/map/bounds | head -c 100
+curl -s http://localhost:5173/api/sources/pollutant-types | head -c 100   # 经 Vite proxy
+./scripts/stop.sh
+```
+
+## 其他常用命令
+
+```bash
+# 后端 OpenAPI 导出（启动后）
+curl http://localhost:5207/openapi/v1.json > docs/openapi.json
+
+# 前端 bundle 体积分析
+cd frontend-vue && npm run build  # 查看 dist/assets/ 目录的 .js 大小
+
+# SQLite 查表
+sqlite3 backend/air_pollution.db ".tables"
+sqlite3 backend/air_pollution.db "SELECT count(*) FROM emission_sources;"
+
+# 查看运行时日志
+tail -f .run/backend.log
+tail -f .run/frontend.log
+```
+
+## 运行时日志
+
+`scripts/start.sh` 会把前后端输出分别写到：
+
+- `.run/backend.log` — 后端 ASP.NET Core 输出（含 HTTP 请求日志、EF SQL、异常堆栈）
+- `.run/frontend.log` — 前端 Vite 输出（启动、HMR、代理转发错误）
+
+每次 `start.sh` 启动会把旧日志轮转为 `*.log.1`。后端 HTTP 请求日志默认已开启 `Information` 级别（见 `backend-dotnet/GnnSimulation.Api/appsettings.json`）。
+
+## 问题反馈
+
+有 bug 报告、功能建议或疑问，联系 **Zenine Xu** <zeninexu@gmail.com> 或在仓库提 issue。
+
+---
+
+<!-- source: docs/faq.md -->
+# FAQ
+
+QY-GaussPlume 的常见问题围绕本地启动、数据来源、模拟参数、地图显示和验证流程。每个答案都可以单独阅读，便于搜索引擎和大模型引用。
+
+### QY-GaussPlume 适合谁使用？
+
+它适合科研团队、环境影响评价工程师、方案评估人员和需要解释污染物扩散结果的技术团队。平台把模拟、地图、数据管理和贡献分析放在同一套工作流中。
+
+### 仓库里的 SQLite 数据能直接用于生产吗？
+
+不能。`backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。真实项目数据应放在仓库外部，并通过连接串配置覆盖。
+
+### 主控台的风速风向会覆盖气象场记录吗？
+
+不会。主控台风速和风向是本次单风向模拟的临时参数，只影响当前请求，不写回气象场管理中的保存记录。
+
+### 为什么等效面源只显示一个污染物数值框？
+
+等效面源使用实测浓度 `concentration` 反算等效排放速率。界面只暴露浓度输入，内部提交时保持 `emissionRate=0`，避免用户看到两个互相混淆的数值框。
+
+### 提交前应该运行什么验证？
+
+运行 `./scripts/verify.sh`。该脚本会执行后端 138 个 xUnit 用例、前端 70 个 Vitest 用例和前端生产构建。
+
+---
+
+<!-- source: docs/index.md -->
+# QY-GaussPlume
+
+QY-GaussPlume 是面向科研和工程评估的大气污染物扩散模拟平台。它用 ASP.NET Core 9、Vue 3、Leaflet 和高斯烟羽模型，把排放源管理、气象场选择、地图模拟和贡献分析串成一个可运行、可验证、可交付的工作流。
+
+## 适用场景
+
+- 环评项目中快速比较不同排放源和风场条件。
+- 工程方案讨论时查看污染物扩散范围和受体点影响。
+- 科研或教学中复现实验数据、测试模型参数和解释贡献排名。
+
+## 继续阅读
+
+- [快速开始](quick-start.md)
+- [架构与演进](ARCHITECTURE.md)
+- [API 参考](API.md)
+- [开发工作流](WORKFLOW.md)
+- [FAQ](faq.md)
+
+---
+
+<!-- source: docs/quick-start.md -->
+# 快速开始
+
+QY-GaussPlume 可以在本机用一个脚本启动完整前后端环境，适合先体验主控台模拟、数据管理和贡献分析，再进入二次开发。
+
+## 三步上手
+
+1. 准备 .NET SDK 9.0.x 和 Node.js 20+。
+2. 克隆仓库并安装前端依赖。
+3. 运行启动脚本并打开浏览器。
+
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd ..
+./scripts/start.sh
+```
+
+## 一句话模板
+
+如果你想让 AI 助手继续开发这个项目，可以使用：
+
+```text
+QY-GaussPlume 的源码在 /Users/zeninexu/github/未命名文件夹/qy-gaussplume。请读 QUICK_START.md，然后向我提问。没有问题就开始工作。
+```
+
+## 验证
+
+```bash
+./scripts/verify.sh
+```
+
+该命令会执行后端 xUnit、前端 Vitest 和前端生产构建。
+
+## 中断后恢复
+
+```text
+请读 checkpoint.md，继续上次未完成的工作。
+```
+
+---
+
+<!-- source: docs/en/API.md -->
+# API Reference
+
+QY-GaussPlume exposes HTTP JSON endpoints under `/api/*`. JSON fields use camelCase and errors return `{ "detail": "..." }` with standard HTTP status codes.
+
+## Emission Sources `/api/sources`
+
+Source endpoints support list, get, create, batch create, update, delete, pollutant metadata, marker symbols, Excel templates, and Excel import. Equivalent-area sources submit `emissionRate=0` with measured `concentration`.
+
+## Receptors `/api/receptors`
+
+Receptor endpoints support CRUD, batch create, Excel template download, Excel import, selected export, and selected deletion through repeated delete requests.
+
+## Meteorology `/api/meteorology`
+
+Meteorology endpoints manage saved wind speed, wind direction, stability class, boundary layer height, temperature, humidity, cloud cover, and precipitation.
+
+## Simulation `/api/simulation`
+
+`POST /api/simulation/run` performs a single-wind simulation. Optional `windSpeed` and `windDirection` override saved meteorology only for the current request. `POST /api/simulation/run_parallel` performs weighted multi-direction simulation.
+
+## Marker Config `/api/config`
+
+Marker configuration endpoints manage source and receptor marker styles used by the map UI.
+
+## Map `/api/map`
+
+Map endpoints expose optional GeoJSON boundary loading, map bounds, and shapefile metadata. Large shapefiles are not loaded by default.
+
+## Explore API In Browser
+
+Start the backend and open `http://localhost:5207/openapi/v1.json` for the OpenAPI document.
+
+---
+
+<!-- source: docs/en/ARCHITECTURE.md -->
+# Architecture And Evolution
+
+QY-GaussPlume is split into a Vue frontend, an ASP.NET Core API, a pure simulation core, and EF Core persistence. The boundary keeps the Gaussian plume model testable outside HTTP and database concerns.
+
+## Overall Architecture
+
+The browser talks to `frontend-vue`, which proxies `/api/*` to `backend-dotnet`. The backend coordinates source loading, grid building, simulation, contribution analysis, shapefile access, and Excel import/export.
+
+## Four Backend Layers
+
+The API layer handles HTTP and DTOs, services orchestrate data and algorithms, Core contains pure atmospheric calculations, and Data maps SQLite entities with EF Core.
+
+## Data Flow: Single-Wind Simulation
+
+`POST /api/simulation/run` loads meteorology, sources, and receptors; builds the grid; computes source fields; aggregates pollutant fields; and returns receptor contribution rankings.
+
+## Data Flow: Multi-Wind Parallel
+
+`POST /api/simulation/run_parallel` builds one shared context and evaluates each wind direction in parallel, then combines concentration fields and receptor contributions by weight.
+
+## Frontend Layers
+
+The frontend separates API clients, shared types, Pinia stores, routed views, map components, composables, and pure utilities for color scales, coordinates, selection, download, and error handling.
+
+## 11-Stage Evolution History
+
+The project moved from Python/FastAPI to ASP.NET Core 9 and Vue 3 through staged backend, core algorithm, frontend, map, dashboard, and management-page improvements.
+
+## Key Tradeoffs
+
+The design keeps Core free of API/Data dependencies, avoids default-value traps in EF Core, loads large shapefiles only on demand, and uses .NET threading for multi-wind parallelism.
+
+---
+
+<!-- source: docs/en/WORKFLOW.md -->
+# Development Workflow
+
+QY-GaussPlume uses repository scripts for local startup, shutdown, testing, and full verification. Prefer project scripts over local Git hooks.
+
+## Start And Stop
+
+Use `./scripts/start.sh` to start backend and frontend together, and `./scripts/stop.sh` to stop them. Backend runs on port 5207 and frontend on port 5173.
+
+## Run Tests
+
+Run `./scripts/verify.sh` before committing. It executes backend tests, frontend tests, and frontend production build.
+
+## Common Change Templates
+
+For new data entities, API endpoints, backend algorithms, frontend pages, dashboard weather controls, and management pages, update tests first and keep DTOs, types, docs, and workflow notes aligned.
+
+## Known Pitfalls
+
+Avoid EF Core `HasDefaultValue` for fields without database defaults, handle historical NULL values, stub Canvas in jsdom tests, avoid concurrent `npm install`, and keep backend port settings synchronized.
+
+## Verify Full Stack
+
+After tests pass, start the app and check backend and Vite proxy endpoints with `curl` to confirm the full stack is wired correctly.
+
+## Other Common Commands
+
+Useful commands include exporting OpenAPI JSON, checking frontend bundle size, inspecting SQLite tables, and tailing runtime logs.
+
+## Runtime Logs
+
+`scripts/start.sh` writes backend logs to `.run/backend.log` and frontend logs to `.run/frontend.log`, rotating old logs on each start.
+
+## Feedback
+
+For bug reports, feature suggestions, or questions, contact the maintainer or open a GitHub issue.
+
+---
+
+<!-- source: docs/en/faq.md -->
+# FAQ
+
+QY-GaussPlume questions usually involve local startup, demo data, simulation parameters, map rendering, and verification. Each answer is self-contained for search engines and AI citation.
+
+### Who should use QY-GaussPlume?
+
+It is for research teams, environmental assessment engineers, scenario evaluators, and technical teams that need to explain air-pollution dispersion results.
+
+### Can the SQLite database in the repository be used in production?
+
+No. `backend/air_pollution.db` is anonymized demo data for local runs and feature demonstrations. Real project data should stay outside the repository and be configured through a connection string.
+
+### Does the dashboard wind control overwrite saved meteorology?
+
+No. Dashboard wind speed and direction are temporary parameters for the current single-wind simulation request. They do not update saved meteorology records.
+
+### Why does an equivalent-area source show only one pollutant value?
+
+Equivalent-area sources use measured `concentration` to calculate an equivalent emission rate. The UI exposes only the concentration field and submits `emissionRate=0` internally to avoid two confusing values.
+
+### What should run before committing?
+
+Run `./scripts/verify.sh`. It executes 138 backend xUnit tests, 70 frontend Vitest tests, and the frontend production build.
+
+---
+
+<!-- source: docs/en/index.md -->
+# QY-GaussPlume
+
+QY-GaussPlume is an air-pollution dispersion simulation platform for research and engineering assessment. It connects ASP.NET Core 9, Vue 3, Leaflet, and a Gaussian plume model into a verifiable workflow for source management, meteorology, simulation, and contribution analysis.
+
+## Use Cases
+
+- Compare emission sources and wind conditions during environmental assessment.
+- Discuss engineering options with concentration fields and receptor impact visible on a map.
+- Reproduce model scenarios for research, teaching, or delivery review.
+
+## Read Next
+
+- [Quick Start](quick-start.md)
+- [Architecture](ARCHITECTURE.md)
+- [API](API.md)
+- [Workflow](WORKFLOW.md)
+- [FAQ](faq.md)
+
+---
+
+<!-- source: docs/en/quick-start.md -->
+# Quick Start
+
+QY-GaussPlume can run the full frontend and backend locally with one script, so you can try dashboard simulation, data management, and contribution analysis before development.
+
+## Three Steps
+
+1. Prepare .NET SDK 9.0.x and Node.js 20+.
+2. Clone the repository and install frontend dependencies.
+3. Run the startup script and open the browser.
+
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd ..
+./scripts/start.sh
+```
+
+## One-Sentence Template
+
+Use this with an AI coding assistant:
+
+```text
+The QY-GaussPlume source is at /Users/zeninexu/github/未命名文件夹/qy-gaussplume. Read QUICK_START.md, then ask me questions. If there are no questions, start working.
+```
+
+## Verification
+
+```bash
+./scripts/verify.sh
+```
+
+This runs backend xUnit tests, frontend Vitest tests, and the frontend production build.
+
+## Resume After Interruption
+
+```text
+Read checkpoint.md and continue the previous work.
+```
+
+---
+
+<!-- source: docs/ja/API.md -->
+# API リファレンス
+
+QY-GaussPlume は `/api/*` 配下で HTTP JSON エンドポイントを提供します。JSON は camelCase で、エラーは `{ "detail": "..." }` と標準 HTTP ステータスで返します。
+
+## 排出源 `/api/sources`
+
+排出源 API は一覧、取得、作成、一括作成、更新、削除、汚染物質メタデータ、マーカー、Excel テンプレート、Excel インポートを扱います。等価面源は `emissionRate=0` と実測 `concentration` を送信します。
+
+## 受容点 `/api/receptors`
+
+受容点 API は CRUD、一括作成、Excel テンプレート、Excel インポート、選択エクスポート、選択削除を扱います。
+
+## 気象場 `/api/meteorology`
+
+気象場 API は保存済みの風速、風向、安定度、境界層高度、温度、湿度、雲量、降水量を管理します。
+
+## シミュレーション `/api/simulation`
+
+`POST /api/simulation/run` は単一風向シミュレーションです。任意の `windSpeed` と `windDirection` は現在の要求だけで保存済み気象場を一時上書きします。`POST /api/simulation/run_parallel` は重み付き多風向シミュレーションです。
+
+## マーカー設定 `/api/config`
+
+マーカー設定 API は地図 UI で使う排出源と受容点のスタイルを管理します。
+
+## 地図 `/api/map`
+
+地図 API は任意の GeoJSON 境界読み込み、地図範囲、Shapefile メタデータを提供します。大きな Shapefile は既定では読み込みません。
+
+## ブラウザで API を確認
+
+バックエンドを起動し、`http://localhost:5207/openapi/v1.json` を開くと OpenAPI ドキュメントを確認できます。
+
+---
+
+<!-- source: docs/ja/ARCHITECTURE.md -->
+# アーキテクチャと進化
+
+QY-GaussPlume は Vue フロントエンド、ASP.NET Core API、純粋なシミュレーション Core、EF Core 永続化に分かれています。この境界により、ガウスプルームモデルを HTTP やデータベースから独立してテストできます。
+
+## 全体アーキテクチャ
+
+ブラウザは `frontend-vue` に接続し、`/api/*` は `backend-dotnet` にプロキシされます。バックエンドはデータ読み込み、格子構築、シミュレーション、寄与分析、Shapefile、Excel 入出力を編成します。
+
+## 4 層バックエンド
+
+API 層は HTTP と DTO、サービス層はデータとアルゴリズムの編成、Core は大気計算、Data は EF Core による SQLite マッピングを担当します。
+
+## データフロー：単一風向シミュレーション
+
+`POST /api/simulation/run` は気象場、排出源、受容点を読み込み、格子を作成し、発生源ごとの濃度場を計算し、汚染物質場と受容点寄与ランキングを返します。
+
+## データフロー：多風向並列
+
+`POST /api/simulation/run_parallel` は共有コンテキストを作り、各風向を並列評価し、重みに基づいて濃度場と受容点寄与を合成します。
+
+## フロントエンド分層
+
+フロントエンドは API クライアント、型、Pinia store、ルーティング view、地図 component、composable、色階・座標・選択・ダウンロード・エラー処理 utility に分かれています。
+
+## 11 段階の進化履歴
+
+プロジェクトは Python/FastAPI から ASP.NET Core 9 と Vue 3 へ、バックエンド、Core アルゴリズム、フロントエンド、地図、ダッシュボード、管理ページを段階的に移行しました。
+
+## 主要なトレードオフ
+
+Core は API/Data 依存を持たず、EF Core の既定値の落とし穴を避け、大きな Shapefile は必要時だけ読み込み、多風向計算には .NET のスレッド並列を使います。
+
+---
+
+<!-- source: docs/ja/WORKFLOW.md -->
+# 開発ワークフロー
+
+QY-GaussPlume はローカル起動、停止、テスト、完全検証にリポジトリ内スクリプトを使います。ローカル Git hook よりプロジェクトスクリプトを優先します。
+
+## 起動と停止
+
+`./scripts/start.sh` でバックエンドとフロントエンドを同時に起動し、`./scripts/stop.sh` で停止します。バックエンドは 5207、フロントエンドは 5173 で動作します。
+
+## テスト実行
+
+コミット前に `./scripts/verify.sh` を実行します。バックエンドテスト、フロントエンドテスト、本番ビルドを実行します。
+
+## よくある変更テンプレート
+
+新しいデータ実体、API、バックエンドアルゴリズム、フロントエンド画面、主控台気象制御、管理ページを変更するときは、先にテストを更新し、DTO、型、文書、ワークフローを揃えます。
+
+## 既知の落とし穴
+
+DB 既定値がない項目に EF Core `HasDefaultValue` を使わないこと、履歴 NULL 値への対応、jsdom の Canvas stub、同時 `npm install` の回避、バックエンド port 設定の同期に注意します。
+
+## フルスタック検証
+
+テスト後にアプリを起動し、`curl` でバックエンドと Vite proxy の endpoint を確認します。
+
+## その他のよく使うコマンド
+
+OpenAPI JSON の出力、フロントエンド bundle サイズ確認、SQLite table 確認、ランタイムログ tail などがあります。
+
+## ランタイムログ
+
+`scripts/start.sh` はバックエンドログを `.run/backend.log`、フロントエンドログを `.run/frontend.log` に書き、起動ごとに古いログを rotate します。
+
+## フィードバック
+
+バグ報告、機能提案、質問はメンテナーへ連絡するか GitHub issue を作成してください。
+
+---
+
+<!-- source: docs/ja/faq.md -->
+# FAQ
+
+QY-GaussPlume のよくある質問は、ローカル起動、デモデータ、シミュレーションパラメータ、地図表示、検証手順に関するものです。各回答は検索エンジンや AI が引用しやすいよう独立して読めます。
+
+### QY-GaussPlume は誰向けですか？
+
+研究チーム、環境評価エンジニア、シナリオ評価担当者、汚染拡散結果を説明する必要がある技術チーム向けです。
+
+### リポジトリ内の SQLite データベースは本番利用できますか？
+
+できません。`backend/air_pollution.db` はローカル実行と機能説明のための匿名デモデータです。実プロジェクトデータはリポジトリ外に置き、接続文字列で設定してください。
+
+### ダッシュボードの風況制御は保存済み気象場を上書きしますか？
+
+上書きしません。ダッシュボードの風速と風向は現在の単一風向シミュレーション要求だけに使われる一時パラメータです。
+
+### 等価面源で汚染物質値が一つだけ表示されるのはなぜですか？
+
+等価面源は実測 `concentration` から等価排出率を計算します。UI は濃度だけを表示し、内部では `emissionRate=0` を送信して混乱を避けます。
+
+### コミット前に何を実行すべきですか？
+
+`./scripts/verify.sh` を実行してください。バックエンド xUnit 138 件、フロントエンド Vitest 70 件、本番ビルドを実行します。
+
+---
+
+<!-- source: docs/ja/index.md -->
+# QY-GaussPlume
+
+QY-GaussPlume は研究・工程評価向けの大気汚染拡散シミュレーション基盤です。ASP.NET Core 9、Vue 3、Leaflet、ガウスプルームモデルを組み合わせ、排出源管理、気象、シミュレーション、寄与分析を検証可能なワークフローにします。
+
+## ユースケース
+
+- 環境評価で排出源と風況を比較する。
+- 濃度場と受容点影響を地図上で見ながら工程案を議論する。
+- 研究、教育、納品レビューでモデルシナリオを再現する。
+
+## 次に読む
+
+- [クイックスタート](quick-start.md)
+- [アーキテクチャ](ARCHITECTURE.md)
+- [API](API.md)
+- [ワークフロー](WORKFLOW.md)
+- [FAQ](faq.md)
+
+---
+
+<!-- source: docs/ja/quick-start.md -->
+# クイックスタート
+
+QY-GaussPlume は 1 つのスクリプトでローカルのフロントエンドとバックエンドを起動できます。開発前に、ダッシュボードシミュレーション、データ管理、寄与分析を試せます。
+
+## 三つの手順
+
+1. .NET SDK 9.0.x と Node.js 20+ を用意します。
+2. リポジトリをクローンし、フロントエンド依存関係をインストールします。
+3. 起動スクリプトを実行し、ブラウザを開きます。
+
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd ..
+./scripts/start.sh
+```
+
+## 一文テンプレート
+
+AI コーディング助手には次の文を使えます。
+
+```text
+QY-GaussPlume のソースは /Users/zeninexu/github/未命名文件夹/qy-gaussplume にあります。QUICK_START.md を読んでから質問してください。質問がなければ作業を始めてください。
+```
+
+## 検証
+
+```bash
+./scripts/verify.sh
+```
+
+バックエンド xUnit、フロントエンド Vitest、本番ビルドを実行します。
+
+## 中断後の再開
+
+```text
+checkpoint.md を読んで、前回の作業を続けてください。
+```
+
+---
+
+<!-- source: docs/zh-TW/API.md -->
+# API 參考
+
+QY-GaussPlume 在 `/api/*` 下提供 HTTP JSON 端點。JSON 欄位使用 camelCase，錯誤以 `{ "detail": "..." }` 搭配標準 HTTP 狀態碼返回。
+
+## 排放源 `/api/sources`
+
+排放源 API 支援列表、取得、建立、批量建立、更新、刪除、污染物 metadata、標記符號、Excel 模板與 Excel 匯入。等效面源會提交 `emissionRate=0` 和實測 `concentration`。
+
+## 受體點 `/api/receptors`
+
+受體點 API 支援 CRUD、批量建立、Excel 模板下載、Excel 匯入、所選項匯出，以及透過逐項刪除完成所選項刪除。
+
+## 氣象場 `/api/meteorology`
+
+氣象場 API 管理已儲存的風速、風向、穩定度、邊界層高度、溫度、濕度、雲量和降水量。
+
+## 模擬 `/api/simulation`
+
+`POST /api/simulation/run` 執行單風向模擬。可選的 `windSpeed` 與 `windDirection` 只會在目前請求中臨時覆蓋已儲存氣象場。`POST /api/simulation/run_parallel` 執行加權多風向模擬。
+
+## 標記設定 `/api/config`
+
+標記設定 API 管理地圖 UI 使用的排放源與受體點樣式。
+
+## 地圖 `/api/map`
+
+地圖 API 提供可選 GeoJSON 邊界載入、地圖範圍和 Shapefile metadata。大型 Shapefile 預設不載入。
+
+## 在瀏覽器中探索 API
+
+啟動後端後打開 `http://localhost:5207/openapi/v1.json` 可查看 OpenAPI 文件。
+
+---
+
+<!-- source: docs/zh-TW/ARCHITECTURE.md -->
+# 架構與演進
+
+QY-GaussPlume 分為 Vue 前端、ASP.NET Core API、純模擬 Core 和 EF Core 持久化。這個邊界讓高斯煙羽模型可以脫離 HTTP 和資料庫單獨測試。
+
+## 總體架構
+
+瀏覽器連到 `frontend-vue`，`/api/*` 代理到 `backend-dotnet`。後端負責資料載入、網格構建、模擬、貢獻分析、Shapefile 與 Excel 匯入匯出。
+
+## 四層後端
+
+API 層處理 HTTP 和 DTO，服務層編排資料與演算法，Core 層承載大氣計算，Data 層以 EF Core 映射 SQLite。
+
+## 資料流：一次單風向模擬
+
+`POST /api/simulation/run` 載入氣象場、排放源和受體點，建立網格，計算各來源濃度場，聚合污染物場並返回受體點貢獻排名。
+
+## 資料流：多風向並行
+
+`POST /api/simulation/run_parallel` 建立共享上下文，並行評估每個風向，再按權重合併濃度場與受體點貢獻。
+
+## 前端分層
+
+前端分離 API client、型別、Pinia store、路由 view、地圖 component、composable，以及色階、座標、選擇、下載和錯誤處理 utility。
+
+## 11 階段演進史
+
+專案從 Python/FastAPI 逐步遷移到 ASP.NET Core 9 與 Vue 3，涵蓋後端、Core 演算法、前端、地圖、主控台和管理頁改善。
+
+## 關鍵權衡
+
+設計讓 Core 不依賴 API/Data，避開 EF Core 預設值陷阱，大型 Shapefile 僅按需載入，並使用 .NET 執行緒並行處理多風向模擬。
+
+---
+
+<!-- source: docs/zh-TW/WORKFLOW.md -->
+# 開發工作流
+
+QY-GaussPlume 使用倉庫內腳本處理本地啟動、停止、測試和完整驗證。應優先使用專案腳本，而不是本地 Git hook。
+
+## 起停
+
+使用 `./scripts/start.sh` 同時啟動後端與前端，使用 `./scripts/stop.sh` 停止。後端埠為 5207，前端埠為 5173。
+
+## 跑測試
+
+提交前執行 `./scripts/verify.sh`。它會執行後端測試、前端測試和前端生產建置。
+
+## 常見變更模板
+
+新增資料實體、API、後端演算法、前端頁面、主控台氣象控制或管理頁時，先更新測試，並同步 DTO、型別、文件和工作流說明。
+
+## 已知陷阱
+
+避免對沒有資料庫預設值的欄位使用 EF Core `HasDefaultValue`，處理歷史 NULL 值，在 jsdom 測試中 stub Canvas，避免並發 `npm install`，並同步後端埠設定。
+
+## 驗證全棧正常
+
+測試通過後啟動應用，使用 `curl` 檢查後端和 Vite proxy endpoint 是否正確連通。
+
+## 其他常用命令
+
+常用命令包括匯出 OpenAPI JSON、查看前端 bundle 體積、檢查 SQLite table、追蹤執行時日誌。
+
+## 執行時日誌
+
+`scripts/start.sh` 會把後端日誌寫入 `.run/backend.log`，前端日誌寫入 `.run/frontend.log`，每次啟動會輪轉舊日誌。
+
+## 問題回饋
+
+如需回報 bug、提出功能建議或詢問問題，請聯絡維護者或建立 GitHub issue。
+
+---
+
+<!-- source: docs/zh-TW/faq.md -->
+# FAQ
+
+QY-GaussPlume 的常見問題圍繞本地啟動、資料來源、模擬參數、地圖顯示和驗證流程。每個答案都可以單獨閱讀，便於搜尋引擎和大模型引用。
+
+### QY-GaussPlume 適合誰使用？
+
+它適合科研團隊、環境影響評價工程師、方案評估人員和需要解釋污染物擴散結果的技術團隊。
+
+### 倉庫裡的 SQLite 資料能直接用於生產嗎？
+
+不能。`backend/air_pollution.db` 是匿名示範資料，只用於本地執行和功能演示。真實專案資料應放在倉庫外部，並透過連線字串設定。
+
+### 主控台的風速風向會覆蓋氣象場記錄嗎？
+
+不會。主控台風速和風向是本次單風向模擬的臨時參數，只影響目前請求，不寫回氣象場管理中的保存記錄。
+
+### 為什麼等效面源只顯示一個污染物數值？
+
+等效面源使用實測濃度 `concentration` 反算等效排放速率。界面只暴露濃度輸入，內部提交時保持 `emissionRate=0`，避免兩個數值造成混淆。
+
+### 提交前應該執行什麼驗證？
+
+執行 `./scripts/verify.sh`。該腳本會執行後端 138 個 xUnit 用例、前端 70 個 Vitest 用例和前端生產建置。
+
+---
+
+<!-- source: docs/zh-TW/index.md -->
+# QY-GaussPlume
+
+QY-GaussPlume 是面向科研和工程評估的大氣污染物擴散模擬平台。它用 ASP.NET Core 9、Vue 3、Leaflet 和高斯煙羽模型，把排放源管理、氣象場選擇、地圖模擬和貢獻分析串成可執行、可驗證、可交付的工作流。
+
+## 適用場景
+
+- 環評專案中快速比較不同排放源和風場條件。
+- 工程方案討論時查看污染物擴散範圍和受體點影響。
+- 科研或教學中重現實驗資料、測試模型參數和解釋貢獻排名。
+
+## 繼續閱讀
+
+- [快速開始](quick-start.md)
+- [架構與演進](ARCHITECTURE.md)
+- [API 參考](API.md)
+- [開發工作流](WORKFLOW.md)
+- [FAQ](faq.md)
+
+---
+
+<!-- source: docs/zh-TW/quick-start.md -->
+# 快速開始
+
+QY-GaussPlume 可以在本機用一個腳本啟動完整前後端環境，適合先體驗主控台模擬、資料管理和貢獻分析，再進入二次開發。
+
+## 三步上手
+
+1. 準備 .NET SDK 9.0.x 和 Node.js 20+。
+2. 複製倉庫並安裝前端依賴。
+3. 執行啟動腳本並打開瀏覽器。
+
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd ..
+./scripts/start.sh
+```
+
+## 一句話模板
+
+如果你想讓 AI 助手繼續開發這個專案，可以使用：
+
+```text
+QY-GaussPlume 的源碼在 /Users/zeninexu/github/未命名文件夹/qy-gaussplume。請讀 QUICK_START.md，然後向我提問。沒有問題就開始工作。
+```
+
+## 驗證
+
+```bash
+./scripts/verify.sh
+```
+
+該命令會執行後端 xUnit、前端 Vitest 和前端生產建置。
+
+## 中斷後恢復
+
+```text
+請讀 checkpoint.md，繼續上次未完成的工作。
+```
+
+---

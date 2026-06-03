@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Enterprise style · Meridian
+       Navy filled medallion, white triangular compass points, confident sans letter -->
+
+  <!-- Navy filled circle (brand medallion) -->
+  <circle cx="100" cy="100" r="90" fill="#1e3a5f"/>
+
+  <!-- Inner concentric white ring (subtle) -->
+  <circle cx="100" cy="100" r="82" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.35"/>
+
+  <!-- 4 cardinal triangular markers -->
+  <g fill="#ffffff">
+    <polygon points="100,18 94,34 106,34"/>    <!-- N -->
+    <polygon points="100,182 94,166 106,166"/> <!-- S -->
+    <polygon points="18,100 34,94 34,106"/>    <!-- W -->
+    <polygon points="182,100 166,94 166,106"/> <!-- E -->
+  </g>
+
+  <!-- Letter: solid white, heavy geometric weight -->
+  <text x="100" y="100" text-anchor="middle" dominant-baseline="central"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Source Sans Pro', Arial, sans-serif"
+        font-size="82" font-weight="700" fill="#ffffff"
+        letter-spacing="-1">Q</text>
+</svg>

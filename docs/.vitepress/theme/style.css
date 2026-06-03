@@ -1,0 +1,151 @@
+/* Enterprise · VitePress theme override
+   Aesthetic: navy nav bar, heavy headings, drop-shadow cards, trust-cues */
+
+:root {
+  --vp-c-brand-1: #1e3a5f;
+  --vp-c-brand-2: #2c4a70;
+  --vp-c-brand-3: #3b82f6;
+  --vp-c-brand-soft: rgba(30, 58, 95, 0.08);
+
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #f1f5f9;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #e2e8f0;
+
+  --vp-c-text-1: #0f172a;
+  --vp-c-text-2: #334155;
+  --vp-c-text-3: #64748b;
+
+  --vp-c-divider: #e2e8f0;
+  --vp-c-border: #cbd5e1;
+
+  --vp-font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Source Sans Pro', Arial, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}
+
+/* Solid navy navbar — biggest single differentiator */
+.VPNavBar,
+.VPNavBar.has-sidebar .content,
+.VPNavBar.top .content {
+  background: var(--vp-c-brand-1) !important;
+  backdrop-filter: none !important;
+}
+.VPNavBar .VPNavBarTitle .title,
+.VPNavBarMenuLink,
+.VPNavBar .VPNavBarMenu .VPNavBarMenuLink,
+.VPNavBar .text {
+  color: #ffffff !important;
+}
+.VPNavBar .divider,
+.VPNavBar .divider-line {
+  background: transparent !important;
+}
+.VPNavBar .VPSocialLink svg {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+/* Big, authoritative hero */
+.VPHero .name {
+  color: var(--vp-c-brand-1) !important;
+  font-weight: 800 !important;
+  font-size: clamp(48px, 6vw, 72px) !important;
+  letter-spacing: -1.5px;
+  line-height: 1.05;
+}
+.VPHero .text {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.VPHero .tagline {
+  color: var(--vp-c-text-2);
+  max-width: 640px;
+}
+
+/* Feature cards: shadow + border + subtle lift */
+.VPFeature {
+  background: var(--vp-c-bg) !important;
+  border: 1px solid var(--vp-c-border) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.VPFeature:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.06) !important;
+}
+.VPFeature .title {
+  color: var(--vp-c-brand-1) !important;
+  font-weight: 700 !important;
+}
+
+/* Heavy brand-filled button, square-ish */
+.VPButton.brand {
+  border-radius: 4px !important;
+  background: var(--vp-c-brand-1) !important;
+  border: 1px solid var(--vp-c-brand-1) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px;
+}
+.VPButton.alt {
+  border-radius: 4px !important;
+  background: var(--vp-c-bg-alt) !important;
+  border: 1px solid var(--vp-c-border) !important;
+  color: var(--vp-c-brand-1) !important;
+  font-weight: 600 !important;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   ICON PALETTE — inline-SVG two-tone (enterprise: navy + gold)
+   ────────────────────────────────────────────────────────────
+   REQUIRES: templates/vitepress-inline-svg.ts copied into
+   `docs/.vitepress/theme/inline-svg.ts` + wired via
+   `theme/index.ts` enhanceApp (see task-11 Step 2).
+   ════════════════════════════════════════════════════════════ */
+:root {
+  --icon-stroke: var(--vp-c-brand-1);   /* navy — primary medallion color */
+  --icon-accent: #d4af37;               /* regal gold — heraldic accent */
+  --icon-glow:   transparent;
+}
+.dark {
+  --icon-stroke: #93c5fd;               /* blue-300, navy reads white-ish */
+  --icon-accent: #fbbf24;               /* amber-400, retains warmth at night */
+  --icon-glow:   transparent;
+}
+
+.md-icon, svg.md-icon {
+  display: inline-block;
+  width: 1.1em; height: 1.1em;
+  vertical-align: -0.18em;
+  fill: none;
+  stroke: var(--icon-stroke);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg.md-icon .accent { stroke: var(--icon-accent); }
+h1 .md-icon, h2 .md-icon, h3 .md-icon {
+  width: 0.95em; height: 0.95em;
+  vertical-align: -0.12em;
+  margin-right: 0.15em;
+}
+svg.md-icon.is-success { stroke: var(--vp-c-success-1, #10b981); }
+svg.md-icon.is-danger  { stroke: var(--vp-c-danger-1,  #ef4444); }
+svg.md-icon.is-warning { stroke: var(--vp-c-warning-1, #f59e0b); }
+
+.VPFeature img.VPImage,
+.VPFeature svg.VPImage {
+  width: 48px; height: 48px;
+  fill: none;
+  stroke: var(--icon-stroke);
+  stroke-width: 2;                      /* solid, institutional */
+  stroke-linecap: square;               /* square caps = enterprise feel */
+  stroke-linejoin: miter;
+  transition: stroke .2s;
+}
+.VPFeature svg.VPImage .accent { stroke: var(--icon-accent); }
+.VPFeature:hover svg.VPImage        { stroke: var(--icon-accent); }
+.VPFeature:hover svg.VPImage .accent { stroke: var(--icon-stroke); }

@@ -146,7 +146,7 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 137
+# 预期：已通过! - 失败: 0，通过: 138
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3

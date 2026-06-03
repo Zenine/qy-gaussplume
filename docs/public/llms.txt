@@ -1,0 +1,22 @@
+# QY-GaussPlume
+
+> 面向科研与工程评估的大气污染物扩散模拟平台。
+
+## 核心链接
+
+- 文档首页：https://zenine.github.io/qy-gaussplume/
+- GitHub：https://github.com/Zenine/qy-gaussplume
+- 完整 LLM 语料：https://zenine.github.io/qy-gaussplume/llms-full.txt
+
+## 项目摘要
+
+QY-GaussPlume 将 ASP.NET Core 9、Vue 3、Leaflet、SQLite 和高斯烟羽模型组合成一个可验证的污染扩散评估工作流。它支持排放源、受体点、气象场、单风向/多风向模拟、浓度热力图和受体点贡献分析。
+
+## 推荐阅读
+
+- README.md
+- docs/quick-start.md
+- docs/API.md
+- docs/ARCHITECTURE.md
+- docs/WORKFLOW.md
+- docs/faq.md

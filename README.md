@@ -1,47 +1,47 @@
+> **语言 / Language**: **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [繁體中文](README.zh-TW.md)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-9.0-512bd4?style=flat-square)](backend-dotnet/)
+[![Vue](https://img.shields.io/badge/Vue-3-42b883?style=flat-square)](frontend-vue/)
+[![Powered by Meridian](https://img.shields.io/badge/Powered%20by-Meridian-8b5cf6?style=flat-square)](https://github.com/lordmos/meridian)
+
 # QY-GaussPlume（清源高斯烟羽扩散模拟平台）
 
-面向科研与工程评估场景的大气污染物扩散模拟平台。系统基于高斯烟羽模型，支持点源、面源、线源、等效面源，以及单风向和多风向加权并行模拟。
+QY-GaussPlume 是给科研团队、环评工程师和方案评估人员使用的大气污染物扩散模拟平台。它把排放源、受体点、气象场和地图可视化放在同一个工作台里，让团队可以快速比较污染扩散影响、受体贡献和不同风场条件下的工程方案。
 
-本项目用于清华长三角研究院等团队开展大气污染扩散、受体贡献分析和工程方案快速评估。当前运行实现为 **ASP.NET Core 9 + Vue 3**。
+## Quick Start
 
-## 当前版本
+```bash
+git clone git@github.com:Zenine/qy-gaussplume.git
+cd qy-gaussplume
+./scripts/start.sh
+```
 
-| 项目 | 内容 |
-|---|---|
-| 版本 | **3.0.3** |
-| 更新日期 | **2026-06-03** |
-| 主要范围 | 主控台临时风速风向控制、等效面源污染物输入、排放源/受体点批量操作 |
-| 验证结果 | 后端 138 个用例、前端 70 个用例，`scripts/verify.sh` 通过 |
+打开 <http://localhost:5173>。前端会把 `/api/*` 代理到后端 <http://localhost:5207>。
 
-## 本次修改说明
+提交前运行完整验证：
 
-- **主控台气象控制生效**：风速、风向输入框会随单风向模拟请求提交为临时参数，运行模拟立即使用当前输入值，且不覆盖气象场管理中的保存值。
-- **修正等效面源污染物输入**：排放源管理页对等效面源只展示一个污染物数值框，提交到 `concentration`；列表展示也优先读 `concentration`，避免把 `emissionRate=0` 误显示为污染物排放值。
-- **补齐批量操作入口**：排放源和受体点管理页明确展示“批量导入”，受体点管理页新增批量删除，并在部分删除失败后刷新列表和提示失败数量。
-- **同步回归测试**：新增主控台临时气象参数、等效面源污染物显示/提交、批量导入按钮和受体点批量删除测试。
+```bash
+./scripts/verify.sh
+```
 
-## 项目配图
+## Why It Matters
 
-以下三张独立配图分别对应 GNN 首页 Hero、qy 项目架构和核心功能介绍。图片由项目当前功能信息生成，已随文档入库，便于 README、汇报材料和交付说明复用。
+- 让污染扩散评估从脚本试算变成可操作的地图工作流。
+- 支持点源、面源、线源和等效面源，适合工程现场常见数据形态。
+- 支持单风向和多风向加权并行模拟，便于做风场敏感性分析。
+- 对每个受体点输出污染源贡献排名，帮助解释“影响来自哪里”。
+- 内置匿名演示数据与完整测试入口，便于交付、审阅和二次开发。
 
-| GNN 首页 Hero | qy 项目架构 | 核心功能介绍 |
-|---|---|---|
-| ![GNN 首页 Hero 图](docs/assets/generated/qy-gnn-hero.png) | ![qy 项目架构图](docs/assets/generated/qy-architecture.png) | ![核心功能介绍图](docs/assets/generated/qy-features.png) |
+## What You Can Do
 
-## 功能概览
+- 在主控台选择气象场、污染物、模拟范围和网格分辨率。
+- 直接调节临时风速和风向运行单风向模拟，不覆盖保存的气象记录。
+- 在地图上框选区域，只模拟区域内排放源对受体点的影响。
+- 通过 Excel 模板批量导入排放源和受体点。
+- 查看 PM2.5、PM10、TSP、VOCs、NOx、O3 的浓度场和贡献分析。
 
-- **扩散模拟**：高斯烟羽模型，Pasquill-Gifford 扩散参数，Briggs 抬升，干沉降、湿清除和化学衰减。
-- **源类型**：点源、面源、线源、等效面源。
-- **污染物**：PM2.5、PM10、TSP、VOCs、NOx、O3。
-- **并行计算**：支持 8 / 16 / 32 / 72 风向加权聚合，后端并行计算并可只返回聚合结果。
-- **地图可视化**：Leaflet + 高德瓦片，WGS84 / GCJ02 自动转换，Canvas 浓度热力图。
-- **区域模拟**：主控台可在地图上拖拽矩形区域，只模拟区域内排放源并统计区域内受体点。
-- **数据管理**：排放源、受体点、气象场 CRUD，Excel 模板下载、批量导入、导出和受体点批量删除。
-- **贡献分析**：按受体点和污染物查看污染源贡献排名与百分比，首页可快速查看当前受体点贡献摘要。
-
-## 运行截图
-
-以下截图基于仓库内匿名演示数据生成，可用于快速了解系统主流程和数据管理界面。
+## Screenshots
 
 | 主控台模拟 | 受体点贡献分析 |
 |---|---|
@@ -51,138 +51,48 @@
 |---|---|---|
 | ![排放源管理](docs/assets/screenshots/sources-management.png) | ![受体点管理](docs/assets/screenshots/receptors-management.png) | ![气象场管理](docs/assets/screenshots/meteorology-management.png) |
 
-## 架构
+## Architecture
 
-```
-┌──────────────────────────┐          ┌─────────────────────────────┐
-│   frontend-vue (5173)    │          │   backend-dotnet (5207)     │
-│                          │          │                             │
-│  Vue 3 + TypeScript      │ HTTP/    │  ASP.NET Core 9             │
-│  Element Plus + Pinia    │ JSON     │  EF Core 9 + SQLite         │
-│  Leaflet + Canvas        │◀────────▶│  NetTopologySuite + ProjNet │
-│  高德瓦片 + 坐标转换      │          │  ClosedXML + xUnit          │
-└──────────────────────────┘          └─────────────────────────────┘
-                                                    │
-                                       ┌────────────┴────────────┐
-                                       ▼                         ▼
-                              backend/air_pollution.db    shp/县（等积投影）.shp
-                              匿名演示 SQLite 数据库       县级边界 Shapefile
+```text
+frontend-vue (Vue 3 + TypeScript + Leaflet)
+        |
+        | HTTP JSON /api/*
+        v
+backend-dotnet (ASP.NET Core 9)
+        |
+        +-- GnnSimulation.Core  高斯烟羽模型与贡献分析
+        +-- GnnSimulation.Data  EF Core + SQLite
+        +-- Shapefile / Excel   地图边界与批量导入导出
 ```
 
-## 快速开始
+## Data And Privacy
 
-### 环境要求
+仓库内的 `backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。公开仓库不得提交真实项目名称、真实客户数据、密钥、账号凭证或未获授权的监测数据。
 
-| 组件 | 版本 |
+## Documentation
+
+| 文档 | 说明 |
 |---|---|
-| .NET SDK | 9.0.x |
-| Node.js | 20+ |
-| 操作系统 | macOS / Linux / Windows |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、数据流、演进说明 |
+| [docs/API.md](docs/API.md) | API 端点参考 |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | 日常开发、验证、常见陷阱 |
+| [backend-dotnet/README.md](backend-dotnet/README.md) | 后端结构、配置、测试与技术决策 |
+| [frontend-vue/README.md](frontend-vue/README.md) | 前端结构、状态管理、坐标与测试 |
 
-### 安装依赖
+## Verification
 
-```bash
-# 如未安装 .NET SDK，可用官方安装脚本
-curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 9.0 --install-dir "$HOME/.dotnet"
-export PATH="$HOME/.dotnet:$PATH"
-export DOTNET_ROOT="$HOME/.dotnet"
-
-# 安装前端依赖
-cd frontend-vue
-npm install --registry=https://registry.npmmirror.com
-cd ..
-```
-
-### 启动开发环境
-
-```bash
-./scripts/start.sh
-```
-
-打开 <http://localhost:5173>。前端 Vite 会把 `/api/*` 代理到后端 <http://localhost:5207>。
-
-停止服务：
-
-```bash
-./scripts/stop.sh
-```
-
-也可以分别手动启动：
-
-```bash
-cd backend-dotnet/GnnSimulation.Api && dotnet run
-cd frontend-vue && npm run dev
-```
-
-## 验证
-
-提交前请运行完整验证入口：
+当前验证规模：后端 138 个 xUnit 用例、前端 70 个 Vitest 用例，并包含前端生产构建与类型检查。
 
 ```bash
 ./scripts/verify.sh
 ```
 
-该脚本会执行：
+## Version
 
-- 后端 xUnit 测试：`dotnet test`
-- 前端 Vitest 测试：`npm test`
-- 前端生产构建与类型检查：`npm run build`
+当前版本为 3.0.4，最近更新聚焦 Meridian 开源发布层、VitePress 文档站、多语 README、GitHub Pages workflow 与 SEO/GEO 资源。详见 [CHANGELOG.md](CHANGELOG.md)。
 
-也可以单独运行：
-
-```bash
-cd backend-dotnet && dotnet test --nologo
-cd frontend-vue && npm test
-cd frontend-vue && npm run build
-```
-
-当前测试规模：后端 138 个用例，前端 70 个用例，合计 208 个自动化测试。
-
-## 目录结构
-
-```
-qy-gaussplume/
-├── backend-dotnet/             # .NET 后端
-│   ├── GnnSimulation.Api/      # ASP.NET Core Web API
-│   ├── GnnSimulation.Core/     # 高斯烟羽核心算法
-│   ├── GnnSimulation.Data/     # EF Core 实体、DbContext、迁移
-│   ├── GnnSimulation.Tests/    # xUnit 测试
-│   └── GnnSimulation.sln
-├── frontend-vue/               # Vue 3 前端
-│   ├── src/
-│   └── tests/
-├── backend/                    # 匿名演示 SQLite 数据库
-├── shp/                        # 县级边界 Shapefile
-├── docs/                       # 架构、API、开发工作流
-├── scripts/                    # 起停与验证脚本
-├── CHANGELOG.md
-└── LICENSE
-```
-
-## 示例数据说明
-
-仓库内的 `backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。公开仓库不得提交真实项目名称、真实客户数据、密钥、账号凭证或未获授权的监测数据。
-
-如需使用院内或项目现场数据，建议放在仓库外部，并通过配置覆盖 `ConnectionStrings:Default`。
-
-## 文档索引
-
-| 文档 | 说明 |
-|---|---|
-| [backend-dotnet/README.md](backend-dotnet/README.md) | 后端结构、配置、测试与技术决策 |
-| [frontend-vue/README.md](frontend-vue/README.md) | 前端结构、状态管理、坐标与测试 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、数据流、演进说明 |
-| [docs/API.md](docs/API.md) | API 端点参考 |
-| [docs/WORKFLOW.md](docs/WORKFLOW.md) | 日常开发、验证、常见陷阱 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本与里程碑 |
-
-## 参考
-
-1. Pasquill, F. (1961). The estimation of the dispersion of windborne material.
-2. Turner, D. B. (1994). Workbook of atmospheric dispersion estimates.
-3. Briggs, G. A. (1975). Plume rise predictions.
-4. HJ 2.2-2018 环境影响评价技术导则 大气环境。
-
-## 许可证
+## License
 
 本项目采用 [MIT License](LICENSE)。
+
+<sub>Built with [Meridian](https://github.com/lordmos/meridian)</sub>

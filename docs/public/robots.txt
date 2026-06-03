@@ -1,0 +1,9 @@
+# Meridian template · robots.txt
+# Copy to `docs/public/robots.txt` in the target project.
+
+User-agent: *
+Allow: /
+
+# Sitemap — update the URL to match your deployed base path.
+# Example for GitHub Pages at `https://<org>.github.io/<repo>/`:
+Sitemap: https://zenine.github.io/qy-gaussplume/sitemap.xml

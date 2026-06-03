@@ -15,6 +15,10 @@ frontend-vue/node_modules/
 frontend-vue/dist/
 frontend-vue/.vite/
 frontend-vue/.env
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/.temp/
 
 # ========= Python（黄金值脚本副产品）=========
 __pycache__/
