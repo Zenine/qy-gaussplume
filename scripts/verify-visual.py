@@ -259,6 +259,9 @@ def check_sitemap_and_meta(dist: Path, fail: Fail) -> None:
         ".VPNavBarAppearance .VPSwitchAppearance .icon",
         ".VPNavBarSocialLinks",
         '.VPNavBar .VPSocialLink [class^="vpi-social-"]',
+        ".dark .VPHero",
+        ".dark .VPFeature",
+        ".dark .VPButton.alt",
         ".VPHomeFeatures",
         ".VPHome .vp-doc.container",
     ]
