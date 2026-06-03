@@ -349,89 +349,87 @@ onMounted(loadAll)
     </div>
 
     <aside class="right-stack">
-      <template v-if="!result">
-        <section class="floating-card" data-test="draw-card">
-          <div class="card-title">
-            <span>绘制选择区域</span>
-            <el-button size="small" type="primary" :icon="Brush" @click="startSelection">
-              绘制
-            </el-button>
-          </div>
-          <p class="hint">在地图上拖拽绘制矩形区域，仅模拟区域内排放源的影响。</p>
-          <div v-if="selectionBounds" class="selection-summary">
-            已选择 {{ effectiveSources.length }} 个排放源，{{ effectiveReceptors.length }} 个受体点
-            <el-button link size="small" :icon="Close" @click="clearResult">清除</el-button>
-          </div>
-        </section>
+      <section v-if="!result" class="floating-card" data-test="draw-card">
+        <div class="card-title">
+          <span>绘制选择区域</span>
+          <el-button size="small" type="primary" :icon="Brush" @click="startSelection">
+            绘制
+          </el-button>
+        </div>
+        <p class="hint">在地图上拖拽绘制矩形区域，仅模拟区域内排放源的影响。</p>
+        <div v-if="selectionBounds" class="selection-summary">
+          已选择 {{ effectiveSources.length }} 个排放源，{{ effectiveReceptors.length }} 个受体点
+          <el-button link size="small" :icon="Close" @click="clearResult">清除</el-button>
+        </div>
+      </section>
 
-        <section class="floating-card" data-test="weather-card">
-          <div class="card-title">
-            <span>气象控制</span>
-            <el-icon><Compass /></el-icon>
-          </div>
-          <div class="wind-rose">
-            <svg viewBox="0 0 150 150" role="img" aria-label="风向指示">
-              <circle class="wind-ring" cx="75" cy="75" r="74" />
-              <circle class="wind-ring" cx="75" cy="75" r="50" />
-              <circle class="wind-ring" cx="75" cy="75" r="26" />
-              <line class="wind-axis" x1="75" y1="1" x2="75" y2="149" />
-              <line class="wind-axis" x1="1" y1="75" x2="149" y2="75" />
-              <text x="75" y="20" text-anchor="middle">N</text>
-              <text x="128" y="79" text-anchor="middle">E</text>
-              <text x="75" y="136" text-anchor="middle">S</text>
-              <text x="22" y="79" text-anchor="middle">W</text>
-              <line
-                class="wind-pointer"
-                data-test="wind-direction-pointer"
-                x1="75"
-                y1="75"
-                x2="75"
-                y2="31"
-                :transform="`rotate(${draftWindDirection} 75 75)`"
-              />
-              <circle
-                class="wind-pointer-tip"
-                data-test="wind-direction-pointer-tip"
-                cx="75"
-                cy="31"
-                r="6"
-                :transform="`rotate(${draftWindDirection} 75 75)`"
-              />
-            </svg>
-          </div>
-          <div class="field-grid">
-            <label>
-              风向 (°)
-              <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
-            </label>
-            <label>
-              风速 (m/s)
-              <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
-            </label>
-          </div>
-          <p v-if="weatherDirty" class="hint warning">将使用当前临时风速风向运行，不会覆盖已保存气象场。</p>
-          <p v-else class="hint">运行模拟会使用当前风速风向。</p>
-        </section>
+      <section class="floating-card" data-test="weather-card">
+        <div class="card-title">
+          <span>气象控制</span>
+          <el-icon><Compass /></el-icon>
+        </div>
+        <div class="wind-rose">
+          <svg viewBox="0 0 150 150" role="img" aria-label="风向指示">
+            <circle class="wind-ring" cx="75" cy="75" r="74" />
+            <circle class="wind-ring" cx="75" cy="75" r="50" />
+            <circle class="wind-ring" cx="75" cy="75" r="26" />
+            <line class="wind-axis" x1="75" y1="1" x2="75" y2="149" />
+            <line class="wind-axis" x1="1" y1="75" x2="149" y2="75" />
+            <text x="75" y="20" text-anchor="middle">N</text>
+            <text x="128" y="79" text-anchor="middle">E</text>
+            <text x="75" y="136" text-anchor="middle">S</text>
+            <text x="22" y="79" text-anchor="middle">W</text>
+            <line
+              class="wind-pointer"
+              data-test="wind-direction-pointer"
+              x1="75"
+              y1="75"
+              x2="75"
+              y2="31"
+              :transform="`rotate(${draftWindDirection} 75 75)`"
+            />
+            <circle
+              class="wind-pointer-tip"
+              data-test="wind-direction-pointer-tip"
+              cx="75"
+              cy="31"
+              r="6"
+              :transform="`rotate(${draftWindDirection} 75 75)`"
+            />
+          </svg>
+        </div>
+        <div class="field-grid">
+          <label>
+            风向 (°)
+            <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
+          </label>
+          <label>
+            风速 (m/s)
+            <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
+          </label>
+        </div>
+        <p v-if="weatherDirty" class="hint warning">将使用当前临时风速风向运行，不会覆盖已保存气象场。</p>
+        <p v-else class="hint">运行模拟会使用当前风速风向。</p>
+      </section>
 
-        <section class="floating-card" data-test="stats-card">
-          <div class="card-title">
-            <span>数据统计</span>
-            <el-icon><Histogram /></el-icon>
+      <section v-if="!result" class="floating-card" data-test="stats-card">
+        <div class="card-title">
+          <span>数据统计</span>
+          <el-icon><Histogram /></el-icon>
+        </div>
+        <div class="stat-grid">
+          <div>
+            <strong>{{ effectiveSources.length }}</strong>
+            <span>排放源</span>
           </div>
-          <div class="stat-grid">
-            <div>
-              <strong>{{ effectiveSources.length }}</strong>
-              <span>排放源</span>
-            </div>
-            <div>
-              <strong>{{ effectiveReceptors.length }}</strong>
-              <span>受体点</span>
-            </div>
+          <div>
+            <strong>{{ effectiveReceptors.length }}</strong>
+            <span>受体点</span>
           </div>
-        </section>
-      </template>
+        </div>
+      </section>
 
-      <template v-else>
+      <template v-if="result">
         <section class="floating-card" data-test="result-card">
           <div class="card-title">
             <span>模拟结果</span>

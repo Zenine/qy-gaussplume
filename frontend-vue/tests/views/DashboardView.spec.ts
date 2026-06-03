@@ -155,6 +155,19 @@ describe('DashboardView', () => {
     )
   })
 
+  it('模拟完成后仍保留风速风向控制框', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    const weatherCard = wrapper.find('[data-test="weather-card"]')
+    expect(weatherCard.exists()).toBe(true)
+    expect(weatherCard.text()).toContain('风向')
+    expect(weatherCard.text()).toContain('风速')
+  })
+
   it('风向指针从风玫瑰圆心绘制并围绕圆心旋转', async () => {
     const wrapper = mountView()
     await flushPromises()
