@@ -212,10 +212,6 @@ async function runSimulation() {
     ElMessage.warning(selectionBounds.value ? '选择区域内没有排放源' : '请先添加排放源')
     return
   }
-  if (weatherDirty.value) {
-    ElMessage.info('首页气象控制仅用于预览，请到气象场管理保存后再运行正式参数')
-  }
-
   running.value = true
   try {
     const sourceIds = selectionBounds.value ? effectiveSources.value.map((s) => s.id) : undefined
@@ -225,6 +221,8 @@ async function runSimulation() {
       sourceIds,
       receptorIds,
       pollutantType: selectedPollutant.value || undefined,
+      windSpeed: draftWindSpeed.value,
+      windDirection: draftWindDirection.value,
       gridResolution: gridResolution.value,
       domainSize: domainSize.value,
     })
@@ -388,8 +386,8 @@ onMounted(loadAll)
               <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
             </label>
           </div>
-          <p v-if="weatherDirty" class="hint warning">临时参数未保存，运行仍使用已选气象场。</p>
-          <p v-else class="hint">运行模拟会使用当前选中的已保存气象场。</p>
+          <p v-if="weatherDirty" class="hint warning">将使用当前临时风速风向运行，不会覆盖已保存气象场。</p>
+          <p v-else class="hint">运行模拟会使用当前风速风向。</p>
         </section>
 
         <section class="floating-card" data-test="stats-card">

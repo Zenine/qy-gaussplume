@@ -6,6 +6,8 @@ public class SimulationRequestDto
     public List<int>? SourceIds { get; set; }
     public List<int>? ReceptorIds { get; set; }
     public string? PollutantType { get; set; }
+    public double? WindSpeed { get; set; }
+    public double? WindDirection { get; set; }
     public double GridResolution { get; set; } = 100.0;
     public double DomainSize { get; set; } = 10000.0;
     public double ReceptorHeight { get; set; } = 0.0;

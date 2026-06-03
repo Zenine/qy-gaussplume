@@ -30,7 +30,7 @@ public class SimulationService
 
         var receptors = await LoadReceptorsAsync(request.ReceptorIds, ct);
 
-        var model = BuildModel(met);
+        var model = BuildModel(met, request);
         var grid = GridBuilder.Build(sources, receptors, request.GridResolution, request.DomainSize);
 
         var nLat = grid.Lat.Length;
@@ -96,9 +96,9 @@ public class SimulationService
     // ---------- 气象→模型参数 ----------
     // 将数据库气象记录转成核心模型构造参数。null 值使用工程默认值，
     // 避免老数据库或脱敏数据缺字段时影响模拟入口。
-    private static GaussianPlumeModel BuildModel(Meteorology m) => new(
-        windSpeed: m.WindSpeed,
-        windDirection: m.WindDirection,
+    private static GaussianPlumeModel BuildModel(Meteorology m, SimulationRequestDto request) => new(
+        windSpeed: request.WindSpeed ?? m.WindSpeed,
+        windDirection: request.WindDirection ?? m.WindDirection,
         stabilityClass: m.StabilityClass ?? "D",
         temperature: m.Temperature ?? 293.15,
         boundaryLayerHeight: m.BoundaryLayerHeight ?? 1000.0,

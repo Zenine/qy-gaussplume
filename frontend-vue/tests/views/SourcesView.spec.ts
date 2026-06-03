@@ -82,6 +82,49 @@ const sample: EmissionSource[] = [
     createdAt: '',
     updatedAt: '',
   },
+  {
+    id: 3,
+    name: '等效面源C',
+    sourceType: 'equivalent_area',
+    latitude: 39.7,
+    longitude: 116.2,
+    height: 0,
+    temperature: 300,
+    velocity: 0,
+    diameter: 1,
+    areaShape: 'rectangle',
+    areaLength: 200,
+    areaWidth: 100,
+    areaHeight: 5,
+    areaTemperature: 300,
+    sigmaZ0Area: null,
+    lineType: 'straight',
+    startLon: null,
+    startLat: null,
+    endLon: null,
+    endLat: null,
+    lineWidth: 10,
+    lineHeight: 0,
+    lineTemperature: 300,
+    sigmaZ0Line: null,
+    lineSegmentLength: 10,
+    markerSymbol: 'factory',
+    markerColor: '#FF5722',
+    isActive: true,
+    pollutants: [
+      {
+        id: 3,
+        sourceId: 3,
+        pollutantType: 'PM10',
+        emissionRate: 0,
+        concentration: 67,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ],
+    createdAt: '',
+    updatedAt: '',
+  },
 ]
 
 function mountView() {
@@ -121,6 +164,15 @@ describe('SourcesView', () => {
     expect(wrapper.text()).toContain('点源A')
     expect(wrapper.text()).toContain('线源B')
     expect(wrapper.text()).toContain('PM2.5: 1.5')
+    expect(wrapper.text()).toContain('PM10: 67')
+    expect(wrapper.text()).not.toContain('PM10: 0')
+  })
+
+  it('工具栏提供批量导入入口', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('批量导入')
   })
 
   it('类型过滤为线源_只显示线源条目', async () => {
@@ -150,5 +202,38 @@ describe('SourcesView', () => {
     expect(text).toContain('面源')
     expect(text).toContain('等效面源')
     expect(text).toContain('线源')
+  })
+
+  it('等效面源污染物只显示浓度输入框并提交到 concentration', async () => {
+    vi.spyOn(sourcesApi, 'update').mockResolvedValue(sample[2])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const editButtons = wrapper.findAll('button').filter((b) => b.text().includes('编辑'))
+    await editButtons[2].trigger('click')
+    await flushPromises()
+
+    const dialog = document.querySelector('.el-dialog')
+    expect(dialog).not.toBeNull()
+    expect(wrapper.find('[data-test="pollutant-concentration-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="pollutant-emission-rate-input"]').exists()).toBe(false)
+
+    const saveBtn = wrapper.findAll('button').find((b) => b.text().includes('保存'))
+    await saveBtn!.trigger('click')
+    await flushPromises()
+
+    expect(sourcesApi.update).toHaveBeenCalledWith(
+      3,
+      expect.objectContaining({
+        sourceType: 'equivalent_area',
+        pollutants: [
+          expect.objectContaining({
+            pollutantType: 'PM10',
+            emissionRate: 0,
+            concentration: 67,
+          }),
+        ],
+      }),
+    )
   })
 })

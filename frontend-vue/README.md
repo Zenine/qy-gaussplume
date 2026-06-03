@@ -6,18 +6,17 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | **3.0.2** |
-| 更新日期 | **2026-05-19** |
-| 主要范围 | GNN 首页悬浮操作区、矩形区域筛选、结果控制、受体贡献摘要 |
-| 验证结果 | Vitest 65 个用例，`npm run build` 通过 |
+| 版本 | **3.0.3** |
+| 更新日期 | **2026-06-03** |
+| 主要范围 | 主控台临时风速风向控制、排放源等效面源污染物输入、排放源/受体点批量操作 |
+| 验证结果 | Vitest 70 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
-- **主控台布局恢复**：首页改回地图主画布，恢复顶部紧凑工具条、左下范围控制、右侧功能卡片的悬浮布局。
-- **运行前功能卡**：绘制选择区域、气象控制、数据统计都在首页右侧展示；矩形框选后统计会切换为当前区域内排放源和受体点数量。
-- **运行后结果卡**：模拟完成后展示污染物筛选、色阶类型、浓度范围、透明度、渲染精度、图例和受体点贡献分析。
-- **区域筛选请求**：运行模拟时把框选范围内的 `sourceIds` / `receptorIds` 写入请求；空受体点范围保持为空，便于后端返回真实筛选结果。
-- **维护注释与测试**：补充主控台流程、地图框选、坐标转换、热力图渲染相关中文注释；新增首页功能和区域筛选回归测试。
+- **主控台气象控制生效**：风速、风向输入框会随单风向模拟请求提交为临时参数，运行模拟立即使用当前输入值，且不覆盖气象场管理中的保存值。
+- **排放源等效面源输入修正**：等效面源只展示一个污染物数值框，保存到 `concentration`，列表展示同样读取 `concentration`，不再显示内部 `emissionRate=0`。
+- **批量入口补齐**：排放源管理页明确提供批量导入；受体点管理页提供批量导入和批量删除，批量删除部分失败时仍刷新列表。
+- **维护测试同步**：新增 Dashboard、Sources、Receptors 视图回归测试，覆盖上述行为。
 
 ## GNN 首页 Hero 图
 
@@ -52,7 +51,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 65 用例 |
+| `npm test` | Vitest 一次跑完全部 70 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -76,8 +75,8 @@ frontend-vue/
 │   │   └── index.ts
 │   ├── views/
 │   │   ├── DashboardView.vue # 主控台：地图悬浮工具条 + 框选 + 结果/贡献卡 + 并行对话框
-│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段）
-│   │   ├── ReceptorsView.vue # 受体点 CRUD + Excel 导入导出
+│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段、Excel 批量导入）
+│   │   ├── ReceptorsView.vue # 受体点 CRUD + Excel 批量导入/导出 + 批量删除
 │   │   └── MeteorologyView.vue # 气象场 CRUD
 │   ├── components/
 │   │   ├── MapPanel.vue      # Leaflet 地图 + 高德瓦片 + 源/受体标记 + 热力图叠加

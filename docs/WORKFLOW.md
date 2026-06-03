@@ -25,20 +25,33 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（137 用例，~30s）
+# 后端（138 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（65 用例）
+# 前端（70 用例）
 cd frontend-vue
 npm test
 
 # 前端 watch
 npm run test:watch
 ```
+
+### 改主控台气象控制
+
+1. 主控台风速、风向输入框用于本次单风向模拟的临时参数，不写回气象场管理记录。
+2. 前端运行模拟时必须随请求提交 `windSpeed` / `windDirection`；后端缺省时才回退到 `meteorologyId` 对应气象场保存值。
+3. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
+
+### 改数据管理页
+
+1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
+2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
+3. 批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。
+4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView}.spec.ts`。
 
 ## 常见变更模板
 
@@ -137,7 +150,7 @@ cd backend-dotnet && dotnet test --nologo | tail -3
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 65 passed
+# 预期：Test Files 17 passed, Tests 70 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

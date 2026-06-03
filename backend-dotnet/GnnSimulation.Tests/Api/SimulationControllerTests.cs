@@ -98,6 +98,37 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 单风向模拟_可临时覆盖风速风向()
+    {
+        var met = await CreateMet(ws: 3.0, wd: 0.0);
+        await CreatePointSource(lat: 39.9, lon: 116.4, pm25Rate: 1.0);
+        await CreateReceptor(lat: 39.89, lon: 116.4);
+
+        var baseResp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            GridResolution = 100,
+            DomainSize = 5000,
+        });
+        var overrideResp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 6.0,
+            WindDirection = 180.0,
+            GridResolution = 100,
+            DomainSize = 5000,
+        });
+
+        baseResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        overrideResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var baseResult = await baseResp.ReadJsonAsync<SimulationResultDto>();
+        var overrideResult = await overrideResp.ReadJsonAsync<SimulationResultDto>();
+
+        overrideResult.Concentrations.SelectMany(row => row).Max()
+            .Should().NotBeApproximately(baseResult.Concentrations.SelectMany(row => row).Max(), 1e-12);
+    }
+
+    [Fact]
     public async Task 受体点_贡献排名按浓度降序()
     {
         var met = await CreateMet(wd: 0.0);
