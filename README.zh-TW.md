@@ -96,7 +96,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-目前版本為 3.0.5，最近更新聚焦主界面氣象控制風向指針偏移修復。詳見 [CHANGELOG.md](CHANGELOG.md)。
+目前版本為 3.0.6，最近更新聚焦 VitePress 首頁 feature 卡片布局與明暗切換按鈕樣式修復。詳見 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

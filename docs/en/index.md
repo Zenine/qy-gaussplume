@@ -32,10 +32,6 @@ features:
       src: /icons/file-text.svg
     title: Manage data in batches
     details: Import sources and receptors through Excel templates and export selected receptor data.
-  - icon:
-      src: /icons/check-circle.svg
-    title: Ship with verification
-    details: The project includes backend, frontend, and build verification with 209 automated tests.
 ---
 
 <!-- Translation status:

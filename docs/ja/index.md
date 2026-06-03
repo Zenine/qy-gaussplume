@@ -32,10 +32,6 @@ features:
       src: /icons/file-text.svg
     title: データを一括管理
     details: Excel テンプレートで排出源と受容点を管理できます。
-  - icon:
-      src: /icons/check-circle.svg
-    title: 検証付きで出荷
-    details: バックエンド、フロントエンド、ビルド検証を含む 209 件の自動テストがあります。
 ---
 
 <!-- Translation status:

@@ -96,7 +96,7 @@ The current verification suite contains 138 backend xUnit tests, 71 frontend Vit
 
 ## Version
 
-The current version is 3.0.5. The latest update focuses on fixing the dashboard meteorology wind-direction pointer offset. See [CHANGELOG.md](CHANGELOG.md).
+The current version is 3.0.6. The latest update focuses on fixing the VitePress home feature-card layout and appearance-toggle styling. See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

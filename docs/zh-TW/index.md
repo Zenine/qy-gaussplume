@@ -32,10 +32,6 @@ features:
       src: /icons/file-text.svg
     title: 批量管理資料
     details: 透過 Excel 模板維護排放源和受體點。
-  - icon:
-      src: /icons/check-circle.svg
-    title: 帶驗證交付
-    details: 內建後端、前端和建置驗證，目前覆蓋 209 個自動化測試。
 ---
 
 <!-- Translation status:

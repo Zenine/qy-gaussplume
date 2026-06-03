@@ -32,10 +32,6 @@ features:
       src: /icons/file-text.svg
     title: 批量数据管理
     details: 通过 Excel 模板维护排放源和受体点，支持批量导入、导出和受体点批量删除。
-  - icon:
-      src: /icons/check-circle.svg
-    title: 可交付的验证入口
-    details: 项目内置后端、前端和构建验证脚本，当前覆盖 209 个自动化测试。
 ---
 
 # QY-GaussPlume
