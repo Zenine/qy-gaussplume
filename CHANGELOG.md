@@ -8,6 +8,9 @@
 
 ## [3.0.7] - 2026-06-03
 
+### 新增
+- GitHub Pages 部署 workflow 新增 `verify` job，部署完成后自动检查线上首页、FAQ、Quick Start、多语言入口、SEO/GEO metadata、`robots.txt`、`sitemap.xml`、`llms.txt`、`llms-full.txt` 和 `og.png`。
+
 ### 修复
 - 修复 VitePress Enterprise 主题只切换开关状态、不切换整页深色配色的问题；夜间模式现在会同步更新页面背景、文字、Hero、feature 卡片和按钮颜色。
 - 修复 VitePress 顶部明暗切换开关加宽后暗色态滑块位置不正确的问题，并提高开关图标在深色导航栏上的对比度。
