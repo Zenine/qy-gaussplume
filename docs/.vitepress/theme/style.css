@@ -40,9 +40,14 @@
 .VPNavBar .divider-line {
   background: transparent !important;
 }
-.VPNavBar .VPSocialLink svg {
+.VPNavBar .VPSocialLink {
+  color: #ffffff !important;
+}
+.VPNavBar .VPSocialLink svg,
+.VPNavBar .VPSocialLink [class^="vpi-social-"] {
   color: #ffffff !important;
   fill: #ffffff !important;
+  background-color: currentColor !important;
 }
 .VPNavBarTranslations {
   margin-left: 12px;
@@ -64,26 +69,35 @@
 }
 .VPNavBarAppearance .VPSwitchAppearance {
   width: 48px !important;
+  height: 24px !important;
   border: 1px solid rgba(255, 255, 255, 0.48) !important;
   background: rgba(15, 23, 42, 0.2) !important;
   box-shadow: none !important;
+}
+.VPNavBarAppearance .VPSwitchAppearance[aria-checked="true"] .check {
+  transform: translateX(24px) !important;
 }
 .VPNavBarAppearance .VPSwitchAppearance:hover {
   border-color: rgba(255, 255, 255, 0.74) !important;
   background: rgba(255, 255, 255, 0.16) !important;
 }
 .VPNavBarAppearance .VPSwitchAppearance .check {
+  top: 2px !important;
+  left: 2px !important;
   background: #ffffff !important;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
 }
 .VPNavBarAppearance .VPSwitchAppearance .icon {
   color: var(--vp-c-brand-1) !important;
 }
+.VPNavBarAppearance .VPSwitchAppearance .icon [class^='vpi-'] {
+  color: currentColor !important;
+}
 .dark .VPNavBarAppearance .VPSwitchAppearance .check {
-  background: #0f172a !important;
+  background: #f8fafc !important;
 }
 .dark .VPNavBarAppearance .VPSwitchAppearance .icon {
-  color: #fbbf24 !important;
+  color: #0f172a !important;
 }
 .VPNavBarSocialLinks {
   margin-left: 10px;
@@ -92,10 +106,10 @@
 }
 .VPNavBarSocialLinks .VPSocialLink {
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.14);
 }
 .VPNavBarSocialLinks .VPSocialLink:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.24);
 }
 
 /* Big, authoritative hero */

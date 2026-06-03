@@ -254,9 +254,11 @@ def check_sitemap_and_meta(dist: Path, fail: Fail) -> None:
     required_css = [
         ".VPNavBarTranslations",
         ".VPNavBarAppearance .VPSwitchAppearance",
+        '.VPNavBarAppearance .VPSwitchAppearance[aria-checked="true"] .check',
         ".VPNavBarAppearance .VPSwitchAppearance .check",
         ".VPNavBarAppearance .VPSwitchAppearance .icon",
         ".VPNavBarSocialLinks",
+        '.VPNavBar .VPSocialLink [class^="vpi-social-"]',
         ".VPHomeFeatures",
         ".VPHome .vp-doc.container",
     ]
