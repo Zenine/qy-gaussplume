@@ -110,6 +110,8 @@
 ```json
 {
   "meteorologyId": 1,
+  "windSpeed": 3.0,            // 可选：临时覆盖气象场风速，不写回气象场
+  "windDirection": 277,        // 可选：临时覆盖气象场风向，不写回气象场
   "sourceIds": null,           // null = 所有 isActive；[] = 空范围；[id] = 指定集合
   "receptorIds": null,         // 同上，供地图框选等场景使用
   "pollutantType": null,       // null = 所有污染物
@@ -120,6 +122,8 @@
 ```
 
 `sourceIds` / `receptorIds` 使用三态语义：`null` 表示未指定过滤条件，空数组表示调用方明确选择空范围，非空数组表示只模拟指定 ID。
+
+`windSpeed` / `windDirection` 为主控台临时调参入口：传入时只影响本次单风向模拟，不修改气象场管理中的已保存记录；省略时使用 `meteorologyId` 对应气象场的保存值。
 
 **响应** `SimulationResultDto`:
 

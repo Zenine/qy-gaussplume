@@ -175,6 +175,8 @@ export interface SimulationRequest {
   sourceIds?: number[]
   receptorIds?: number[]
   pollutantType?: string
+  windSpeed?: number
+  windDirection?: number
   gridResolution?: number
   domainSize?: number
   receptorHeight?: number

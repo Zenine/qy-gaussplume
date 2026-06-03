@@ -150,4 +150,20 @@ describe('DashboardView', () => {
     expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风向')
     expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风速')
   })
+
+  it('运行模拟时提交主界面当前风速风向', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    expect(simulationApi.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meteorologyId: 1,
+        windSpeed: 3,
+        windDirection: 0,
+      }),
+    )
+  })
 })

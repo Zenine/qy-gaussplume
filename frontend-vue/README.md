@@ -9,11 +9,11 @@
 | 版本 | **3.0.3** |
 | 更新日期 | **2026-05-25** |
 | 主要范围 | 主控台风速风向控制、排放源等效面源污染物输入、排放源/受体点批量操作 |
-| 验证结果 | Vitest 69 个用例，`npm run build` 通过 |
+| 验证结果 | Vitest 70 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
-- **主控台气象控制保留**：模拟完成后仍展示风速、风向输入框，用户可以直接调整气象条件并重新运行。
+- **主控台气象控制生效**：模拟完成后仍展示风速、风向输入框；运行模拟会使用当前临时输入值，且不覆盖气象场管理中的保存值。
 - **排放源等效面源输入修正**：等效面源只展示一个污染物数值框，保存到 `concentration`，列表展示同样读取 `concentration`，不再显示内部 `emissionRate=0`。
 - **批量入口补齐**：排放源管理页明确提供批量导入；受体点管理页提供批量导入和批量删除，批量删除部分失败时仍刷新列表。
 - **维护测试同步**：新增 Dashboard、Sources、Receptors 视图回归测试，覆盖上述行为。
@@ -51,7 +51,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 69 用例 |
+| `npm test` | Vitest 一次跑完全部 70 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -129,7 +129,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 - 左下角用滑块控制模拟范围（km）和网格分辨率（m），并继续写入 `prefs`。
 - 右侧初始卡片提供矩形区域绘制、风速/风向气象控制、当前范围内排放源/受体点统计。
 - 模拟完成后右侧切换为结果卡和受体点贡献分析卡，可调整色阶、透明度、渲染精度和浓度范围。
-- 模拟完成后仍保留风速/风向控制，避免用户为了改气象条件必须清空结果。
+- 模拟完成后仍保留风速/风向控制；运行模拟会使用当前临时输入值，且不写回气象场管理记录。
 - 框选区域后，前端会把区域内 `sourceIds` / `receptorIds` 随模拟请求提交；空受体列表保持为空，不回退到全部受体点。
 
 ### 数据管理页批量操作
@@ -160,7 +160,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 17 文件 · 69 用例
+npm test          # 17 文件 · 70 用例
 npm run build     # 含 TS 类型检查
 ```
 

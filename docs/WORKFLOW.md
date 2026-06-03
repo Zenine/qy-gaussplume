@@ -25,20 +25,26 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（137 用例，~30s）
+# 后端（138 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（69 用例）
+# 前端（70 用例）
 cd frontend-vue
 npm test
 
 # 前端 watch
 npm run test:watch
 ```
+
+### 改主控台气象控制
+
+1. 主控台风速、风向输入框用于本次单风向模拟的临时参数，不写回气象场管理记录。
+2. 前端运行模拟时必须随请求提交 `windSpeed` / `windDirection`；后端缺省时才回退到 `meteorologyId` 对应气象场保存值。
+3. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
 
 ## 常见变更模板
 
@@ -140,11 +146,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 137
+# 预期：已通过! - 失败: 0，通过: 138
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 69 passed
+# 预期：Test Files 17 passed, Tests 70 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

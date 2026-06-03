@@ -54,7 +54,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 137 个测试
+dotnet test                                      # 跑全部 138 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -85,8 +85,8 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 28 |
 | **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 45 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 64 |
-| **合计** | | **137** |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 65 |
+| **合计** | | **138** |
 
 ## 黄金值对齐
 
