@@ -89,7 +89,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-当前版本为 3.0.6，最近更新聚焦 VitePress 首页 feature 卡片布局和明暗切换按钮样式修复。详见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 3.0.7，最近更新聚焦 VitePress 顶部工具组排版和首页 feature/正文间距修复。详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

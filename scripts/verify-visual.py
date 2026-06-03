@@ -252,9 +252,13 @@ def check_sitemap_and_meta(dist: Path, fail: Fail) -> None:
 
     css = "\n".join(p.read_text(encoding="utf-8") for p in (dist / "assets").glob("*.css"))
     required_css = [
+        ".VPNavBarTranslations",
         ".VPNavBarAppearance .VPSwitchAppearance",
         ".VPNavBarAppearance .VPSwitchAppearance .check",
         ".VPNavBarAppearance .VPSwitchAppearance .icon",
+        ".VPNavBarSocialLinks",
+        ".VPHomeFeatures",
+        ".VPHome .vp-doc.container",
     ]
     for selector in required_css:
         if selector not in css:

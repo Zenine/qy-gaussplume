@@ -96,7 +96,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-現在のバージョンは 3.0.6 です。最新更新では、VitePress ホームの feature カード配置と明暗切替ボタンのスタイルを修正しました。詳しくは [CHANGELOG.md](CHANGELOG.md) を参照してください。
+現在のバージョンは 3.0.7 です。最新更新では、VitePress 上部ツール群の配置とホーム feature/本文間隔を修正しました。詳しくは [CHANGELOG.md](CHANGELOG.md) を参照してください。
 
 ## License
 

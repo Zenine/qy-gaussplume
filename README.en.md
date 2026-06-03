@@ -96,7 +96,7 @@ The current verification suite contains 138 backend xUnit tests, 71 frontend Vit
 
 ## Version
 
-The current version is 3.0.6. The latest update focuses on fixing the VitePress home feature-card layout and appearance-toggle styling. See [CHANGELOG.md](CHANGELOG.md).
+The current version is 3.0.7. The latest update focuses on VitePress top-tool layout and home feature/body spacing fixes. See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
