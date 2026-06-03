@@ -35,7 +35,7 @@ features:
   - icon:
       src: /icons/check-circle.svg
     title: 検証付きで出荷
-    details: バックエンド、フロントエンド、ビルド検証を含む 208 件の自動テストがあります。
+    details: バックエンド、フロントエンド、ビルド検証を含む 209 件の自動テストがあります。
 ---
 
 <!-- Translation status:

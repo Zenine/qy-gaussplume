@@ -20,7 +20,7 @@
 - `cd docs && npm run docs:build`：通过。
 - `python3 scripts/generate-llms-full.py --all-langs`：已生成根目录和 `docs/public` 两份 `llms-full.txt`。
 - `python3 scripts/verify-visual.py --skip-dev`：通过静态构建、SEO/GEO 与 llms 资源检查。
-- `./scripts/verify.sh`：通过，后端 138 个测试、前端 70 个测试、前端生产构建均成功。
+- `./scripts/verify.sh`：通过，后端 138 个测试、前端 71 个测试、前端生产构建均成功。
 
 ## 剩余风险
 

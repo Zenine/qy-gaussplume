@@ -6,10 +6,10 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | **3.0.3** |
+| 版本 | **3.0.5** |
 | 更新日期 | **2026-06-03** |
-| 主要范围 | 主控台临时风速风向控制、排放源等效面源污染物输入、排放源/受体点批量操作 |
-| 验证结果 | Vitest 70 个用例，`npm run build` 通过 |
+| 主要范围 | 主控台气象控制风向指针圆心锚定修复 |
+| 验证结果 | Vitest 71 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
@@ -51,7 +51,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 70 用例 |
+| `npm test` | Vitest 一次跑完全部 71 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构

@@ -35,7 +35,7 @@ features:
   - icon:
       src: /icons/check-circle.svg
     title: 帶驗證交付
-    details: 內建後端、前端和建置驗證，目前覆蓋 208 個自動化測試。
+    details: 內建後端、前端和建置驗證，目前覆蓋 209 個自動化測試。
 ---
 
 <!-- Translation status:

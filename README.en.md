@@ -88,7 +88,7 @@ The repository includes `backend/air_pollution.db` as anonymized demo data for l
 
 ## Verification
 
-The current verification suite contains 138 backend xUnit tests, 70 frontend Vitest tests, and a production frontend build with type checking.
+The current verification suite contains 138 backend xUnit tests, 71 frontend Vitest tests, and a production frontend build with type checking.
 
 ```bash
 ./scripts/verify.sh
@@ -96,7 +96,7 @@ The current verification suite contains 138 backend xUnit tests, 70 frontend Vit
 
 ## Version
 
-The current version is 3.0.4. The latest update focuses on the Meridian publishing layer, VitePress documentation site, multilingual README files, GitHub Pages workflow, and SEO/GEO resources. See [CHANGELOG.md](CHANGELOG.md).
+The current version is 3.0.5. The latest update focuses on fixing the dashboard meteorology wind-direction pointer offset. See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

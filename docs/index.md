@@ -35,7 +35,7 @@ features:
   - icon:
       src: /icons/check-circle.svg
     title: 可交付的验证入口
-    details: 项目内置后端、前端和构建验证脚本，当前覆盖 208 个自动化测试。
+    details: 项目内置后端、前端和构建验证脚本，当前覆盖 209 个自动化测试。
 ---
 
 # QY-GaussPlume

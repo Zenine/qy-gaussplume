@@ -35,7 +35,7 @@ features:
   - icon:
       src: /icons/check-circle.svg
     title: Ship with verification
-    details: The project includes backend, frontend, and build verification with 208 automated tests.
+    details: The project includes backend, frontend, and build verification with 209 automated tests.
 ---
 
 <!-- Translation status:

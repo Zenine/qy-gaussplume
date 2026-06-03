@@ -88,7 +88,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-現在の検証スイートは、バックエンド xUnit 138 件、フロントエンド Vitest 70 件、型チェック付き本番ビルドで構成されています。
+現在の検証スイートは、バックエンド xUnit 138 件、フロントエンド Vitest 71 件、型チェック付き本番ビルドで構成されています。
 
 ```bash
 ./scripts/verify.sh
@@ -96,7 +96,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-現在のバージョンは 3.0.4 です。最新更新では、Meridian 公開レイヤー、VitePress ドキュメントサイト、多言語 README、GitHub Pages workflow、SEO/GEO リソースを整備しました。詳しくは [CHANGELOG.md](CHANGELOG.md) を参照してください。
+現在のバージョンは 3.0.5 です。最新更新では、ダッシュボード気象コントロールの風向ポインターずれを修正しました。詳しくは [CHANGELOG.md](CHANGELOG.md) を参照してください。
 
 ## License
 
