@@ -355,11 +355,34 @@ onMounted(loadAll)
           <el-icon><Compass /></el-icon>
         </div>
         <div class="wind-rose">
-          <span>N</span>
-          <span>E</span>
-          <span>S</span>
-          <span>W</span>
-          <i :style="{ transform: `rotate(${draftWindDirection}deg)` }" />
+          <svg viewBox="0 0 150 150" role="img" aria-label="风向指示">
+            <circle class="wind-ring" cx="75" cy="75" r="74" />
+            <circle class="wind-ring" cx="75" cy="75" r="50" />
+            <circle class="wind-ring" cx="75" cy="75" r="26" />
+            <line class="wind-axis" x1="75" y1="1" x2="75" y2="149" />
+            <line class="wind-axis" x1="1" y1="75" x2="149" y2="75" />
+            <text x="75" y="20" text-anchor="middle">N</text>
+            <text x="128" y="79" text-anchor="middle">E</text>
+            <text x="75" y="136" text-anchor="middle">S</text>
+            <text x="22" y="79" text-anchor="middle">W</text>
+            <line
+              class="wind-pointer"
+              data-test="wind-direction-pointer"
+              x1="75"
+              y1="75"
+              x2="75"
+              y2="31"
+              :transform="`rotate(${draftWindDirection} 75 75)`"
+            />
+            <circle
+              class="wind-pointer-tip"
+              data-test="wind-direction-pointer-tip"
+              cx="75"
+              cy="31"
+              r="6"
+              :transform="`rotate(${draftWindDirection} 75 75)`"
+            />
+          </svg>
         </div>
         <div class="field-grid">
           <label>
@@ -633,65 +656,41 @@ onMounted(loadAll)
   width: 150px;
   height: 150px;
   margin: 16px auto 10px;
-  border: 1px solid #dbe6ec;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, transparent 0 25%, #e8eef2 26% 27%, transparent 28% 49%, #e8eef2 50% 51%, transparent 52%),
-    linear-gradient(90deg, transparent 49%, #dbe6ec 50%, transparent 51%),
-    linear-gradient(0deg, transparent 49%, #dbe6ec 50%, transparent 51%);
 }
 
-.wind-rose span {
-  position: absolute;
+.wind-rose svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wind-rose text {
   color: #64748b;
+  fill: currentColor;
   font-size: 11px;
 }
 
-.wind-rose span:nth-child(1) {
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
+.wind-ring,
+.wind-axis {
+  fill: none;
+  stroke: #dbe6ec;
+  stroke-width: 1;
 }
 
-.wind-rose span:nth-child(2) {
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+.wind-ring:nth-child(2),
+.wind-ring:nth-child(3) {
+  stroke: #e8eef2;
+  stroke-width: 3;
 }
 
-.wind-rose span:nth-child(3) {
-  bottom: 6px;
-  left: 50%;
-  transform: translateX(-50%);
+.wind-pointer {
+  stroke: #1677ff;
+  stroke-linecap: round;
+  stroke-width: 4;
 }
 
-.wind-rose span:nth-child(4) {
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.wind-rose i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 3px;
-  height: 54px;
-  transform-origin: 50% 100%;
-  border-radius: 999px;
-  background: #1677ff;
-}
-
-.wind-rose i::after {
-  position: absolute;
-  left: 50%;
-  top: -5px;
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: #1677ff;
-  content: '';
-  transform: translateX(-50%);
+.wind-pointer-tip {
+  fill: #1677ff;
 }
 
 .field-grid {

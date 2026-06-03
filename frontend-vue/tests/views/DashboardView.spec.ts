@@ -166,4 +166,28 @@ describe('DashboardView', () => {
       }),
     )
   })
+
+  it('风向指针从风玫瑰圆心绘制并围绕圆心旋转', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const pointer = wrapper.find('[data-test="wind-direction-pointer"]')
+    const pointerTip = wrapper.find('[data-test="wind-direction-pointer-tip"]')
+
+    expect(pointer.exists()).toBe(true)
+    expect(pointer.attributes('x1')).toBe('75')
+    expect(pointer.attributes('y1')).toBe('75')
+    expect(pointer.attributes('y2')).toBe('31')
+    expect(pointer.attributes('transform')).toBe('rotate(0 75 75)')
+    expect(pointerTip.attributes('cx')).toBe('75')
+    expect(pointerTip.attributes('cy')).toBe('31')
+    expect(pointerTip.attributes('transform')).toBe('rotate(0 75 75)')
+
+    const directionInput = wrapper.findAllComponents({ name: 'ElInputNumber' })[0]
+    await directionInput.vm.$emit('update:modelValue', 125)
+    await wrapper.vm.$nextTick()
+
+    expect(pointer.attributes('transform')).toBe('rotate(125 75 75)')
+    expect(pointerTip.attributes('transform')).toBe('rotate(125 75 75)')
+  })
 })
