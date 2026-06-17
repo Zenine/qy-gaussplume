@@ -81,22 +81,22 @@ internal static class WindDirectionWorker
 
             foreach (var key in perPollutant.Keys) availablePollutants.Add(key);
 
-            var srcField = DispatchSourceField(source, rate, gridLat, gridLon, model, ctx);
-            GridBuilder.AddInPlace(totalConc, srcField);
+            var srcField = new double[nLat, nLon];
 
-            // 性能优化路径：用 p_fraction 而不是每污染物独立重新计算。
-            // 多风向路径使用比例缩放；单风向 /run 则重新计算每污染物浓度场。
+            // 每种污染物独立计算，保留 PM/NOx/O3 等不同沉降、湿清除和化学参数差异。
             foreach (var kv in perPollutant)
             {
                 if (kv.Value <= 0) continue;
-                var fraction = rate > 0 ? kv.Value / rate : 0;
+                var pField = DispatchSourceField(source, kv.Value, gridLat, gridLon, model, ctx, kv.Key);
+                GridBuilder.AddInPlace(srcField, pField);
                 if (!pollutantConc.TryGetValue(kv.Key, out var acc))
                 {
                     acc = new double[nLat, nLon];
                     pollutantConc[kv.Key] = acc;
                 }
-                AddScaled(acc, srcField, fraction);
+                GridBuilder.AddInPlace(acc, pField);
             }
+            GridBuilder.AddInPlace(totalConc, srcField);
 
             contributions.Add(new SourceContributionDto
             {
@@ -133,16 +133,6 @@ internal static class WindDirectionWorker
         var n1 = m.GetLength(1);
         if (n0 == 0 || n1 == 0) return 0;
         return GridBuilder.Sum(m) / (n0 * n1);
-    }
-
-    private static void AddScaled(double[,] target, double[,] source, double scale)
-    {
-        // 将某污染物的排放占比投影到总浓度场上，用于多风向聚合的快速污染物分场。
-        var n0 = target.GetLength(0);
-        var n1 = target.GetLength(1);
-        for (var i = 0; i < n0; i++)
-            for (var j = 0; j < n1; j++)
-                target[i, j] += source[i, j] * scale;
     }
 
     private static double OrDefault(double? v, double defaultValue) =>
@@ -185,10 +175,8 @@ internal static class WindDirectionWorker
     private static double[,] DispatchSourceField(
         EmissionSource source, double rate,
         double[] gridLat, double[] gridLon,
-        GaussianPlumeModel model, Context ctx)
+        GaussianPlumeModel model, Context ctx, string pollutant)
     {
-        var pol = ctx.PollutantType ?? "PM2.5";
-
         return source.SourceType switch
         {
             "point" => model.CalculateConcentrationField(
@@ -199,7 +187,7 @@ internal static class WindDirectionWorker
                 velocity: source.Velocity ?? 10.0,
                 diameter: source.Diameter ?? 1.0,
                 receptorHeight: ctx.ReceptorHeight,
-                pollutant: pol),
+                pollutant: pollutant),
             "area" => model.CalculateAreaSourceConcentrationField(
                 centerLat: source.Latitude, centerLon: source.Longitude,
                 areaLength: OrDefault(source.AreaLength, 100),
@@ -207,9 +195,10 @@ internal static class WindDirectionWorker
                 areaHeight: OrDefault(source.AreaHeight, 0),
                 emissionRate: rate,
                 gridLat: gridLat, gridLon: gridLon,
+                sigmaZ0: source.SigmaZ0Area,
                 receptorHeight: ctx.ReceptorHeight,
-                pollutant: pol),
-            "equivalent_area" => BuildEquivalentAreaField(source, rate, gridLat, gridLon, model, ctx),
+                pollutant: pollutant),
+            "equivalent_area" => BuildEquivalentAreaField(source, rate, gridLat, gridLon, model, ctx, pollutant),
             "line" => model.CalculateLineSourceConcentrationField(
                 startLat: source.StartLat ?? source.Latitude,
                 startLon: source.StartLon ?? source.Longitude,
@@ -221,7 +210,7 @@ internal static class WindDirectionWorker
                 gridLat: gridLat, gridLon: gridLon,
                 segmentLength: OrDefault(source.LineSegmentLength, 10),
                 receptorHeight: ctx.ReceptorHeight,
-                pollutant: pol),
+                pollutant: pollutant),
             _ => model.CalculateConcentrationField(
                 sourceLat: source.Latitude, sourceLon: source.Longitude,
                 sourceHeight: source.Height, emissionRate: rate,
@@ -230,25 +219,22 @@ internal static class WindDirectionWorker
                 velocity: source.Velocity ?? 10.0,
                 diameter: source.Diameter ?? 1.0,
                 receptorHeight: ctx.ReceptorHeight,
-                pollutant: pol),
+                pollutant: pollutant),
         };
     }
 
     private static double[,] BuildEquivalentAreaField(
         EmissionSource source, double rate,
         double[] gridLat, double[] gridLon,
-        GaussianPlumeModel model, Context ctx)
+        GaussianPlumeModel model, Context ctx, string pollutant)
     {
         double? maxConc = null;
         foreach (var p in source.Pollutants)
         {
-            if (ctx.PollutantType is not null)
+            if (p.PollutantType == pollutant && p.Concentration is { } c)
             {
-                if (p.PollutantType == ctx.PollutantType && p.Concentration is { } c) { maxConc = c; break; }
-            }
-            else if (p.Concentration is { } c)
-            {
-                maxConc = maxConc is null ? c : Math.Max(maxConc.Value, c);
+                maxConc = c;
+                break;
             }
         }
 
@@ -262,10 +248,11 @@ internal static class WindDirectionWorker
             areaHeight: OrDefault(source.AreaHeight, 0),
             emissionRate: rate,
             gridLat: gridLat, gridLon: gridLon,
+            sigmaZ0: source.SigmaZ0Area,
             receptorHeight: ctx.ReceptorHeight,
             maxConcentration: maxConc,
             isEquivalent: true,
-            pollutant: ctx.PollutantType ?? "PM2.5");
+            pollutant: pollutant);
     }
 
     private static Dictionary<string, Dictionary<string, List<ReceptorContributionEntryDto>>>
@@ -357,15 +344,17 @@ internal static class WindDirectionWorker
                 velocity: source.Velocity ?? 10.0,
                 diameter: source.Diameter ?? 1.0,
                 pollutant: pollutant),
-            "area" or "equivalent_area" => model.CalculateAreaSourceReceptorConcentration(
+            "area" => model.CalculateAreaSourceReceptorConcentration(
                 centerLat: source.Latitude, centerLon: source.Longitude,
                 areaLength: OrDefault(source.AreaLength, 100),
                 areaWidth: OrDefault(source.AreaWidth, 100),
                 areaHeight: OrDefault(source.AreaHeight, 0),
                 emissionRate: rate,
                 receptorLat: receptor.Latitude, receptorLon: receptor.Longitude,
+                sigmaZ0: source.SigmaZ0Area,
                 receptorHeight: receptor.Height,
                 pollutant: pollutant),
+            "equivalent_area" => ComputeEquivalentAreaReceptor(source, rate, receptor, model, pollutant),
             "line" => model.CalculateLineSourceReceptorConcentration(
                 startLat: source.StartLat ?? source.Latitude,
                 startLon: source.StartLon ?? source.Longitude,
@@ -387,5 +376,37 @@ internal static class WindDirectionWorker
                 diameter: source.Diameter ?? 1.0,
                 pollutant: pollutant),
         };
+    }
+
+    private static double ComputeEquivalentAreaReceptor(
+        EmissionSource source, double rate, Receptor receptor,
+        GaussianPlumeModel model, string pollutant)
+    {
+        double? measured = null;
+        foreach (var p in source.Pollutants)
+        {
+            if (p.PollutantType == pollutant && p.Concentration is { } c)
+            {
+                measured = c;
+                break;
+            }
+        }
+
+        if (measured is not > 0 || rate <= 0) return 0.0;
+
+        return model.CalculateAreaSourceReceptorConcentration(
+            centerLat: source.Latitude,
+            centerLon: source.Longitude,
+            areaLength: OrDefault(source.AreaLength, 100),
+            areaWidth: OrDefault(source.AreaWidth, 100),
+            areaHeight: OrDefault(source.AreaHeight, 0),
+            emissionRate: rate,
+            receptorLat: receptor.Latitude,
+            receptorLon: receptor.Longitude,
+            sigmaZ0: source.SigmaZ0Area,
+            receptorHeight: receptor.Height,
+            concentration: measured,
+            isEquivalent: true,
+            pollutant: pollutant);
     }
 }

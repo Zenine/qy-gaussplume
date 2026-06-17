@@ -6,17 +6,18 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | **3.0.5** |
-| 更新日期 | **2026-06-03** |
-| 主要范围 | 主控台气象控制风向指针圆心锚定修复 |
-| 验证结果 | Vitest 71 个用例，`npm run build` 通过 |
+| 版本 | **3.0.9** |
+| 更新日期 | **2026-06-17** |
+| 主要范围 | 风向指针圆心坐标、排放源/气象场批量删除、多污染因子独立计算、多风向聚合一致性 |
+| 验证结果 | Vitest 79 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
 - **主控台气象控制生效**：风速、风向输入框会随单风向模拟请求提交为临时参数，运行模拟立即使用当前输入值，且不覆盖气象场管理中的保存值。
 - **排放源等效面源输入修正**：等效面源只展示一个污染物数值框，保存到 `concentration`，列表展示同样读取 `concentration`，不再显示内部 `emissionRate=0`。
-- **批量入口补齐**：排放源管理页明确提供批量导入；受体点管理页提供批量导入和批量删除，批量删除部分失败时仍刷新列表。
-- **维护测试同步**：新增 Dashboard、Sources、Receptors 视图回归测试，覆盖上述行为。
+- **批量入口补齐**：排放源管理页明确提供批量导入和批量删除；受体点管理页提供批量导入、导出和批量删除；气象场管理页提供批量删除，批量删除部分失败时仍刷新列表。
+- **选中状态清理**：排放源筛选或刷新、气象场刷新后会清空表格选中状态；关闭批量删除确认框不会误报失败。
+- **维护测试同步**：新增 Dashboard、Sources、Receptors、Meteorology 视图回归测试，覆盖上述行为。
 
 ## GNN 首页 Hero 图
 
@@ -51,7 +52,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 71 用例 |
+| `npm test` | Vitest 一次跑完全部 79 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -75,9 +76,9 @@ frontend-vue/
 │   │   └── index.ts
 │   ├── views/
 │   │   ├── DashboardView.vue # 主控台：地图悬浮工具条 + 框选 + 结果/贡献卡 + 并行对话框
-│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段、Excel 批量导入）
+│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段、Excel 批量导入/批量删除）
 │   │   ├── ReceptorsView.vue # 受体点 CRUD + Excel 批量导入/导出 + 批量删除
-│   │   └── MeteorologyView.vue # 气象场 CRUD
+│   │   └── MeteorologyView.vue # 气象场 CRUD + 批量删除
 │   ├── components/
 │   │   ├── MapPanel.vue      # Leaflet 地图 + 高德瓦片 + 源/受体标记 + 热力图叠加
 │   │   ├── ColorLegend.vue   # 色阶图例条
@@ -152,7 +153,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 17 文件 · 65 用例
+npm test          # 17 文件 · 79 用例
 npm run build     # 含 TS 类型检查
 ```
 
@@ -173,7 +174,7 @@ Vitest 用 jsdom，对 `<canvas>` 2D context 在 `tests/heatmap.spec.ts` 中做�
 | 状态管理 | 直接操作 DOM + localStorage | Pinia + 自动同步 |
 | 热力图 | 内联大块 JS | 拆分 composable，可测 |
 | 类型安全 | 无 | TypeScript 全覆盖 |
-| 测试 | 几乎无 | 65 单测 + 组件测试 |
+| 测试 | 几乎无 | 79 单测 + 组件测试 |
 
 ## 常见问题
 

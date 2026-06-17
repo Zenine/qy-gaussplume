@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（138 用例，~30s）
+# 后端（146 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（71 用例）
+# 前端（79 用例）
 cd frontend-vue
 npm test
 
@@ -50,8 +50,8 @@ npm run test:watch
 
 1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
 2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
-3. 批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。
-4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView}.spec.ts`。
+3. 排放源、受体点、气象场表格支持勾选；批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。刷新或筛选变化后应显式清空选中状态，关闭确认框不应显示失败提示。
+4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`。
 
 ## 常见变更模板
 
@@ -96,6 +96,14 @@ npm run test:watch
    python3 generate_golden.py
    ```
 4. 跑黄金值测试：`dotnet test --filter "FullyQualifiedName~GoldenValueTests"`
+
+### 改多风向并行模拟
+
+1. 多风向 `/api/simulation/run_parallel` 的行为应与单风向 `/api/simulation/run` 保持语义一致：`sourceIds` / `receptorIds` 为 `null` 表示使用全部启用数据，空数组表示明确空选择。
+2. 污染物浓度场必须按污染物独立计算，不能用总浓度场按排放比例拆分；PM2.5、PM10、SO2、NOx、CO、O3 的沉降、湿清除和化学衰减参数不同。
+3. 等效面源要同时覆盖网格浓度场和受体贡献：传入实测 `concentration`、`isEquivalent=true` 和 `sigmaZ0Area`，保持与单风向路径一致。
+4. 聚合权重必须绑定请求中的原始风向顺序；部分风向失败时，只对成功风向的原始权重重新归一化。所有风向均失败时应返回明确错误，不返回成功空结果。
+5. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。
 
 ### 改前端页面
 
@@ -146,11 +154,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 138
+# 预期：已通过! - 失败: 0，通过: 146
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 71 passed
+# 预期：Test Files 17 passed, Tests 79 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

@@ -88,7 +88,7 @@ The repository includes `backend/air_pollution.db` as anonymized demo data for l
 
 ## Verification
 
-The current verification suite contains 138 backend xUnit tests, 71 frontend Vitest tests, and a production frontend build with type checking.
+The current verification suite contains 146 backend xUnit tests, 79 frontend Vitest tests, and a production frontend build with type checking.
 
 ```bash
 ./scripts/verify.sh
@@ -96,7 +96,7 @@ The current verification suite contains 138 backend xUnit tests, 71 frontend Vit
 
 ## Version
 
-The current version is 3.0.7. The latest update focuses on VitePress top-tool layout and home feature/body spacing fixes. See [CHANGELOG.md](CHANGELOG.md).
+The current version is 3.0.9. The latest update focuses on the wind-rose pointer, batch deletion in data management, independent pollutant calculations, and multi-wind aggregation consistency. See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

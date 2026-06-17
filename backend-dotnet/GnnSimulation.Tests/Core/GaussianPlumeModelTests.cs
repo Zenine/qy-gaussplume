@@ -111,6 +111,50 @@ public class GaussianPlumeModelTests
     }
 
     [Fact]
+    public void 不同污染因子_使用各自沉降湿清除和化学参数()
+    {
+        var m = new GaussianPlumeModel(
+            windSpeed: 3.0,
+            windDirection: 0.0,
+            stabilityClass: "D",
+            temperature: 303.15,
+            humidity: 75,
+            cloudCover: 4,
+            precipitation: 3);
+
+        m.CalculateGravitationalSettlingVelocity("PM2.5")
+            .Should().NotBe(m.CalculateGravitationalSettlingVelocity("PM10"));
+        m.CalculateWetScavengingCoefficient("PM10")
+            .Should().NotBeApproximately(m.CalculateWetScavengingCoefficient("NOx"), 1e-12);
+        m.CalculateChemicalDecay(1000, "NOx")
+            .Should().NotBeApproximately(m.CalculateChemicalDecay(1000, "PM2.5"), 1e-12);
+        m.CalculateTotalDecay(1000, "PM2.5")
+            .Should().NotBeApproximately(m.CalculateTotalDecay(1000, "O3"), 1e-12);
+    }
+
+    [Fact]
+    public void 浓度场_同等排放速率下不同污染因子结果不同()
+    {
+        var m = new GaussianPlumeModel(
+            windSpeed: 3.0,
+            windDirection: 0.0,
+            stabilityClass: "D",
+            temperature: 303.15,
+            humidity: 75,
+            cloudCover: 4,
+            precipitation: 3);
+        var gridLat = new[] { 39.88, 39.90 };
+        var gridLon = new[] { 116.40 };
+
+        var pm25 = m.CalculateConcentrationField(39.90, 116.40, 50, 1.0, gridLat, gridLon, pollutant: "PM2.5");
+        var pm10 = m.CalculateConcentrationField(39.90, 116.40, 50, 1.0, gridLat, gridLon, pollutant: "PM10");
+
+        pm25[0, 0].Should().BeGreaterThan(0);
+        pm10[0, 0].Should().BeGreaterThan(0);
+        pm25[0, 0].Should().NotBeApproximately(pm10[0, 0], 1e-9);
+    }
+
+    [Fact]
     public void Briggs_有效高度_浮力正则产生抬升()
     {
         var m = new GaussianPlumeModel(3.0, 0.0, "D", temperature: 293.15);

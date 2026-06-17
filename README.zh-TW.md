@@ -88,7 +88,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-目前驗證規模：後端 138 個 xUnit 用例、前端 71 個 Vitest 用例，並包含前端生產建置與型別檢查。
+目前驗證規模：後端 146 個 xUnit 用例、前端 79 個 Vitest 用例，並包含前端生產建置與型別檢查。
 
 ```bash
 ./scripts/verify.sh
@@ -96,7 +96,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-目前版本為 3.0.7，最近更新聚焦 VitePress 頂部工具組排版與首頁 feature/正文間距修復。詳見 [CHANGELOG.md](CHANGELOG.md)。
+目前版本為 3.0.9，最近更新聚焦風向指針、資料管理批量刪除、多污染因子獨立計算與多風向聚合一致性。詳見 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

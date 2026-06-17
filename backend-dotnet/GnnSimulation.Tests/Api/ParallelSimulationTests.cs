@@ -1,6 +1,7 @@
 using System.Net;
 using FluentAssertions;
 using GnnSimulation.Api.Dtos;
+using GnnSimulation.Core.Atmosphere;
 using GnnSimulation.Tests.Infrastructure;
 
 namespace GnnSimulation.Tests.Api;
@@ -121,6 +122,189 @@ public class ParallelSimulationTests : IDisposable
     }
 
     [Fact]
+    public async Task 多风向污染物分场_不同污染因子按各自公式计算()
+    {
+        var met = await CreateMet();
+        await (await _client.PostJsonAsync("/api/sources", new EmissionSourceCreateDto
+        {
+            Name = $"Multi-{Guid.NewGuid():N}",
+            SourceType = "point",
+            Latitude = 39.9,
+            Longitude = 116.4,
+            Height = 50,
+            Temperature = 400,
+            Velocity = 15,
+            Diameter = 2,
+            Pollutants =
+            {
+                new PollutantEmissionCreateDto("PM2.5", 1.0),
+                new PollutantEmissionCreateDto("PM10", 1.0),
+            },
+        })).ReadJsonAsync<EmissionSourceDto>();
+        await CreateReceptor(39.88, 116.4);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 0 },
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await resp.ReadJsonAsync<ParallelSimulationResultDto>();
+        result.PollutantConcentrations.Should().NotBeNull();
+        var pm25 = result.PollutantConcentrations!["PM2.5"];
+        var pm10 = result.PollutantConcentrations!["PM10"];
+
+        pm25.SelectMany(row => row).Max().Should().BeGreaterThan(0);
+        pm10.SelectMany(row => row).Max().Should().BeGreaterThan(0);
+        var maxDiff = 0.0;
+        for (var i = 0; i < pm25.Length; i++)
+        {
+            for (var j = 0; j < pm25[i].Length; j++)
+            {
+                maxDiff = Math.Max(maxDiff, Math.Abs(pm25[i][j] - pm10[i][j]));
+            }
+        }
+        maxDiff.Should().BeGreaterThan(1e-9);
+    }
+
+    [Fact]
+    public async Task 空SourceIds_表示空选择_并行模拟不回退到全部激活源()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 0 },
+            SourceIds = new List<int>(),
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task 空ReceptorIds_表示空选择_并行模拟不回退到全部激活受体()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+        await CreateReceptor(39.88, 116.4);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 0 },
+            ReceptorIds = new List<int>(),
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await resp.ReadJsonAsync<ParallelSimulationResultDto>();
+        result.ReceptorContributions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task 所有风向失败_聚合模式返回400而不是成功空结果()
+    {
+        var met = await (await _client.PostJsonAsync("/api/meteorology", new MeteorologyCreateDto
+        {
+            Name = $"Invalid-{Guid.NewGuid():N}",
+            WindSpeed = 3.0,
+            StabilityClass = "Z",
+        })).ReadJsonAsync<MeteorologyDto>();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 0, 90 },
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task 等效面源_并行受体贡献使用实测浓度标记和SigmaZ0()
+    {
+        var met = await CreateMet();
+        var source = await (await _client.PostJsonAsync("/api/sources", new EmissionSourceCreateDto
+        {
+            Name = $"Eq-{Guid.NewGuid():N}",
+            SourceType = "equivalent_area",
+            Latitude = 39.9,
+            Longitude = 116.4,
+            Height = 0,
+            AreaLength = 300,
+            AreaWidth = 150,
+            AreaHeight = 8,
+            SigmaZ0Area = 60,
+            Pollutants = { new PollutantEmissionCreateDto("PM2.5", 0, Concentration: 80.0) },
+        })).ReadJsonAsync<EmissionSourceDto>();
+        var receptor = await CreateReceptor(39.9, 116.4);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 180 },
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await resp.ReadJsonAsync<ParallelSimulationResultDto>();
+        var actual = result.ReceptorContributions![receptor.Name]["PM2.5"].Single(e => e.SourceId == source.Id);
+
+        var model = new GaussianPlumeModel(
+            windSpeed: 3.0,
+            windDirection: 180,
+            stabilityClass: "D",
+            temperature: 293.15,
+            boundaryLayerHeight: 1000.0,
+            humidity: 50.0,
+            cloudCover: 0.0,
+            precipitation: 0.0);
+        var expectedRate = model.CalculateEquivalentEmissionRate(
+            concentration: 80.0,
+            areaLength: 300,
+            areaWidth: 150,
+            areaHeight: 8);
+        var expected = model.CalculateAreaSourceReceptorConcentration(
+            centerLat: 39.9,
+            centerLon: 116.4,
+            areaLength: 300,
+            areaWidth: 150,
+            areaHeight: 8,
+            emissionRate: expectedRate,
+            receptorLat: receptor.Latitude,
+            receptorLon: receptor.Longitude,
+            sigmaZ0: 60,
+            receptorHeight: receptor.Height,
+            concentration: 80.0,
+            isEquivalent: true,
+            pollutant: "PM2.5");
+
+        actual.Concentration.Should().BeApproximately(expected, 1e-10);
+    }
+
+    [Fact]
     public async Task 等权重_聚合结果等于各风向浓度场的均值()
     {
         var met = await CreateMet();
@@ -205,6 +389,54 @@ public class ParallelSimulationTests : IDisposable
             for (var j = 0; j < nLon; j++)
             {
                 var expected = 0.75 * r0.Concentrations![i][j] + 0.25 * r180.Concentrations![i][j];
+                agg.Concentrations[i][j].Should().BeApproximately(expected, 1e-9);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task 非等权重_按请求风向原始顺序绑定权重()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+        await CreateReceptor(39.88, 116.4);
+
+        var dirs = new List<double> { 180, 0 };
+        var weights = new List<double> { 3.0, 1.0 };
+
+        var detailedResp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = dirs,
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = false,
+        });
+        var detailed = await detailedResp.ReadJsonAsync<ParallelSimulationResultDto>();
+
+        var aggResp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = dirs,
+            Weights = weights,
+            GridResolution = 200,
+            DomainSize = 4000,
+            ReturnAggregatedOnly = true,
+        });
+        var agg = await aggResp.ReadJsonAsync<ParallelSimulationResultDto>();
+
+        var r180 = detailed.Results!.First(r => r.WindDirection == 180);
+        var r0 = detailed.Results!.First(r => r.WindDirection == 0);
+        var nLat = agg.Concentrations!.Length;
+        var nLon = agg.Concentrations[0].Length;
+
+        for (var i = 0; i < nLat; i++)
+        {
+            for (var j = 0; j < nLon; j++)
+            {
+                var expected = 0.75 * r180.Concentrations![i][j] + 0.25 * r0.Concentrations![i][j];
                 agg.Concentrations[i][j].Should().BeApproximately(expected, 1e-9);
             }
         }

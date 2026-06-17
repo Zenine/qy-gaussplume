@@ -64,6 +64,17 @@ const {
 // ---------- 气象控制 ----------
 const draftWindDirection = ref(0)
 const draftWindSpeed = ref(0.1)
+const windPointer = computed(() => {
+  const center = 75
+  const radius = 44
+  const radians = (draftWindDirection.value * Math.PI) / 180
+  const x = center + Math.sin(radians) * radius
+  const y = center - Math.cos(radians) * radius
+  return {
+    x: x.toFixed(2),
+    y: y.toFixed(2),
+  }
+})
 
 const selectedMeteorology = computed(
   () => meteorologies.value.find((m) => m.id === selectedMeteorologyId.value) ?? null,
@@ -384,17 +395,15 @@ onMounted(loadAll)
               data-test="wind-direction-pointer"
               x1="75"
               y1="75"
-              x2="75"
-              y2="31"
-              :transform="`rotate(${draftWindDirection} 75 75)`"
+              :x2="windPointer.x"
+              :y2="windPointer.y"
             />
             <circle
               class="wind-pointer-tip"
               data-test="wind-direction-pointer-tip"
-              cx="75"
-              cy="31"
+              :cx="windPointer.x"
+              :cy="windPointer.y"
               r="6"
-              :transform="`rotate(${draftWindDirection} 75 75)`"
             />
           </svg>
         </div>
