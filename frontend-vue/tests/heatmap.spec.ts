@@ -4,6 +4,8 @@ import {
   renderHeatmapToCanvas,
 } from '@/composables/useHeatmapRenderer'
 
+let lastImageData: ImageData | null = null
+
 // jsdom 不原生支持 Canvas 2D。用最小 stub 让逻辑跑通
 beforeAll(() => {
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
@@ -13,7 +15,9 @@ beforeAll(() => {
       height: h,
       colorSpace: 'srgb',
     }),
-    putImageData: vi.fn(),
+    putImageData: vi.fn((img: ImageData) => {
+      lastImageData = img
+    }),
   })) as unknown as HTMLCanvasElement['getContext']
 })
 
@@ -60,6 +64,85 @@ describe('renderHeatmapToCanvas', () => {
       useGcj02: false,
     })
     expect(Math.max(canvas.width, canvas.height)).toBeLessThanOrEqual(4096)
+  })
+
+  it('按扩散羽流显示：低浓度透明，高浓度按色阶增强', () => {
+    lastImageData = null
+    renderHeatmapToCanvas({
+      concentrations: [
+        [1, 50, 100],
+        [1, 50, 100],
+      ],
+      gridLat: [39.9, 39.91],
+      gridLon: [116.4, 116.41, 116.42],
+      min: 0,
+      max: 100,
+      scale: 'jet',
+      opacity: 0.8,
+      renderScale: 1,
+      useGcj02: false,
+    })
+
+    expect(lastImageData).not.toBeNull()
+    const data = lastImageData!.data
+    const lowAlpha = data[3]
+    const midAlpha = data[4 * 1 + 3]
+    const highAlpha = data[4 * 2 + 3]
+
+    expect(lowAlpha).toBe(0)
+    expect(midAlpha).toBeGreaterThan(0)
+    expect(highAlpha).toBeGreaterThan(midAlpha)
+  })
+
+  it('连续低值模式显示所有正浓度格点', () => {
+    lastImageData = null
+    renderHeatmapToCanvas({
+      concentrations: [
+        [1, 50, 100],
+        [1, 50, 100],
+      ],
+      gridLat: [39.9, 39.91],
+      gridLon: [116.4, 116.41, 116.42],
+      min: 0,
+      max: 100,
+      scale: 'jet',
+      opacity: 0.8,
+      renderScale: 1,
+      useGcj02: false,
+      displayMode: 'continuous',
+    })
+
+    expect(lastImageData).not.toBeNull()
+    const data = lastImageData!.data
+    const lowAlpha = data[3]
+    const midAlpha = data[4 * 1 + 3]
+    expect(lowAlpha).toBeGreaterThan(0)
+    expect(midAlpha).toBeGreaterThan(lowAlpha)
+  })
+
+  it('不透明度允许超过 1 以增强中高浓度，但最终 alpha 安全封顶', () => {
+    lastImageData = null
+    renderHeatmapToCanvas({
+      concentrations: [
+        [50, 100],
+        [50, 100],
+      ],
+      gridLat: [39.9, 39.91],
+      gridLon: [116.4, 116.41],
+      min: 0,
+      max: 100,
+      scale: 'jet',
+      opacity: 1.2,
+      renderScale: 1,
+      useGcj02: false,
+    })
+
+    expect(lastImageData).not.toBeNull()
+    const data = lastImageData!.data
+    const midAlpha = data[3]
+    const highAlpha = data[4 + 3]
+    expect(midAlpha).toBeGreaterThan(180)
+    expect(highAlpha).toBe(255)
   })
 })
 

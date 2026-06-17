@@ -83,7 +83,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-当前验证规模：后端 147 个 xUnit 用例、前端 83 个 Vitest 用例，并包含前端生产构建与类型检查。
+当前验证规模：后端 148 个 xUnit 用例、前端 107 个 Vitest 用例，并包含前端生产构建与类型检查。
 
 ```bash
 ./scripts/verify.sh
@@ -550,15 +550,19 @@ src/
 | **P13** | 主控台临时气象参数 + 排放源/受体点批量管理 + 等效面源污染物显示修复 | 138 | 70 |
 | **P14** | 风玫瑰指针 SVG 圆心锚定修复 | 138 | 71 |
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
-| **P16** | 公式说明接口 + 主控台公式抽屉 | 147 | 83 |
+| **P16** | 公式说明接口 + 主控台公式抽屉 | 148 | 107 |
 
-**当前**：230 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：255 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 
 ### 为什么浓度场网格不等于污染源网格化
 
 原 Python 实现的 `grid_lat` / `grid_lon` 注释是“网格纬度数组 / 网格经度数组”，用于 `calculate_concentration_field`、面源和线源函数在规则网格上采样浓度场。污染源本身仍是业务输入的点源、面源、线源或等效面源坐标，不应为了模拟而预先网格化布点。当前匿名演示库也使用少量离散工程示例源，避免把计算网格误解为污染源分布方式。
+
+### 为什么热力图和空气站点贡献排名分开
+
+热力图面向出图展示，使用 `concentrations` / `pollutantConcentrations` 在规则网格上快速渲染浓度场。空气站点贡献排名面向业务判断，使用 `receptorContributions[空气站点][污染物]` 直接表示各污染源对指定受体点的贡献浓度和占比。两者都来自同一次模拟，但不能互相替代；前端排名区只消费 `receptorContributions`，不从热力图网格或全域 `contributions` 反推。
 
 ### 为什么用 ProjNet 而不是 NetTopologySuite 内置
 
@@ -610,14 +614,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（147 用例，~30s）
+# 后端（148 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（83 用例）
+# 前端（107 用例）
 cd frontend-vue
 npm test
 
@@ -629,7 +633,8 @@ npm run test:watch
 
 1. 主控台风速、风向输入框用于本次单风向模拟的临时参数，不写回气象场管理记录。
 2. 前端运行模拟时必须随请求提交 `windSpeed` / `windDirection`；后端缺省时才回退到 `meteorologyId` 对应气象场保存值。
-3. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
+3. 模拟完成后，如果用户修改气象场、风速或来风方向，当前结果只是过期展示，不能静默当作新结果；页面应提示“当前结果未更新，请点击运行模拟”。
+4. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
 
 ### 改数据管理页
 
@@ -686,7 +691,26 @@ npm run test:watch
 
 1. `gridLat` / `gridLon` 只表示浓度场采样网格，不表示污染源需要网格化布点；污染源仍来自真实业务坐标或 Excel/API 导入。
 2. 匿名演示库应使用少量离散工程示例源，避免排列成规则网格误导业务理解。
-3. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
+3. 地图热力图用于展示从污染源出发的扩散浓度场；默认“羽流突出”模式过滤近零低值并使用分段色阶，避免整张模拟网格被低浓度底色铺满；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。两种模式都只影响展示，不改变计算结果。
+4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
+5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
+6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；这只控制计算域和出图范围，不表示污染源需要规则网格布点。
+7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
+8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
+9. 小于 10 MB 的模拟结果可以保存到 `localStorage.gnn.simulationResult.v1`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
+10. 地图中心和缩放级别属于 UI 偏好，写入 `localStorage.gnn.prefs.v1` 的 `mapCenter/mapZoom`，恢复视角时不要再强制初始 `fitBounds` 覆盖用户视角。
+11. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
+
+### 改空气站点贡献排名
+
+1. 主控台热力图和空气站点贡献排名是两条展示路径：热力图读取 `concentrations` / `pollutantConcentrations` 的网格浓度场；贡献排名读取 `receptorContributions[空气站点][污染物]`。
+2. 不要从网格浓度场反推污染源贡献排名，也不要用 `contributions` 的全域网格汇总替代空气站点贡献。业务目标是回答“某个污染源对指定空气站点某项污染物贡献多少 µg/m³”。
+3. 顶部“计算污染物”只决定下一次 `/api/simulation/run` / `/api/simulation/run_parallel` 的 `pollutantType`；修改后应提示当前结果未更新，但不能立即切换已有地图结果。
+4. 右侧“污染物指标”和结果卡“显示污染物”都属于结果展示筛选，切换后应立即联动地图分场和贡献排名，但不能改变下一次模拟请求的 `pollutantType`。
+5. 主控台右侧排名默认跟随展示污染物选择，并优先选中当前污染物下总贡献浓度最大的空气站点；展示时过滤 0 贡献源，只显示本次模拟结果中贡献最高的前 10 个污染源。
+6. 当污染物指标为“全部污染物”时，右侧不展示单污染物的污染源排名，而是按空气站点分组展示各污染物总贡献摘要；选择具体污染物后再展示该污染物的前 10 个污染源排名。
+7. 详情抽屉同样使用 `receptorContributions`，总贡献浓度由当前空气站点和当前污染物下的非零贡献行求和。
+8. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts`、`frontend-vue/tests/components/ContributionPanel.spec.ts` 和 `frontend-vue/tests/sourceGeometry.spec.ts`。
 
 ### 改多风向并行模拟
 
@@ -694,7 +718,10 @@ npm run test:watch
 2. 污染物浓度场必须按污染物独立计算，不能用总浓度场按排放比例拆分；PM2.5、PM10、SO2、NOx、CO、O3 的沉降、湿清除和化学衰减参数不同。
 3. 等效面源要同时覆盖网格浓度场和受体贡献：传入实测 `concentration`、`isEquivalent=true` 和 `sigmaZ0Area`，保持与单风向路径一致。
 4. 聚合权重必须绑定请求中的原始风向顺序；部分风向失败时，只对成功风向的原始权重重新归一化。所有风向均失败时应返回明确错误，不返回成功空结果。
-5. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。
+5. 多风向预设保留 8/16/32/64/72，与原 Python 页面一致。
+6. 主控台应保留“单风向/多风向”一等入口；多风向模式下直接在顶部选择方向数和统一风速，点击运行应调用 `/api/simulation/run_parallel`，弹窗仅作为备用高级入口。
+7. 主控台展示多风向聚合结果时，应记录本次并行请求摘要和 `lastSimulationMode='parallel'`；不要用单风向气象控制里的 `draftWindSpeed` / `draftWindDirection` 判断多风向结果是否过期。
+8. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。前端多风向入口和过期状态测试放在 `frontend-vue/tests/components/ParallelSimulationDialog.spec.ts` 与 `frontend-vue/tests/views/DashboardView.spec.ts`。
 
 ### 改公式说明展示
 
@@ -755,7 +782,7 @@ cd backend-dotnet && dotnet test --nologo | tail -3
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 18 passed, Tests 83 passed
+# 预期：Test Files 20 passed, Tests 107 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

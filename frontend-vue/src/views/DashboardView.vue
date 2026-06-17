@@ -13,10 +13,11 @@ import {
   VideoPlay,
 } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
-import { meteorologyApi, receptorsApi, simulationApi, sourcesApi } from '@/api'
+import { mapApi, meteorologyApi, receptorsApi, simulationApi, sourcesApi } from '@/api'
 import type {
   EmissionSource,
   Meteorology,
+  ParallelSimulationRequest,
   ParallelSimulationResult,
   Receptor,
   SimulationResult,
@@ -41,6 +42,33 @@ const selectedMeteorologyId = ref<number | null>(null)
 const running = ref(false)
 const result = shallowRef<SimulationResult | null>(null)
 const mapRef = ref<InstanceType<typeof MapPanel> | null>(null)
+type LastSimulationInputs =
+  | {
+    mode: 'single'
+    meteorologyId: number
+    windSpeed: number
+    windDirection: number
+    gridResolution: number
+    domainSize: number
+    receptorHeight: number
+    calculationPollutant: string
+  }
+  | {
+    mode: 'parallel'
+    meteorologyId: number
+    windSpeed: number
+    windDirections: number[]
+    weights?: number[]
+    gridResolution: number
+    domainSize: number
+    receptorHeight: number
+    calculationPollutant: string
+  }
+
+const SIMULATION_RESULT_STORAGE_KEY = 'gnn.simulationResult.v1'
+const MAX_PERSISTED_RESULT_BYTES = 10 * 1024 * 1024
+
+const lastSimulationInputs = ref<LastSimulationInputs | null>(null)
 
 const showContribution = ref(false)
 const showFormula = ref(false)
@@ -49,6 +77,13 @@ const selectionEnabled = ref(false)
 const selectionBounds = ref<SelectionBounds | null>(null)
 const selectedRankingReceptor = ref('')
 const selectedRankingPollutant = ref('')
+const calculationPollutant = ref('')
+const boundaryEnabled = ref(false)
+const boundaryLoading = ref(false)
+const boundaryGeoJson = shallowRef<unknown | null>(null)
+const simulationMode = ref<'single' | 'parallel'>('single')
+const parallelDirectionCount = ref<8 | 16 | 32 | 64 | 72>(16)
+const parallelWindSpeed = ref(3.0)
 
 // ---------- 偏好（持久化） ----------
 const prefs = usePrefsStore()
@@ -56,10 +91,14 @@ const {
   scale,
   opacity,
   renderScale,
+  heatmapDisplayMode,
   tileLayer,
   selectedPollutant,
   gridResolution,
   domainSize,
+  simulationHeight,
+  mapCenter,
+  mapZoom,
   customMin,
   customMax,
 } = storeToRefs(prefs)
@@ -89,14 +128,70 @@ const weatherDirty = computed(() => {
   return draftWindDirection.value !== met.windDirection || draftWindSpeed.value !== met.windSpeed
 })
 
+function isSupportedDirectionCount(value: number): value is 8 | 16 | 32 | 64 | 72 {
+  return [8, 16, 32, 64, 72].includes(value)
+}
+
+function sameNumberArray(a: number[], b: number[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+const resultWeatherOutdated = computed(() => {
+  const last = lastSimulationInputs.value
+  if (!result.value || !last || !selectedMeteorologyId.value) return false
+  if (last.mode === 'parallel') {
+    return (
+      selectedMeteorologyId.value !== last.meteorologyId
+      || parallelWindSpeed.value !== last.windSpeed
+      || !sameNumberArray(parallelWindDirections.value, last.windDirections)
+    )
+  }
+  return (
+    selectedMeteorologyId.value !== last.meteorologyId
+    || draftWindSpeed.value !== last.windSpeed
+    || draftWindDirection.value !== last.windDirection
+  )
+})
+
+const resultGridOutdated = computed(() => {
+  const last = lastSimulationInputs.value
+  if (!result.value || !last) return false
+  return (
+    gridResolution.value !== last.gridResolution
+    || domainSize.value !== last.domainSize
+    || simulationHeight.value !== last.receptorHeight
+    || calculationPollutant.value !== last.calculationPollutant
+  )
+})
+
+const resultParametersOutdated = computed(() => resultWeatherOutdated.value || resultGridOutdated.value)
+
 watch(
   selectedMeteorology,
   (met) => {
     if (!met) return
+    const last = lastSimulationInputs.value
+    if (result.value && last?.meteorologyId === met.id) {
+      if (last.mode === 'single') {
+        draftWindDirection.value = last.windDirection
+        draftWindSpeed.value = last.windSpeed
+      } else {
+        parallelWindSpeed.value = last.windSpeed
+        if (isSupportedDirectionCount(last.windDirections.length)) {
+          parallelDirectionCount.value = last.windDirections.length
+        }
+      }
+      return
+    }
     draftWindDirection.value = met.windDirection
     draftWindSpeed.value = met.windSpeed
+    parallelWindSpeed.value = met.windSpeed
   },
   { immediate: true },
+)
+
+const parallelWindDirections = computed(() =>
+  Array.from({ length: parallelDirectionCount.value }, (_, i) => (360 / parallelDirectionCount.value) * i),
 )
 
 // ---------- 选择区域与派生状态 ----------
@@ -153,8 +248,14 @@ const displayedResult = computed<SimulationResult | null>(() => {
 })
 
 const rankedContributions = computed(() =>
-  rankingRows.value.slice(0, 6),
+  rankingRows.value.slice(0, 10),
 )
+
+const rankingTotalConcentration = computed(() =>
+  rankingRows.value.reduce((sum, row) => sum + row.concentration, 0),
+)
+
+const isAllPollutantRanking = computed(() => !selectedPollutant.value)
 
 const receptorContributionNames = computed(() =>
   displayedResult.value ? Object.keys(displayedResult.value.receptorContributions) : [],
@@ -169,33 +270,187 @@ const rankingRows = computed(() => {
   if (!displayedResult.value || !selectedRankingReceptor.value || !selectedRankingPollutant.value) {
     return []
   }
-  return displayedResult.value.receptorContributions[selectedRankingReceptor.value]?.[
-    selectedRankingPollutant.value
-  ] ?? []
+  return (
+    displayedResult.value.receptorContributions[selectedRankingReceptor.value]?.[
+      selectedRankingPollutant.value
+    ] ?? []
+  ).filter((row) => row.concentration > 0)
 })
+
+const pollutantSummaryCards = computed(() => {
+  if (!result.value) return []
+  return Object.entries(result.value.receptorContributions)
+    .map(([receptorName, byPollutant]) => {
+      const rows = Object.entries(byPollutant)
+        .map(([pollutant, contributions]) => ({
+          pollutant,
+          concentration: contributions.reduce(
+            (sum, row) => sum + (row.concentration > 0 ? row.concentration : 0),
+            0,
+          ),
+        }))
+        .filter((row) => row.concentration > 0)
+        .sort((a, b) => b.concentration - a.concentration)
+      const total = rows.reduce((sum, row) => sum + row.concentration, 0)
+      return {
+        receptorName,
+        total,
+        rows: rows.map((row) => ({
+          ...row,
+          percentage: total > 0 ? row.concentration / total * 100 : 0,
+        })),
+      }
+    })
+    .filter((card) => card.total > 0)
+    .sort((a, b) => b.total - a.total)
+})
+
+function contributionTotalFor(receptorName: string, pollutant: string) {
+  return (
+    displayedResult.value?.receptorContributions[receptorName]?.[pollutant] ?? []
+  ).reduce((sum, row) => sum + (row.concentration > 0 ? row.concentration : 0), 0)
+}
+
+function bestReceptorFor(pollutant: string, names: string[]) {
+  let best = ''
+  let bestTotal = 0
+  for (const name of names) {
+    const total = contributionTotalFor(name, pollutant)
+    if (total > bestTotal) {
+      best = name
+      bestTotal = total
+    }
+  }
+  return best
+}
+
+function persistSimulationResult() {
+  if (!result.value) return
+  try {
+    const payload = JSON.stringify({
+      result: result.value,
+      selectedPollutant: selectedPollutant.value,
+      selectedRankingReceptor: selectedRankingReceptor.value,
+      selectedRankingPollutant: selectedRankingPollutant.value,
+      lastSimulationInputs: lastSimulationInputs.value,
+    })
+    if (payload.length > MAX_PERSISTED_RESULT_BYTES) {
+      localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
+      return
+    }
+    localStorage.setItem(SIMULATION_RESULT_STORAGE_KEY, payload)
+  } catch {
+    // localStorage 配额或隐私模式不可用时，不影响当前模拟结果。
+  }
+}
+
+function restoreSimulationResult() {
+  try {
+    const raw = localStorage.getItem(SIMULATION_RESULT_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (!parsed?.result?.concentrations || !parsed?.result?.gridLat || !parsed?.result?.gridLon) return
+    result.value = parsed.result
+    selectedPollutant.value = parsed.selectedPollutant ?? selectedPollutant.value
+    selectedRankingReceptor.value = parsed.selectedRankingReceptor ?? ''
+    selectedRankingPollutant.value = parsed.selectedRankingPollutant ?? ''
+    lastSimulationInputs.value = parsed.lastSimulationInputs ?? null
+    if (lastSimulationInputs.value) {
+      simulationMode.value = lastSimulationInputs.value.mode
+      if (lastSimulationInputs.value.mode === 'single') {
+        draftWindDirection.value = lastSimulationInputs.value.windDirection
+        draftWindSpeed.value = lastSimulationInputs.value.windSpeed
+      } else {
+        parallelWindSpeed.value = lastSimulationInputs.value.windSpeed
+        if (isSupportedDirectionCount(lastSimulationInputs.value.windDirections.length)) {
+          parallelDirectionCount.value = lastSimulationInputs.value.windDirections.length
+        }
+      }
+    }
+  } catch {
+    localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
+  }
+}
+
+async function onBoundaryEnabledChange() {
+  if (!boundaryEnabled.value || boundaryGeoJson.value) return
+  boundaryLoading.value = true
+  try {
+    boundaryGeoJson.value = await mapApi.getGeoJson(true)
+  } catch (e) {
+    boundaryEnabled.value = false
+    ElMessage.error(errorMessage(e, '加载行政边界失败'))
+  } finally {
+    boundaryLoading.value = false
+  }
+}
+
+function onMapViewChange(payload: { center: [number, number]; zoom: number }) {
+  mapCenter.value = payload.center
+  mapZoom.value = payload.zoom
+}
 
 watch(
   displayedResult,
   (value) => {
     const names = value ? Object.keys(value.receptorContributions) : []
-    selectedRankingReceptor.value = names.includes(selectedRankingReceptor.value)
-      ? selectedRankingReceptor.value
-      : names[0] ?? ''
+    const preferredPollutant = selectedPollutant.value
+    const preferredReceptor = preferredPollutant
+      ? bestReceptorFor(preferredPollutant, names)
+      : ''
+    selectedRankingReceptor.value = preferredReceptor
+      || (names.includes(selectedRankingReceptor.value) ? selectedRankingReceptor.value : names[0] ?? '')
     const pollutants = selectedRankingReceptor.value
       ? Object.keys(value?.receptorContributions[selectedRankingReceptor.value] ?? {})
       : []
-    selectedRankingPollutant.value = pollutants.includes(selectedRankingPollutant.value)
-      ? selectedRankingPollutant.value
-      : pollutants[0] ?? ''
+    if (!preferredPollutant) {
+      selectedRankingPollutant.value = ''
+      return
+    }
+    selectedRankingPollutant.value = pollutants.includes(preferredPollutant)
+      ? selectedPollutant.value
+      : pollutants.includes(selectedRankingPollutant.value)
+        ? selectedRankingPollutant.value
+        : pollutants[0] ?? ''
   },
   { immediate: true },
 )
 
-watch(selectedRankingReceptor, () => {
+watch(selectedPollutant, (pollutant) => {
+  if (!pollutant) {
+    selectedRankingPollutant.value = ''
+    return
+  }
+  const names = receptorContributionNames.value
+  const preferredReceptor = bestReceptorFor(pollutant, names)
+  if (preferredReceptor) selectedRankingReceptor.value = preferredReceptor
   const pollutants = rankingPollutants.value
-  selectedRankingPollutant.value = pollutants.includes(selectedRankingPollutant.value)
-    ? selectedRankingPollutant.value
-    : pollutants[0] ?? ''
+  if (pollutants.includes(pollutant)) {
+    selectedRankingPollutant.value = pollutant
+  }
+})
+
+watch(selectedRankingPollutant, (pollutant) => {
+  if (selectedPollutant.value !== pollutant) {
+    selectedPollutant.value = pollutant
+  }
+})
+
+watch(selectedRankingReceptor, () => {
+  if (!selectedPollutant.value) {
+    selectedRankingPollutant.value = ''
+    return
+  }
+  const pollutants = rankingPollutants.value
+  selectedRankingPollutant.value = pollutants.includes(selectedPollutant.value)
+    ? selectedPollutant.value
+    : pollutants.includes(selectedRankingPollutant.value)
+      ? selectedRankingPollutant.value
+      : pollutants[0] ?? ''
+})
+
+watch(boundaryEnabled, () => {
+  void onBoundaryEnabledChange()
 })
 
 // ---------- 数据加载与模拟 ----------
@@ -234,16 +489,33 @@ async function runSimulation() {
       meteorologyId: selectedMeteorologyId.value,
       sourceIds,
       receptorIds,
-      pollutantType: selectedPollutant.value || undefined,
+      pollutantType: calculationPollutant.value || undefined,
       windSpeed: draftWindSpeed.value,
       windDirection: draftWindDirection.value,
       gridResolution: gridResolution.value,
       domainSize: domainSize.value,
+      receptorHeight: simulationHeight.value,
     })
-    result.value = r
-    if (!selectedPollutant.value && r.availablePollutants?.length) {
-      selectedPollutant.value = r.availablePollutants[0]
+    if (r.availablePollutants?.length) {
+      selectedPollutant.value = calculationPollutant.value
+        && r.availablePollutants.includes(calculationPollutant.value)
+        ? calculationPollutant.value
+        : selectedPollutant.value && r.availablePollutants.includes(selectedPollutant.value)
+          ? selectedPollutant.value
+          : r.availablePollutants[0]
     }
+    result.value = r
+    lastSimulationInputs.value = {
+      mode: 'single',
+      meteorologyId: selectedMeteorologyId.value,
+      windSpeed: draftWindSpeed.value,
+      windDirection: draftWindDirection.value,
+      gridResolution: gridResolution.value,
+      domainSize: domainSize.value,
+      receptorHeight: simulationHeight.value,
+      calculationPollutant: calculationPollutant.value,
+    }
+    persistSimulationResult()
     ElMessage.success('模拟完成')
     mapRef.value?.fitBounds()
   } catch (e) {
@@ -253,8 +525,53 @@ async function runSimulation() {
   }
 }
 
+async function runParallelSimulation() {
+  if (!selectedMeteorologyId.value) {
+    ElMessage.warning('请先选择气象场')
+    return
+  }
+  if (effectiveSources.value.length === 0) {
+    ElMessage.warning(selectionBounds.value ? '选择区域内没有排放源' : '请先添加排放源')
+    return
+  }
+  running.value = true
+  try {
+    const sourceIds = selectionBounds.value ? effectiveSources.value.map((s) => s.id) : undefined
+    const receptorIds = selectionBounds.value ? effectiveReceptors.value.map((r) => r.id) : undefined
+    const request: ParallelSimulationRequest = {
+      meteorologyId: selectedMeteorologyId.value,
+      sourceIds,
+      receptorIds,
+      pollutantType: calculationPollutant.value || undefined,
+      windSpeed: parallelWindSpeed.value,
+      windDirections: parallelWindDirections.value,
+      gridResolution: gridResolution.value,
+      domainSize: domainSize.value,
+      receptorHeight: simulationHeight.value,
+      returnAggregatedOnly: true,
+    }
+    const r = await simulationApi.runParallel(request)
+    onParallelCompleted(r, request)
+    ElMessage.success('全局模拟完成')
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '全局模拟失败'))
+  } finally {
+    running.value = false
+  }
+}
+
+function runCurrentSimulation() {
+  if (simulationMode.value === 'parallel') {
+    void runParallelSimulation()
+    return
+  }
+  void runSimulation()
+}
+
 function clearResult() {
   result.value = null
+  lastSimulationInputs.value = null
+  localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
   customMin.value = null
   customMax.value = null
   selectionBounds.value = null
@@ -272,7 +589,23 @@ function startSelection() {
   ElMessage.info('在地图上按住并拖动，绘制模拟区域')
 }
 
-function onParallelCompleted(r: ParallelSimulationResult) {
+function parallelInputsFromRequest(request: ParallelSimulationRequest | undefined): LastSimulationInputs | null {
+  const meteorologyId = request?.meteorologyId ?? selectedMeteorologyId.value
+  if (!meteorologyId) return null
+  return {
+    mode: 'parallel',
+    meteorologyId,
+    windSpeed: request?.windSpeed ?? draftWindSpeed.value,
+    windDirections: request?.windDirections ?? [],
+    weights: request?.weights,
+    gridResolution: request?.gridResolution ?? gridResolution.value,
+    domainSize: request?.domainSize ?? domainSize.value,
+    receptorHeight: request?.receptorHeight ?? simulationHeight.value,
+    calculationPollutant: request?.pollutantType ?? calculationPollutant.value,
+  }
+}
+
+function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimulationRequest) {
   if (!r.concentrations || !r.gridLat || !r.gridLon) {
     ElMessage.warning('并行模拟无浓度数据（可能处于 detailed 模式）')
     return
@@ -287,10 +620,23 @@ function onParallelCompleted(r: ParallelSimulationResult) {
     pollutantConcentrations: r.pollutantConcentrations ?? null,
     availablePollutants: r.availablePollutants ?? null,
   }
+  if (r.availablePollutants?.length) {
+    selectedPollutant.value = request?.pollutantType && r.availablePollutants.includes(request.pollutantType)
+      ? request.pollutantType
+      : selectedPollutant.value && r.availablePollutants.includes(selectedPollutant.value)
+        ? selectedPollutant.value
+        : r.availablePollutants[0]
+  }
+  calculationPollutant.value = request?.pollutantType ?? ''
+  lastSimulationInputs.value = parallelInputsFromRequest(request)
+  persistSimulationResult()
   mapRef.value?.fitBounds()
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  restoreSimulationResult()
+  void loadAll()
+})
 </script>
 
 <template>
@@ -302,12 +648,17 @@ onMounted(loadAll)
       :result="displayedResult"
       :scale="scale"
       :opacity="opacity"
+      :heatmap-display-mode="heatmapDisplayMode"
       :min="effectiveMin"
       :max="effectiveMax"
       :render-scale="renderScale"
       :tile-layer="tileLayer"
       :selection-enabled="selectionEnabled"
+      :boundary-geo-json="boundaryEnabled ? boundaryGeoJson : null"
+      :initial-center="mapCenter"
+      :initial-zoom="mapZoom"
       @selection-change="onSelectionChange"
+      @view-change="onMapViewChange"
     />
 
     <div class="floating-toolbar" data-test="floating-toolbar">
@@ -316,6 +667,13 @@ onMounted(loadAll)
         <el-option value="satellite" label="高德卫星" />
         <el-option value="hybrid" label="高德混合" />
       </el-select>
+      <el-switch
+        v-model="boundaryEnabled"
+        data-test="boundary-layer-switch"
+        size="small"
+        active-text="行政边界"
+        :loading="boundaryLoading"
+      />
       <el-select v-model="selectedMeteorologyId" size="small" class="toolbar-wind">
         <el-option
           v-for="m in meteorologies"
@@ -324,12 +682,42 @@ onMounted(loadAll)
           :label="`${m.name} - 风速:${m.windSpeed} 风向:${m.windDirection}°`"
         />
       </el-select>
+      <el-radio-group
+        v-model="simulationMode"
+        data-test="simulation-mode-select"
+        size="small"
+        class="toolbar-mode"
+      >
+        <el-radio-button value="single">单风向</el-radio-button>
+        <el-radio-button value="parallel">多风向</el-radio-button>
+      </el-radio-group>
+      <template v-if="simulationMode === 'parallel'">
+        <el-select
+          v-model="parallelDirectionCount"
+          data-test="parallel-direction-count"
+          size="small"
+          class="toolbar-compact"
+        >
+          <el-option v-for="n in [8, 16, 32, 64, 72]" :key="n" :value="n" :label="`${n} 风向`" />
+        </el-select>
+        <el-input-number
+          v-model="parallelWindSpeed"
+          data-test="parallel-wind-speed"
+          size="small"
+          class="toolbar-speed"
+          :min="0.1"
+          :max="20"
+          :step="0.1"
+          controls-position="right"
+        />
+      </template>
       <el-select
-        v-model="selectedPollutant"
+        v-model="calculationPollutant"
         size="small"
         clearable
-        placeholder="全部污染物"
+        placeholder="计算全部污染物"
         class="toolbar-select"
+        data-test="calculation-pollutant-select"
       >
         <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
       </el-select>
@@ -340,9 +728,10 @@ onMounted(loadAll)
         :icon="VideoPlay"
         :loading="running"
         :disabled="running || !selectedMeteorologyId"
-        @click="runSimulation"
+        :class="{ 'run-attention': resultParametersOutdated }"
+        @click="runCurrentSimulation"
       >
-        运行模拟
+        {{ simulationMode === 'parallel' ? '运行全局模拟' : '运行模拟' }}
       </el-button>
       <el-button data-test="clear-result" size="small" :icon="Delete" @click="clearResult">
         清除结果
@@ -357,12 +746,23 @@ onMounted(loadAll)
         <span>模拟范围</span>
         <strong>{{ domainSizeKm }} km</strong>
       </div>
-      <el-slider v-model="domainSizeKm" :min="1" :max="50" :step="1" />
+      <el-slider v-model="domainSizeKm" :min="5" :max="100" :step="5" />
       <div class="range-row">
         <span>网格分辨率</span>
         <strong>{{ gridResolution }} m</strong>
       </div>
       <el-slider v-model="gridResolution" :min="10" :max="500" :step="10" />
+      <div class="range-row">
+        <span>模拟高度</span>
+        <strong>{{ simulationHeight }} m</strong>
+      </div>
+      <el-slider
+        v-model="simulationHeight"
+        data-test="simulation-height-slider"
+        :min="0"
+        :max="100"
+        :step="1"
+      />
     </div>
 
     <aside class="right-stack">
@@ -423,7 +823,10 @@ onMounted(loadAll)
             <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
           </label>
         </div>
-        <p v-if="weatherDirty" class="hint warning">将使用当前临时风速和来风方向运行，不会覆盖已保存气象场。</p>
+        <p v-if="resultWeatherOutdated" class="hint warning">
+          气象参数已修改，当前结果未更新，请点击运行模拟。
+        </p>
+        <p v-else-if="weatherDirty" class="hint warning">将使用当前临时风速和来风方向运行，不会覆盖已保存气象场。</p>
         <p v-else class="hint">外端指向风吹来的方向，运行模拟会使用当前风速和来风方向。</p>
       </section>
 
@@ -450,9 +853,18 @@ onMounted(loadAll)
             <span>模拟结果</span>
             <span class="complete">完成</span>
           </div>
+          <p v-if="resultParametersOutdated" class="hint warning">
+            页面参数已变化，当前结果未更新，请重新模拟。
+          </p>
           <label class="full-field">
             显示污染物
-            <el-select v-model="selectedPollutant" size="small" clearable placeholder="全部污染物">
+            <el-select
+              v-model="selectedPollutant"
+              data-test="top-pollutant-select"
+              size="small"
+              clearable
+              placeholder="全部污染物"
+            >
               <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
             </el-select>
           </label>
@@ -463,6 +875,13 @@ onMounted(loadAll)
               <el-option value="turbo" label="Turbo" />
               <el-option value="viridis" label="Viridis" />
               <el-option value="grayscale" label="灰度" />
+              <el-option value="blue" label="蓝色" />
+              <el-option value="red" label="红色" />
+              <el-option value="green" label="绿色" />
+              <el-option value="purple" label="紫色" />
+              <el-option value="thermal" label="Thermal" />
+              <el-option value="rainbow" label="Rainbow" />
+              <el-option value="spectral_r" label="Spectral R" />
             </el-select>
           </label>
           <div class="field-grid">
@@ -478,12 +897,19 @@ onMounted(loadAll)
           <div class="visual-controls">
             <label>
               透明度
-              <el-slider v-model="opacity" :min="0" :max="1" :step="0.05" />
+              <el-slider v-model="opacity" :min="0" :max="1.2" :step="0.05" />
+            </label>
+            <label>
+              扩散显示
+              <el-select v-model="heatmapDisplayMode" size="small">
+                <el-option value="plume" label="羽流突出" />
+                <el-option value="continuous" label="连续低值" />
+              </el-select>
             </label>
             <label>
               渲染精度
               <el-select v-model="renderScale" size="small">
-                <el-option v-for="n in [1, 2, 4, 8, 16]" :key="n" :value="n" :label="`${n}x`" />
+                <el-option v-for="n in [1, 2, 4, 8, 12, 16]" :key="n" :value="n" :label="`${n}x`" />
               </el-select>
             </label>
           </div>
@@ -497,30 +923,80 @@ onMounted(loadAll)
 
         <section class="floating-card" data-test="ranking-card">
           <div class="card-title">
-            <span>受体点贡献分析</span>
+            <span>空气站点污染源贡献排名</span>
             <el-button size="small" link :icon="Histogram" @click="showContribution = true">
               详情
             </el-button>
           </div>
           <div v-if="receptorContributionNames.length" class="ranking-controls">
-            <el-select v-model="selectedRankingReceptor" size="small" placeholder="受体点">
-              <el-option
-                v-for="name in receptorContributionNames"
-                :key="name"
-                :value="name"
-                :label="name"
-              />
-            </el-select>
-            <el-select v-model="selectedRankingPollutant" size="small" placeholder="污染物">
-              <el-option v-for="p in rankingPollutants" :key="p" :value="p" :label="p" />
-            </el-select>
+            <label>
+              选择空气站点
+              <el-select v-model="selectedRankingReceptor" size="small" placeholder="空气站点">
+                <el-option
+                  v-for="name in receptorContributionNames"
+                  :key="name"
+                  :value="name"
+                  :label="name"
+                />
+              </el-select>
+            </label>
+            <label>
+              污染物指标
+              <el-select
+                v-model="selectedRankingPollutant"
+                data-test="ranking-pollutant-select"
+                clearable
+                size="small"
+                placeholder="全部污染物"
+              >
+                <el-option v-for="p in rankingPollutants" :key="p" :value="p" :label="p" />
+              </el-select>
+            </label>
           </div>
-          <div class="ranking-list">
-            <div v-for="item in rankedContributions" :key="item.sourceId" class="ranking-item">
-              <span>{{ item.sourceName }}</span>
-              <strong>{{ item.concentration.toFixed(4) }}</strong>
+          <div v-if="isAllPollutantRanking" class="ranking-summary">
+            全部污染物贡献摘要
+          </div>
+          <div v-else-if="selectedRankingReceptor && selectedRankingPollutant" class="ranking-summary">
+            总贡献浓度：{{ rankingTotalConcentration.toFixed(4) }} µg/m³
+          </div>
+          <div v-if="isAllPollutantRanking" class="station-summary-list">
+            <div
+              v-for="card in pollutantSummaryCards"
+              :key="card.receptorName"
+              class="station-summary-card"
+            >
+              <div class="station-summary-title">
+                <strong>{{ card.receptorName }}</strong>
+                <span>总贡献 {{ card.total.toFixed(4) }} µg/m³</span>
+              </div>
+              <div v-for="row in card.rows" :key="row.pollutant" class="pollutant-summary-row">
+                <span class="pollutant-name">{{ row.pollutant }}</span>
+                <div class="ranking-bar" aria-hidden="true">
+                  <span :style="{ width: `${Math.min(100, row.percentage)}%` }" />
+                </div>
+                <span class="ranking-percent">{{ row.percentage.toFixed(1) }}%</span>
+                <strong>{{ row.concentration.toFixed(4) }} µg/m³</strong>
+              </div>
             </div>
-            <p v-if="rankedContributions.length === 0" class="hint">暂无受体点贡献数据</p>
+            <p v-if="pollutantSummaryCards.length === 0" class="hint">暂无空气站点污染物贡献摘要</p>
+          </div>
+          <div v-else class="ranking-list">
+            <div
+              v-for="(item, index) in rankedContributions"
+              :key="item.sourceId"
+              class="ranking-item"
+            >
+              <span class="ranking-index">{{ index + 1 }}</span>
+              <div class="ranking-main">
+                <div class="ranking-name">{{ item.sourceName }}</div>
+                <div class="ranking-bar" aria-hidden="true">
+                  <span :style="{ width: `${Math.min(100, item.percentage)}%` }" />
+                </div>
+              </div>
+              <span class="ranking-percent">{{ item.percentage.toFixed(1) }}%</span>
+              <strong>{{ item.concentration.toFixed(4) }} µg/m³</strong>
+            </div>
+            <p v-if="rankedContributions.length === 0" class="hint">暂无空气站点污染源贡献数据</p>
           </div>
         </section>
       </template>
@@ -547,7 +1023,8 @@ onMounted(loadAll)
       :selected-meteorology-id="selectedMeteorologyId"
       :grid-resolution="gridResolution"
       :domain-size="domainSize"
-      :pollutant-type="selectedPollutant"
+      :pollutant-type="calculationPollutant"
+      :receptor-height="simulationHeight"
       @completed="onParallelCompleted"
     />
   </div>
@@ -586,6 +1063,18 @@ onMounted(loadAll)
 
 .toolbar-wind {
   width: 230px;
+}
+
+.toolbar-mode {
+  flex: 0 0 auto;
+}
+
+.toolbar-compact {
+  width: 96px;
+}
+
+.toolbar-speed {
+  width: 108px;
 }
 
 .floating-card {
@@ -654,6 +1143,10 @@ onMounted(loadAll)
 
 .warning {
   color: #b45309;
+}
+
+.run-attention {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
 }
 
 .selection-summary {
@@ -788,29 +1281,118 @@ onMounted(loadAll)
 
 .ranking-controls {
   display: grid;
-  grid-template-columns: 1fr 96px;
+  grid-template-columns: minmax(0, 1fr) 112px;
   gap: 8px;
   margin-top: 12px;
 }
 
-.ranking-item {
+.ranking-controls label {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: #31545c;
-  font-size: 13px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12px;
 }
 
-.ranking-item span {
+.ranking-summary {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  text-align: right;
+}
+
+.station-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.station-summary-card {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f5f7fa;
+}
+
+.station-summary-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.station-summary-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #1677ff;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station-summary-title span {
+  flex: none;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.pollutant-summary-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px 92px;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  color: #31545c;
+  font-size: 12px;
+}
+
+.pollutant-name {
+  color: #64748b;
+}
+
+.ranking-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 52px 92px;
+  align-items: center;
+  gap: 8px;
+  color: #31545c;
+  font-size: 12px;
+}
+
+.ranking-index,
+.ranking-percent {
+  color: #7c8794;
+}
+
+.ranking-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.ranking-bar {
+  height: 8px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #d1d5db;
+}
+
+.ranking-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #1677ff;
+}
+
 .ranking-item strong {
-  color: #1677ff;
+  color: #1f2937;
+  font-weight: 700;
+  text-align: right;
 }
 
 .quick-actions {

@@ -3,7 +3,18 @@
 
 export type RGBA = [number, number, number, number]
 
-export type ColorScale = 'jet' | 'turbo' | 'viridis' | 'grayscale'
+export type ColorScale =
+  | 'jet'
+  | 'turbo'
+  | 'viridis'
+  | 'grayscale'
+  | 'blue'
+  | 'red'
+  | 'green'
+  | 'purple'
+  | 'thermal'
+  | 'rainbow'
+  | 'spectral_r'
 
 // 简化的 Jet 色阶（蓝→青→绿→黄→红）
 function jet(t: number): RGBA {
@@ -59,13 +70,39 @@ function grayscale(t: number): RGBA {
   return [v, v, v, 255]
 }
 
+function singleHue(t: number, hue: 'blue' | 'red' | 'green' | 'purple'): RGBA {
+  const v = Math.max(0, Math.min(1, t))
+  const low = 35 + 80 * v
+  const high = 90 + 165 * v
+  switch (hue) {
+    case 'blue': return [low, low, high, 255]
+    case 'red': return [high, low, low, 255]
+    case 'green': return [low, high, low, 255]
+    case 'purple': return [120 + 100 * v, low, high, 255]
+  }
+}
+
 export function gradientColor(t: number, scale: ColorScale = 'jet'): RGBA {
   switch (scale) {
     case 'jet': return jet(t)
     case 'turbo': return turbo(t)
     case 'viridis': return viridis(t)
     case 'grayscale': return grayscale(t)
+    case 'blue': return singleHue(t, 'blue')
+    case 'red': return singleHue(t, 'red')
+    case 'green': return singleHue(t, 'green')
+    case 'purple': return singleHue(t, 'purple')
+    case 'thermal': return turbo(t)
+    case 'rainbow': return jet(t)
+    case 'spectral_r': return jet(1 - Math.max(0, Math.min(1, t)))
   }
+}
+
+export function steppedGradientColor(t: number, scale: ColorScale = 'jet', steps = 7): RGBA {
+  const safeSteps = Math.max(2, Math.floor(steps))
+  const clamped = Math.max(0, Math.min(1, t))
+  const stepped = Math.round(clamped * (safeSteps - 1)) / (safeSteps - 1)
+  return gradientColor(stepped, scale)
 }
 
 // 线性归一化 [min, max] → [0, 1]，支持对数刻度

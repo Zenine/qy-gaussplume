@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import type { ReceptorContributionEntry, SimulationResult } from '@/types'
 
-// 受体贡献度面板：侧拉抽屉，展示每受体×每污染物的源贡献排名。
+// 空气站点贡献面板：侧拉抽屉，展示每空气站点×每污染物的污染源贡献排名。
 const props = defineProps<{
   visible: boolean
   result: SimulationResult | null
@@ -60,7 +60,9 @@ watch(selectedReceptor, () => {
 
 const rows = computed<ReceptorContributionEntry[]>(() => {
   if (!props.result || !selectedReceptor.value || !selectedPollutant.value) return []
-  return props.result.receptorContributions[selectedReceptor.value]?.[selectedPollutant.value] ?? []
+  return (
+    props.result.receptorContributions[selectedReceptor.value]?.[selectedPollutant.value] ?? []
+  ).filter((row) => row.concentration > 0)
 })
 
 const totalConcentration = computed(() =>
@@ -71,20 +73,20 @@ const totalConcentration = computed(() =>
 <template>
   <el-drawer
     v-model="innerVisible"
-    title="受体点贡献分析"
+    title="空气站点污染源贡献明细"
     direction="rtl"
     size="500px"
   >
-    <div v-if="!props.result" class="empty">运行模拟后会显示各受体点的源贡献排名</div>
+    <div v-if="!props.result" class="empty">运行模拟后会显示各空气站点的污染源贡献排名</div>
 
     <template v-else>
       <div class="row">
-        <label>受体点</label>
+        <label>选择空气站点</label>
         <el-select v-model="selectedReceptor" size="small" style="width: 180px">
           <el-option v-for="n in receptorNames" :key="n" :value="n" :label="n" />
         </el-select>
 
-        <label>污染物</label>
+        <label>污染物指标</label>
         <el-select v-model="selectedPollutant" size="small" style="width: 120px">
           <el-option v-for="p in pollutants" :key="p" :value="p" :label="p" />
         </el-select>
@@ -92,11 +94,11 @@ const totalConcentration = computed(() =>
 
       <div class="summary">
         <div class="metric">
-          <div class="k">总浓度</div>
-          <div class="v">{{ totalConcentration.toFixed(4) }} μg/m³</div>
+          <div class="k">总贡献浓度</div>
+          <div class="v">{{ totalConcentration.toFixed(4) }} µg/m³</div>
         </div>
         <div class="metric">
-          <div class="k">贡献源数</div>
+          <div class="k">污染源数</div>
           <div class="v">{{ rows.length }}</div>
         </div>
       </div>
@@ -105,11 +107,11 @@ const totalConcentration = computed(() =>
         <el-table-column label="排名" width="60">
           <template #default="{ $index }">#{{ $index + 1 }}</template>
         </el-table-column>
-        <el-table-column prop="sourceName" label="排放源" min-width="130" />
-        <el-table-column label="浓度 (μg/m³)" width="140">
+        <el-table-column prop="sourceName" label="污染源名称" min-width="130" />
+        <el-table-column label="贡献浓度 (μg/m³)" width="150">
           <template #default="{ row }">{{ row.concentration.toFixed(4) }}</template>
         </el-table-column>
-        <el-table-column label="占比" width="140">
+        <el-table-column label="贡献占比" width="140">
           <template #default="{ row }">
             <el-progress
               :percentage="Math.min(100, +row.percentage.toFixed(1))"

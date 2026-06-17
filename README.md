@@ -82,7 +82,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-当前验证规模：后端 147 个 xUnit 用例、前端 83 个 Vitest 用例，并包含前端生产构建与类型检查。
+当前验证规模：后端 148 个 xUnit 用例、前端 107 个 Vitest 用例，并包含前端生产构建与类型检查。
 
 ```bash
 ./scripts/verify.sh

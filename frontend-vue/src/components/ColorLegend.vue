@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { gradientColor, type ColorScale } from '@/utils/colorScale'
+import { steppedGradientColor, type ColorScale } from '@/utils/colorScale'
 
 // 浮在地图右下角的色阶图例条
 const props = defineProps<{
@@ -8,13 +8,14 @@ const props = defineProps<{
   max: number
   scale: ColorScale
   unit?: string
+  title?: string
 }>()
 
-const STEPS = 24
+const STEPS = 7
 const stops = computed(() =>
   Array.from({ length: STEPS }, (_, i) => {
     const t = i / (STEPS - 1)
-    const [r, g, b] = gradientColor(t, props.scale)
+    const [r, g, b] = steppedGradientColor(t, props.scale, STEPS)
     return { t, css: `rgb(${r},${g},${b})` }
   }),
 )
@@ -24,7 +25,7 @@ const midValue = computed(() => (props.min + props.max) / 2)
 
 <template>
   <div class="legend">
-    <div class="title">浓度 ({{ props.unit ?? 'μg/m³' }})</div>
+    <div class="title">{{ props.title ?? '扩散浓度色阶' }} ({{ props.unit ?? 'μg/m³' }})</div>
     <div class="bar">
       <div
         v-for="(s, i) in stops"

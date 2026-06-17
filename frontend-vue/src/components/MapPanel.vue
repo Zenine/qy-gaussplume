@@ -2,15 +2,19 @@
 import { onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import type { GeoJsonObject } from 'geojson'
 import type { EmissionSource, Receptor, SimulationResult } from '@/types'
 import { wgs84ToGcj02 } from '@/utils/coords'
 import type { SelectionBounds } from '@/utils/selection'
 import {
   computeBounds,
   renderHeatmapToCanvas,
+  type HeatmapDisplayMode,
   type HeatmapOptions,
 } from '@/composables/useHeatmapRenderer'
 import type { ColorScale } from '@/utils/colorScale'
+import { escapeHtml, safeCssColor } from '@/utils/html'
+import { sourceFitPoints, sourceMapGeometry, type LatLngTuple } from '@/utils/sourceGeometry'
 
 const props = defineProps<{
   sources: EmissionSource[]
@@ -18,22 +22,28 @@ const props = defineProps<{
   result?: SimulationResult | null
   scale?: ColorScale
   opacity?: number
+  heatmapDisplayMode?: HeatmapDisplayMode
   min?: number | null
   max?: number | null
   renderScale?: number
   tileLayer?: 'street' | 'satellite' | 'hybrid'
   selectionEnabled?: boolean
+  boundaryGeoJson?: unknown | null
+  initialCenter?: [number, number] | null
+  initialZoom?: number | null
 }>()
 
 const emit = defineEmits<{
   'selection-change': [bounds: SelectionBounds | null]
+  'view-change': [payload: { center: [number, number]; zoom: number }]
 }>()
 
 const mapEl = ref<HTMLDivElement | null>(null)
 const map = shallowRef<L.Map | null>(null)
 const tileLayer = shallowRef<L.TileLayer | null>(null)
-const markers = shallowRef<L.Marker[]>([])
+const entityLayers = shallowRef<L.Layer[]>([])
 const heatmapOverlay = shallowRef<L.ImageOverlay | null>(null)
+const boundaryLayer = shallowRef<L.GeoJSON | null>(null)
 const selectionOverlay = shallowRef<L.Rectangle | null>(null)
 const selectionStart = shallowRef<L.LatLng | null>(null)
 
@@ -55,29 +65,65 @@ function setTileLayer(kind: 'street' | 'satellite' | 'hybrid') {
   }).addTo(map.value)
 }
 
-function clearMarkers() {
-  for (const m of markers.value) m.remove()
-  markers.value = []
+function clearEntityLayers() {
+  for (const layer of entityLayers.value) layer.remove()
+  entityLayers.value = []
+}
+
+function toGcjTuple(point: LatLngTuple): L.LatLngTuple {
+  return wgs84ToGcj02(point[0], point[1])
+}
+
+function sourcePopup(source: EmissionSource) {
+  return `<strong>${escapeHtml(source.name)}</strong><br>类型: ${escapeHtml(source.sourceType)}<br>高度: ${escapeHtml(source.height)} m`
+}
+
+function sourcePointMarker(source: EmissionSource, point: LatLngTuple, size = 14) {
+  const radius = size / 2
+  const icon = L.divIcon({
+    className: 'gnn-marker',
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${safeCssColor(source.markerColor)};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [radius, radius],
+  })
+  return L.marker(toGcjTuple(point), { icon }).bindPopup(sourcePopup(source))
 }
 
 function renderMarkers() {
   if (!map.value) return
-  clearMarkers()
+  clearEntityLayers()
 
-  // 源标记（红色圆点）
+  // 排放源按类型显示：点源=点，面源/等效面源=矩形面，线源=线段。
   for (const s of props.sources) {
-    const [lat, lon] = wgs84ToGcj02(s.latitude, s.longitude)
-    const icon = L.divIcon({
-      className: 'gnn-marker',
-      html: `<div style="width:14px;height:14px;border-radius:50%;background:${s.markerColor};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
-    })
-    const marker = L.marker([lat, lon], { icon }).bindPopup(
-      `<strong>${s.name}</strong><br>类型: ${s.sourceType}<br>高度: ${s.height} m`,
-    )
-    marker.addTo(map.value)
-    markers.value.push(marker)
+    const geometry = sourceMapGeometry(s)
+    if (geometry.kind === 'polygon') {
+      const layer = L.polygon(geometry.corners.map(toGcjTuple), {
+        color: geometry.equivalent ? '#7c3aed' : safeCssColor(s.markerColor),
+        weight: 2,
+        dashArray: geometry.equivalent ? '6 4' : undefined,
+        fillColor: geometry.equivalent ? '#8b5cf6' : safeCssColor(s.markerColor),
+        fillOpacity: geometry.equivalent ? 0.16 : 0.22,
+      }).bindPopup(sourcePopup(s))
+      layer.addTo(map.value)
+      entityLayers.value.push(layer)
+    } else if (geometry.kind === 'polyline') {
+      const line = L.polyline(geometry.points.map(toGcjTuple), {
+        color: safeCssColor(s.markerColor),
+        weight: Math.max(3, Math.min(10, s.lineWidth ?? 4)),
+        opacity: 0.85,
+      }).bindPopup(sourcePopup(s))
+      line.addTo(map.value)
+      entityLayers.value.push(line)
+      for (const point of geometry.points) {
+        const endpoint = sourcePointMarker(s, point, 10)
+        endpoint.addTo(map.value)
+        entityLayers.value.push(endpoint)
+      }
+    } else {
+      const marker = sourcePointMarker(s, geometry.center)
+      marker.addTo(map.value)
+      entityLayers.value.push(marker)
+    }
   }
 
   // 受体标记（蓝色方块）
@@ -85,15 +131,15 @@ function renderMarkers() {
     const [lat, lon] = wgs84ToGcj02(r.latitude, r.longitude)
     const icon = L.divIcon({
       className: 'gnn-marker',
-      html: `<div style="width:12px;height:12px;background:${r.markerColor};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>`,
+      html: `<div style="width:12px;height:12px;background:${safeCssColor(r.markerColor)};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,0.4);"></div>`,
       iconSize: [12, 12],
       iconAnchor: [6, 6],
     })
     const marker = L.marker([lat, lon], { icon }).bindPopup(
-      `<strong>${r.name}</strong><br>受体点<br>高度: ${r.height} m`,
+      `<strong>${escapeHtml(r.name)}</strong><br>受体点<br>高度: ${escapeHtml(r.height)} m`,
     )
     marker.addTo(map.value)
-    markers.value.push(marker)
+    entityLayers.value.push(marker)
   }
 }
 
@@ -126,6 +172,7 @@ function renderHeatmap() {
     max,
     scale: props.scale ?? 'jet',
     opacity: props.opacity ?? 0.7,
+    displayMode: props.heatmapDisplayMode ?? 'plume',
     renderScale: props.renderScale ?? 2,
     useGcj02: true,
   }
@@ -136,6 +183,41 @@ function renderHeatmap() {
     opacity: 1,
     interactive: false,
   }).addTo(map.value)
+}
+
+function clearBoundaryLayer() {
+  if (!boundaryLayer.value) return
+  boundaryLayer.value.remove()
+  boundaryLayer.value = null
+}
+
+function renderBoundaryLayer() {
+  if (!map.value) return
+  clearBoundaryLayer()
+  if (!props.boundaryGeoJson) return
+
+  boundaryLayer.value = L.geoJSON(props.boundaryGeoJson as GeoJsonObject, {
+    style: {
+      color: '#0f766e',
+      weight: 1.4,
+      opacity: 0.85,
+      fillColor: '#14b8a6',
+      fillOpacity: 0.04,
+    },
+    coordsToLatLng: (coords) => {
+      const [lat, lon] = wgs84ToGcj02(coords[1], coords[0])
+      return L.latLng(lat, lon, coords[2])
+    },
+  }).addTo(map.value)
+}
+
+function emitViewChange() {
+  if (!map.value) return
+  const center = map.value.getCenter()
+  emit('view-change', {
+    center: [center.lat, center.lng],
+    zoom: map.value.getZoom(),
+  })
 }
 
 function normalizeBounds(bounds: L.LatLngBounds): SelectionBounds {
@@ -200,7 +282,9 @@ function finishSelection(e: L.LeafletMouseEvent) {
 function fitBounds() {
   if (!map.value) return
   const all: L.LatLngTuple[] = []
-  for (const s of props.sources) all.push(wgs84ToGcj02(s.latitude, s.longitude))
+  for (const s of props.sources) {
+    for (const point of sourceFitPoints(s)) all.push(toGcjTuple(point))
+  }
   for (const r of props.receptors) all.push(wgs84ToGcj02(r.latitude, r.longitude))
   if (all.length === 0) return
   const bounds = L.latLngBounds(all)
@@ -212,8 +296,8 @@ defineExpose({ fitBounds, clearSelection, fitSelection })
 onMounted(() => {
   if (!mapEl.value) return
   map.value = L.map(mapEl.value, {
-    center: [39.9, 116.4],
-    zoom: 10,
+    center: props.initialCenter ?? [39.9, 116.4],
+    zoom: props.initialZoom ?? 10,
     zoomControl: true,
     attributionControl: false,
   })
@@ -221,11 +305,13 @@ onMounted(() => {
   map.value.on('mousedown', startSelection)
   map.value.on('mousemove', updateSelection)
   map.value.on('mouseup', finishSelection)
+  map.value.on('moveend zoomend', emitViewChange)
   window.addEventListener('mouseup', cancelSelectionDrag)
   renderMarkers()
   renderHeatmap()
+  renderBoundaryLayer()
   // 初次加载若有数据则自适应
-  if (props.sources.length + props.receptors.length > 0) {
+  if (!props.initialCenter && props.sources.length + props.receptors.length > 0) {
     setTimeout(fitBounds, 100)
   }
 })
@@ -235,11 +321,13 @@ onUnmounted(() => {
     map.value.off('mousedown', startSelection)
     map.value.off('mousemove', updateSelection)
     map.value.off('mouseup', finishSelection)
+    map.value.off('moveend zoomend', emitViewChange)
   }
   window.removeEventListener('mouseup', cancelSelectionDrag)
   if (selectionOverlay.value) selectionOverlay.value.remove()
   if (heatmapOverlay.value) heatmapOverlay.value.remove()
-  clearMarkers()
+  clearBoundaryLayer()
+  clearEntityLayers()
   if (tileLayer.value) tileLayer.value.remove()
   if (map.value) map.value.remove()
 })
@@ -254,7 +342,15 @@ watch(
   { deep: true },
 )
 watch(
-  () => [props.result, props.scale, props.opacity, props.min, props.max, props.renderScale],
+  () => [
+    props.result,
+    props.scale,
+    props.opacity,
+    props.heatmapDisplayMode,
+    props.min,
+    props.max,
+    props.renderScale,
+  ],
   () => renderHeatmap(),
   { deep: true },
 )
@@ -264,6 +360,10 @@ watch(
     if (!enabled) selectionStart.value = null
     if (!enabled && map.value) map.value.dragging.enable()
   },
+)
+watch(
+  () => props.boundaryGeoJson,
+  () => renderBoundaryLayer(),
 )
 </script>
 

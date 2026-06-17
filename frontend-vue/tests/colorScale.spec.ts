@@ -44,6 +44,14 @@ describe('gradientColor', () => {
     expect(g).toBe(b)
     expect(r).toBeCloseTo(127.5, 0)
   })
+
+  it('兼容原 Python 页面色阶名称', () => {
+    for (const scale of ['blue', 'red', 'green', 'purple', 'thermal', 'rainbow', 'spectral_r'] as const) {
+      const color = gradientColor(0.5, scale)
+      expect(color).toHaveLength(4)
+      expect(color[3]).toBe(255)
+    }
+  })
 })
 
 describe('concentrationRange', () => {
