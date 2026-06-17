@@ -177,6 +177,10 @@ src/
 
 ## 关键权衡
 
+### 为什么浓度场网格不等于污染源网格化
+
+原 Python 实现的 `grid_lat` / `grid_lon` 注释是“网格纬度数组 / 网格经度数组”，用于 `calculate_concentration_field`、面源和线源函数在规则网格上采样浓度场。污染源本身仍是业务输入的点源、面源、线源或等效面源坐标，不应为了模拟而预先网格化布点。当前匿名演示库也使用少量离散工程示例源，避免把计算网格误解为污染源分布方式。
+
 ### 为什么用 ProjNet 而不是 NetTopologySuite 内置
 
 NTS 本身不做 CRS 变换。ProjNet 是微软系维护的轻量投影库，支持 WKT → 坐标系解析 + Albers 等复杂投影。比 DotSpatial 小很多。

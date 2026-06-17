@@ -68,7 +68,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Data And Privacy
 
-仓库内的 `backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。公开仓库不得提交真实项目名称、真实客户数据、密钥、账号凭证或未获授权的监测数据。
+仓库内的 `backend/air_pollution.db` 是匿名演示数据库，只用于本地运行和功能演示。当前演示库使用少量离散工程示例源，不代表污染源需要按网格布点；网格只用于计算并输出浓度场。公开仓库不得提交真实项目名称、真实客户数据、密钥、账号凭证或未获授权的监测数据。
 
 ## Documentation
 

@@ -407,8 +407,8 @@ onMounted(loadAll)
             <circle
               class="wind-pointer-tip"
               data-test="wind-direction-pointer-tip"
-              :cx="windPointer.x"
-              :cy="windPointer.y"
+              cx="75"
+              cy="75"
               r="6"
             />
           </svg>
