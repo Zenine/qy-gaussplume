@@ -29,7 +29,7 @@ afterEach(() => {
 })
 
 describe('ParallelSimulationDialog', () => {
-  it('弹窗打开显示 4 种风向预设按钮', async () => {
+  it('弹窗打开显示 5 种风向预设按钮', async () => {
     mount(ParallelSimulationDialog, {
       props: {
         visible: true,
@@ -38,6 +38,7 @@ describe('ParallelSimulationDialog', () => {
         gridResolution: 100,
         domainSize: 10000,
         pollutantType: '',
+        receptorHeight: 0,
       },
       global: { plugins: [ElementPlus] },
       attachTo: document.body,
@@ -48,6 +49,7 @@ describe('ParallelSimulationDialog', () => {
     expect(text).toContain('8')
     expect(text).toContain('16')
     expect(text).toContain('32')
+    expect(text).toContain('64')
     expect(text).toContain('72')
   })
 
@@ -75,6 +77,7 @@ describe('ParallelSimulationDialog', () => {
         gridResolution: 100,
         domainSize: 10000,
         pollutantType: 'PM2.5',
+        receptorHeight: 12,
       },
       global: { plugins: [ElementPlus] },
       attachTo: document.body,
@@ -95,8 +98,14 @@ describe('ParallelSimulationDialog', () => {
     expect(req.windDirections[0]).toBe(0)
     expect(req.windDirections[1]).toBeCloseTo(22.5)
     expect(req.pollutantType).toBe('PM2.5')
+    expect(req.receptorHeight).toBe(12)
 
     // completed 事件被 emit
     expect(wrapper.emitted('completed')).toHaveLength(1)
+    expect(wrapper.emitted('completed')![0][1]).toMatchObject({
+      meteorologyId: 1,
+      pollutantType: 'PM2.5',
+      receptorHeight: 12,
+    })
   })
 })

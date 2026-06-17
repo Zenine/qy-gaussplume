@@ -9,7 +9,7 @@
 | 版本 | **3.0.9** |
 | 更新日期 | **2026-06-17** |
 | 主要范围 | 风向指针圆心坐标、排放源/气象场批量删除、多污染因子独立计算、公式说明展示、多风向聚合一致性 |
-| 验证结果 | Vitest 84 个用例，`npm run build` 通过 |
+| 验证结果 | Vitest 108 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
@@ -24,7 +24,7 @@
 
 ![GNN 首页 Hero 图](../docs/assets/generated/qy-gnn-hero.png)
 
-这张图对应当前 GNN 主控台：地图为主画布，顶部工具条负责图层、气象场、污染物和模拟动作，左下角控制模拟范围与网格分辨率，右侧悬浮卡片承载区域绘制、气象控制、数据统计和运行后结果分析。
+这张图对应当前 GNN 主控台：地图为主画布，顶部工具条负责图层、气象场、本次计算污染物和模拟动作，左下角控制模拟范围、网格分辨率与模拟高度，右侧悬浮卡片承载区域绘制、气象控制、数据统计和运行后结果分析。结果卡与贡献排名里的污染物选择只切换已有结果展示，不改变下一次计算请求。
 
 ## GNN 功能介绍图
 
@@ -53,7 +53,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 84 用例 |
+| `npm test` | Vitest 一次跑完全部 108 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -81,11 +81,11 @@ frontend-vue/
 │   │   ├── ReceptorsView.vue # 受体点 CRUD + Excel 批量导入/导出 + 批量删除
 │   │   └── MeteorologyView.vue # 气象场 CRUD + 批量删除
 │   ├── components/
-│   │   ├── MapPanel.vue      # Leaflet 地图 + 高德瓦片 + 源/受体标记 + 热力图叠加
+│   │   ├── MapPanel.vue      # Leaflet 地图 + 高德瓦片 + 源/受体几何 + 热力图叠加
 │   │   ├── ColorLegend.vue   # 色阶图例条
 │   │   ├── ContributionPanel.vue    # 抽屉式受体贡献排名
 │   │   ├── FormulaDrawer.vue        # 公式说明：后端公式、污染因子参数、源类型
-│   │   └── ParallelSimulationDialog.vue  # 8/16/32/72 风向并行模拟
+│   │   └── ParallelSimulationDialog.vue  # 8/16/32/64/72 风向并行模拟
 │   ├── composables/
 │   │   └── useHeatmapRenderer.ts   # 双线性插值 + Canvas 渲染 + 4096 自动降级
 │   └── utils/
@@ -128,10 +128,11 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 
 ### 主控台悬浮操作区
 
-- 顶部工具条提供地图图层、气象场、污染物、运行模拟和清除结果。
-- 左下角用滑块控制模拟范围（km）和网格分辨率（m），并继续写入 `prefs`。
+- 顶部工具条提供地图图层、气象场、本次计算污染物、运行模拟和清除结果。
+- 左下角用滑块控制模拟范围（km）、网格分辨率（m）和模拟高度（m），并继续写入 `prefs`。
 - 右侧初始卡片提供矩形区域绘制、气象参数预览、当前范围内排放源/受体点统计。
-- 模拟完成后右侧切换为结果卡和受体点贡献分析卡，可调整色阶、透明度、渲染精度和浓度范围。
+- 模拟完成后右侧切换为结果卡和受体点贡献分析卡，可调整色阶、透明度、扩散显示模式、渲染精度和浓度范围。
+- 地图按排放源类型显示空间几何：点源为点，面源为矩形，等效面源为紫色虚线矩形，线源为线段和起终点。
 - 框选区域后，前端会把区域内 `sourceIds` / `receptorIds` 随模拟请求提交；空受体列表保持为空，不回退到全部受体点。
 
 ### 坐标系统（`utils/coords.ts`）
@@ -147,6 +148,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 3. **Canvas > 4096×4096 自动降级** `renderScale` 直到安全尺寸
 4. 逐像素双线性插值采样 + 色阶映射 + alpha 归一化
 5. `canvas.toDataURL()` → `L.imageOverlay` 贴到 GCJ02 偏移后的 `LatLngBounds`
+6. 默认“羽流突出”模式会隐藏近零低值并强化高浓度区域；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。
 
 ### 高德瓦片
 
@@ -155,7 +157,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 18 文件 · 84 用例
+npm test          # 20 文件 · 108 用例
 npm run build     # 含 TS 类型检查
 ```
 
@@ -176,7 +178,7 @@ Vitest 用 jsdom，对 `<canvas>` 2D context 在 `tests/heatmap.spec.ts` 中做�
 | 状态管理 | 直接操作 DOM + localStorage | Pinia + 自动同步 |
 | 热力图 | 内联大块 JS | 拆分 composable，可测 |
 | 类型安全 | 无 | TypeScript 全覆盖 |
-| 测试 | 几乎无 | 84 单测 + 组件测试 |
+| 测试 | 几乎无 | 108 单测 + 组件测试 |
 
 ## 常见问题
 

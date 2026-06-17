@@ -143,6 +143,37 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 单风向模拟_模拟高度进入浓度场计算()
+    {
+        var met = await CreateMet(ws: 3.0, wd: 0.0);
+        await CreatePointSource(lat: 39.9, lon: 116.4, h: 35, pm25Rate: 1.0);
+        await CreateReceptor(lat: 39.89, lon: 116.4);
+
+        var groundResp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            GridResolution = 100,
+            DomainSize = 5000,
+            ReceptorHeight = 0,
+        });
+        var elevatedResp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            GridResolution = 100,
+            DomainSize = 5000,
+            ReceptorHeight = 20,
+        });
+
+        groundResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        elevatedResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var ground = await groundResp.ReadJsonAsync<SimulationResultDto>();
+        var elevated = await elevatedResp.ReadJsonAsync<SimulationResultDto>();
+
+        elevated.Concentrations.SelectMany(row => row).Max()
+            .Should().NotBeApproximately(ground.Concentrations.SelectMany(row => row).Max(), 1e-12);
+    }
+
+    [Fact]
     public async Task 受体点_贡献排名按浓度降序()
     {
         var met = await CreateMet(wd: 0.0);

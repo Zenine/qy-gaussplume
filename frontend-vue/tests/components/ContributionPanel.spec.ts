@@ -22,9 +22,9 @@ const fakeResult: SimulationResult = {
         {
           sourceId: 2,
           sourceName: '道路尾气',
-          concentration: 2.5,
+          concentration: 0,
           pollutant: 'PM2.5',
-          percentage: 20,
+          percentage: 0,
         },
       ],
     },
@@ -55,7 +55,7 @@ describe('ContributionPanel', () => {
     await flushPromises()
     const drawer = document.querySelector('.el-drawer')
     expect(drawer).not.toBeNull()
-    expect(drawer!.textContent).toContain('运行模拟后会显示')
+    expect(drawer!.textContent).toContain('运行模拟后会显示各空气站点的污染源贡献排名')
     // 清理 teleport
     document.body.innerHTML = ''
   })
@@ -68,9 +68,16 @@ describe('ContributionPanel', () => {
     })
     await flushPromises()
     const text = document.querySelector('.el-drawer')!.textContent ?? ''
+    expect(text).toContain('空气站点污染源贡献明细')
+    expect(text).toContain('选择空气站点')
+    expect(text).toContain('污染物指标')
+    expect(text).toContain('污染源名称')
+    expect(text).toContain('贡献浓度 (μg/m³)')
+    expect(text).toContain('贡献占比')
     expect(text).toContain('学校')
     expect(text).toContain('钢厂烟囱')
     expect(text).toContain('10.0000') // concentration 4 decimals
+    expect(text).not.toContain('道路尾气')
     document.body.innerHTML = ''
   })
 })

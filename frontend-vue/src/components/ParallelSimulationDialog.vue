@@ -9,7 +9,7 @@ import type {
 import { simulationApi } from '@/api'
 import { errorMessage } from '@/utils/error'
 
-// 并行模拟对话框：预设 8/16/32/72 风向 + 统一风速 + 支持自定义权重
+// 并行模拟对话框：预设 8/16/32/64/72 风向 + 统一风速 + 支持自定义权重
 const props = defineProps<{
   visible: boolean
   meteorologies: Meteorology[]
@@ -17,11 +17,12 @@ const props = defineProps<{
   gridResolution: number
   domainSize: number
   pollutantType: string
+  receptorHeight: number
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
-  (e: 'completed', result: ParallelSimulationResult): void
+  (e: 'completed', result: ParallelSimulationResult, request: ParallelSimulationRequest): void
 }>()
 
 const innerVisible = computed({
@@ -31,7 +32,7 @@ const innerVisible = computed({
 
 const metId = ref<number | null>(null)
 const windSpeed = ref(3.0)
-const dirCount = ref<8 | 16 | 32 | 72>(16)
+const dirCount = ref<8 | 16 | 32 | 64 | 72>(16)
 const weightMode = ref<'uniform' | 'custom'>('uniform')
 const customWeights = ref<string>('')
 const returnAggregated = ref(true)
@@ -82,11 +83,12 @@ async function run() {
       gridResolution: props.gridResolution,
       domainSize: props.domainSize,
       pollutantType: props.pollutantType || undefined,
+      receptorHeight: props.receptorHeight,
       returnAggregatedOnly: returnAggregated.value,
     }
     const r = await simulationApi.runParallel(request)
     result.value = r
-    emit('completed', r)
+    emit('completed', r, request)
     ElMessage.success(
       `成功 ${r.successfulSimulations}/${r.totalWindDirections} 个风向，耗时 ${r.computationTimeSeconds}s`,
     )
@@ -127,6 +129,7 @@ async function run() {
           <el-radio-button :value="8">8</el-radio-button>
           <el-radio-button :value="16">16</el-radio-button>
           <el-radio-button :value="32">32</el-radio-button>
+          <el-radio-button :value="64">64</el-radio-button>
           <el-radio-button :value="72">72</el-radio-button>
         </el-radio-group>
       </el-form-item>

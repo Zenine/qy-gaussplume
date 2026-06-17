@@ -3,14 +3,15 @@ import ElementPlus from 'element-plus'
 import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DashboardView from '@/views/DashboardView.vue'
-import { meteorologyApi, receptorsApi, simulationApi, sourcesApi } from '@/api'
+import { mapApi, meteorologyApi, receptorsApi, simulationApi, sourcesApi } from '@/api'
 import type { SelectionBounds } from '@/utils/selection'
 
 vi.mock('@/api', () => ({
   sourcesApi: { list: vi.fn() },
   receptorsApi: { list: vi.fn() },
   meteorologyApi: { list: vi.fn() },
-  simulationApi: { run: vi.fn() },
+  simulationApi: { run: vi.fn(), runParallel: vi.fn() },
+  mapApi: { getGeoJson: vi.fn() },
 }))
 
 const mapStub = {
@@ -21,13 +22,17 @@ const mapStub = {
     'result',
     'scale',
     'opacity',
+    'heatmapDisplayMode',
     'min',
     'max',
     'renderScale',
     'tileLayer',
     'selectionEnabled',
+    'boundaryGeoJson',
+    'initialCenter',
+    'initialZoom',
   ],
-  emits: ['selection-change'],
+  emits: ['selection-change', 'view-change'],
   methods: {
     fitBounds: vi.fn(),
     clearSelection: vi.fn(),
@@ -148,6 +153,7 @@ describe('DashboardView', () => {
       pollutantConcentrations: null,
       availablePollutants: ['PM2.5'],
     })
+    vi.mocked(mapApi.getGeoJson).mockResolvedValue({ type: 'FeatureCollection', features: [] })
   })
 
   it('渲染地图悬浮工具条、左下滑块、右侧功能卡片', async () => {
@@ -192,7 +198,7 @@ describe('DashboardView', () => {
 
     expect(wrapper.find('[data-test="result-card"]').text()).toContain('模拟结果')
     expect(wrapper.find('[data-test="result-card"]').text()).toContain('透明度')
-    expect(wrapper.find('[data-test="ranking-card"]').text()).toContain('受体点贡献分析')
+    expect(wrapper.find('[data-test="ranking-card"]').text()).toContain('空气站点污染源贡献排名')
     expect(wrapper.find('[data-test="ranking-card"]').text()).toContain('源1')
 
     await wrapper.find('[data-test="clear-result"]').trigger('click')

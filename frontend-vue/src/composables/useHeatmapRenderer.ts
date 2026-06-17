@@ -1,6 +1,8 @@
 import L from 'leaflet'
-import { gradientColor, normalize, type ColorScale } from '@/utils/colorScale'
+import { gradientColor, normalize, steppedGradientColor, type ColorScale } from '@/utils/colorScale'
 import { wgs84ToGcj02 } from '@/utils/coords'
+
+export type HeatmapDisplayMode = 'plume' | 'continuous'
 
 export interface HeatmapOptions {
   concentrations: number[][] // [row=lat][col=lon]
@@ -12,12 +14,19 @@ export interface HeatmapOptions {
   opacity: number
   renderScale: number // 渲染分辨率倍数（1=与网格相同，2=双倍像素）
   useGcj02: boolean // 国内瓦片需要 WGS84→GCJ02 偏移
+  displayMode?: HeatmapDisplayMode
+  visibleThreshold?: number
 }
+
+const PLUME_VISIBLE_THRESHOLD = 0.03
+const PLUME_COLOR_STEPS = 7
 
 // 把浓度场绘制到 Canvas，然后作为 L.ImageOverlay 贴到地图的 lat/lon 边界框。
 // 通过 renderScale 提升像素密度（避免马赛克），同时克制峰值以保护浏览器内存。
 export function renderHeatmapToCanvas(opts: HeatmapOptions): HTMLCanvasElement {
   const { concentrations, gridLat, gridLon, min, max, scale, opacity, renderScale } = opts
+  const displayMode = opts.displayMode ?? 'plume'
+  const visibleThreshold = opts.visibleThreshold ?? PLUME_VISIBLE_THRESHOLD
 
   const nLat = gridLat.length
   const nLon = gridLon.length
@@ -64,11 +73,26 @@ export function renderHeatmapToCanvas(opts: HeatmapOptions): HTMLCanvasElement {
         continue
       }
       const t = normalize(v, min, max)
-      const [r, g, b] = gradientColor(t, scale)
-      img.data[idx] = r
-      img.data[idx + 1] = g
-      img.data[idx + 2] = b
-      img.data[idx + 3] = Math.round(255 * Math.max(0, Math.min(1, opacity)))
+      if (displayMode === 'continuous') {
+        const [r, g, b] = gradientColor(t, scale)
+        const alpha = opacity * (0.3 + 0.7 * t)
+        img.data[idx] = r
+        img.data[idx + 1] = g
+        img.data[idx + 2] = b
+        img.data[idx + 3] = Math.round(255 * Math.max(0, Math.min(1, alpha)))
+      } else {
+        if (t < visibleThreshold) {
+          img.data[idx + 3] = 0
+          continue
+        }
+        const [r, g, b] = steppedGradientColor(t, scale, PLUME_COLOR_STEPS)
+        const plumeStrength = (t - visibleThreshold) / (1 - visibleThreshold)
+        const alpha = opacity * (0.45 + 0.75 * plumeStrength)
+        img.data[idx] = r
+        img.data[idx + 1] = g
+        img.data[idx + 2] = b
+        img.data[idx + 3] = Math.round(255 * Math.max(0, Math.min(1, alpha)))
+      }
     }
   }
 
