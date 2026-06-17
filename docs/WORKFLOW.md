@@ -97,6 +97,12 @@ npm run test:watch
    ```
 4. 跑黄金值测试：`dotnet test --filter "FullyQualifiedName~GoldenValueTests"`
 
+### 改模拟网格或演示数据
+
+1. `gridLat` / `gridLon` 只表示浓度场采样网格，不表示污染源需要网格化布点；污染源仍来自真实业务坐标或 Excel/API 导入。
+2. 匿名演示库应使用少量离散工程示例源，避免排列成规则网格误导业务理解。
+3. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
+
 ### 改多风向并行模拟
 
 1. 多风向 `/api/simulation/run_parallel` 的行为应与单风向 `/api/simulation/run` 保持语义一致：`sourceIds` / `receptorIds` 为 `null` 表示使用全部启用数据，空数组表示明确空选择。

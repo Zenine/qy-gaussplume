@@ -170,7 +170,7 @@ describe('DashboardView', () => {
     expect(weatherCard.text()).toContain('风速')
   })
 
-  it('风向指针从风玫瑰圆心绘制并围绕圆心旋转', async () => {
+  it('风向指针以圆点为中心并围绕圆心旋转', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -182,8 +182,8 @@ describe('DashboardView', () => {
     expect(pointer.attributes('y1')).toBe('75')
     expect(pointer.attributes('x2')).toBe('75.00')
     expect(pointer.attributes('y2')).toBe('31.00')
-    expect(pointerTip.attributes('cx')).toBe('75.00')
-    expect(pointerTip.attributes('cy')).toBe('31.00')
+    expect(pointerTip.attributes('cx')).toBe('75')
+    expect(pointerTip.attributes('cy')).toBe('75')
 
     const directionInput = wrapper.findAllComponents({ name: 'ElInputNumber' })[0]
     await directionInput.vm.$emit('update:modelValue', 125)
@@ -191,15 +191,12 @@ describe('DashboardView', () => {
 
     const x2 = Number(pointer.attributes('x2'))
     const y2 = Number(pointer.attributes('y2'))
-    const cx = Number(pointerTip.attributes('cx'))
-    const cy = Number(pointerTip.attributes('cy'))
-
     expect(pointer.attributes('x1')).toBe('75')
     expect(pointer.attributes('y1')).toBe('75')
     expect(x2).toBeCloseTo(111.04, 2)
     expect(y2).toBeCloseTo(100.24, 2)
-    expect(cx).toBeCloseTo(x2, 2)
-    expect(cy).toBeCloseTo(y2, 2)
+    expect(pointerTip.attributes('cx')).toBe('75')
+    expect(pointerTip.attributes('cy')).toBe('75')
   })
 
   it('点击公式说明后打开公式抽屉', async () => {
