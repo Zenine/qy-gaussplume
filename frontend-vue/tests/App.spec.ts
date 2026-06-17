@@ -29,7 +29,9 @@ describe('App shell', () => {
     const wrapper = mountApp()
 
     expect(wrapper.find('.brand-mark').exists()).toBe(true)
-    expect(wrapper.find('.workspace-kicker').text()).toBe('科研扩散模拟平台')
+    expect(wrapper.find('.brand-mark').text()).toBe('GNN')
+    expect(wrapper.find('.brand-copy').text()).toContain('GNN-GaussPlume')
+    expect(wrapper.find('.workspace-kicker').text()).toBe('GNN 扩散模拟平台')
     expect(wrapper.findAll('.nav-icon')).toHaveLength(4)
 
     const collapseButton = wrapper.find('button[aria-label="收起侧边栏"]')

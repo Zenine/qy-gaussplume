@@ -13,4 +13,10 @@ describe('router', () => {
       expect.arrayContaining(['dashboard', 'sources', 'receptors', 'meteorology']),
     )
   })
+
+  it('页面标题使用 GNN 品牌', async () => {
+    await router.push('/dashboard')
+    await router.isReady()
+    expect(document.title).toBe('主控台 - GNN-GaussPlume')
+  })
 })

@@ -31,10 +31,10 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
   <el-container class="app-layout">
     <el-aside class="app-sidebar" :width="app.sidebarCollapsed ? '72px' : '248px'">
       <div class="brand" :class="{ collapsed: app.sidebarCollapsed }">
-        <div class="brand-mark">QY</div>
+        <div class="brand-mark">GNN</div>
         <div v-if="!app.sidebarCollapsed" class="brand-copy">
-          <strong>QY-GaussPlume</strong>
-          <span>清源扩散模拟</span>
+          <strong>GNN-GaussPlume</strong>
+          <span>GNN 扩散模拟</span>
         </div>
       </div>
       <el-menu
@@ -68,7 +68,7 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
           <el-icon><component :is="sidebarToggleIcon" /></el-icon>
         </el-button>
         <div class="page-heading">
-          <span class="workspace-kicker">科研扩散模拟平台</span>
+          <span class="workspace-kicker">GNN 扩散模拟平台</span>
           <span class="title">{{ routeTitle }}</span>
         </div>
         <span class="spacer" />
