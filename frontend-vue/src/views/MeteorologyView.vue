@@ -217,7 +217,7 @@ onMounted(refresh)
         <el-form-item label="风速 (m/s)" prop="windSpeed">
           <el-input-number v-model="form.windSpeed" :min="0.1" :step="0.1" />
         </el-form-item>
-        <el-form-item label="风向 (°)" prop="windDirection">
+        <el-form-item label="来风方向 (°)" prop="windDirection">
           <el-input-number v-model="form.windDirection" :min="0" :max="360" :step="1" />
         </el-form-item>
         <el-form-item label="大气稳定度" prop="stabilityClass">

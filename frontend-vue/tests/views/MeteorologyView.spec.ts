@@ -69,6 +69,7 @@ describe('MeteorologyView', () => {
     const dialog = document.querySelector('.el-dialog')
     expect(dialog).not.toBeNull()
     expect(dialog!.textContent).toContain('新增气象场')
+    expect(dialog!.textContent).toContain('来风方向')
   })
 
   it('支持勾选气象场并批量删除_部分失败后仍刷新列表', async () => {
