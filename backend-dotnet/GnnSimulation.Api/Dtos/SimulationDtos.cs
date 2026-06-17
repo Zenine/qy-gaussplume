@@ -46,3 +46,34 @@ public class SimulationResultDto
     public Dictionary<string, double[][]>? PollutantConcentrations { get; set; }
     public List<string>? AvailablePollutants { get; set; }
 }
+
+public class PollutantFormulaParameterDto
+{
+    public string Type { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public double GravitationalSettlingVelocity { get; set; }
+    public double DryResistanceRb { get; set; }
+    public double DryResistanceRc { get; set; }
+    public double WetScavengingA { get; set; }
+    public double WetScavengingB { get; set; }
+    public double ChemicalRate { get; set; }
+    public bool ChemicalEnhanced { get; set; }
+    public bool TemperatureCorrected { get; set; }
+}
+
+public class SourceFormulaInfoDto
+{
+    public string Type { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Formula { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
+}
+
+public class SimulationFormulaInfoDto
+{
+    public string GaussianPlumeFormula { get; set; } = string.Empty;
+    public string DecayFormula { get; set; } = string.Empty;
+    public string WindAggregationFormula { get; set; } = string.Empty;
+    public List<PollutantFormulaParameterDto> Pollutants { get; set; } = new();
+    public List<SourceFormulaInfoDto> SourceTypes { get; set; } = new();
+}

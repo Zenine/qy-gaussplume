@@ -7,6 +7,7 @@ import {
   Close,
   Compass,
   Delete,
+  Document,
   Histogram,
   MagicStick,
   VideoPlay,
@@ -23,6 +24,7 @@ import type {
 import MapPanel from '@/components/MapPanel.vue'
 import ColorLegend from '@/components/ColorLegend.vue'
 import ContributionPanel from '@/components/ContributionPanel.vue'
+import FormulaDrawer from '@/components/FormulaDrawer.vue'
 import ParallelSimulationDialog from '@/components/ParallelSimulationDialog.vue'
 import { concentrationRange } from '@/utils/colorScale'
 import { wgs84ToGcj02 } from '@/utils/coords'
@@ -41,6 +43,7 @@ const result = shallowRef<SimulationResult | null>(null)
 const mapRef = ref<InstanceType<typeof MapPanel> | null>(null)
 
 const showContribution = ref(false)
+const showFormula = ref(false)
 const showParallel = ref(false)
 const selectionEnabled = ref(false)
 const selectionBounds = ref<SelectionBounds | null>(null)
@@ -344,6 +347,9 @@ onMounted(loadAll)
       <el-button data-test="clear-result" size="small" :icon="Delete" @click="clearResult">
         清除结果
       </el-button>
+      <el-button data-test="formula-info" size="small" :icon="Document" @click="showFormula = true">
+        公式说明
+      </el-button>
     </div>
 
     <div class="range-panel floating-card" data-test="range-panel">
@@ -533,6 +539,7 @@ onMounted(loadAll)
     </div>
 
     <ContributionPanel v-model:visible="showContribution" :result="displayedResult" />
+    <FormulaDrawer v-model:visible="showFormula" />
 
     <ParallelSimulationDialog
       v-model:visible="showParallel"

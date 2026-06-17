@@ -8,6 +8,7 @@ import type {
   SimulationResult,
   MapInfo,
   ParallelSimulationResult,
+  SimulationFormulaInfo,
 } from '@/types'
 
 // 验证 API 客户端 URL/payload 正确性，不依赖真实后端
@@ -96,6 +97,12 @@ describe('simulationApi', () => {
       '/api/simulation/run_parallel',
       expect.objectContaining({ windDirections: [0, 90, 180, 270] }),
     )
+  })
+
+  it('formulas → GET /api/simulation/formulas', async () => {
+    const spy = vi.spyOn(http, 'get').mockResolvedValue({ data: {} as SimulationFormulaInfo })
+    await simulationApi.formulas()
+    expect(spy).toHaveBeenCalledWith('/api/simulation/formulas')
   })
 })
 
