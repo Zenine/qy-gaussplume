@@ -206,6 +206,42 @@
 }
 ```
 
+### `GET /api/simulation/formulas` - 公式说明
+
+返回前端公式抽屉展示所需的算法说明。污染因子参数来自后端 `PollutantProperties`，用于确认 PM2.5、PM10、SO2、NOx、CO、O3 等污染物分别使用各自的沉降、湿清除、化学衰减和温度修正参数；前端不应复制这些参数。
+
+**响应** `SimulationFormulaInfoDto`:
+
+```json
+{
+  "gaussianPlumeFormula": "C = Q / (2πuσyσz) × exp(...)",
+  "decayFormula": "C_final = C_plume × dry × wet × chemical × temperature",
+  "windAggregationFormula": "C_agg = Σ(C_wind × normalized_weight)",
+  "pollutants": [
+    {
+      "type": "PM2.5",
+      "name": "细颗粒物",
+      "gravitationalSettlingVelocity": 0.0002,
+      "dryResistanceRb": 100,
+      "dryResistanceRc": 200,
+      "wetScavengingA": 0.00001,
+      "wetScavengingB": 0.8,
+      "chemicalRate": 0.00002,
+      "chemicalEnhanced": false,
+      "temperatureCorrected": false
+    }
+  ],
+  "sourceTypes": [
+    {
+      "type": "equivalent_area",
+      "name": "等效面源",
+      "formula": "concentration-clamped area source",
+      "notes": "使用实测浓度约束面源贡献"
+    }
+  ]
+}
+```
+
 ## 标记配置 `/api/config`
 
 | 方法 | 路径 | 说明 |

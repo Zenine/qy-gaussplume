@@ -34,7 +34,7 @@ backend-dotnet/
 │   ├── GnnDbContext.cs             # Fluent snake_case 映射 + 自动时间戳 + 级联删除
 │   ├── Migrations/                 # 初始 Migration（新库用）
 │   └── Design/DesignTimeDbContextFactory.cs
-└── GnnSimulation.Tests/            # xUnit 测试（146 用例）
+└── GnnSimulation.Tests/            # xUnit 测试（147 用例）
     ├── Core/                       # 算法单测 + 黄金值对齐
     ├── Data/                       # 实体 + DbContext
     ├── Api/                        # WebApplicationFactory 集成测试
@@ -54,7 +54,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 146 个测试
+dotnet test                                      # 跑全部 147 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -85,8 +85,8 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 28 |
 | **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 47 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 71 |
-| **合计** | | **146** |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 72 |
+| **合计** | | **147** |
 
 ## 黄金值对齐
 
@@ -108,7 +108,7 @@ JSON 会被 csproj 的 `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirec
 | 受体点 | `GET/POST/PUT/DELETE /api/receptors` + `/batch` + `/template` + `/import` + `/export` |
 | 气象场 | `GET/POST/PUT/DELETE /api/meteorology` + `/batch` |
 | 标记配置 | `GET /api/config` + `GET/POST/PUT /api/config/{type}` |
-| 模拟 | `POST /api/simulation/run` · `POST /api/simulation/run_parallel` |
+| 模拟 | `POST /api/simulation/run` · `POST /api/simulation/run_parallel` · `GET /api/simulation/formulas` |
 | 地图 | `GET /api/map/geojson` · `/bounds` · `/info` |
 
 详见 [../docs/API.md](../docs/API.md)。

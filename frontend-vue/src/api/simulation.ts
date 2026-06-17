@@ -2,6 +2,7 @@ import { http } from './client'
 import type {
   ParallelSimulationRequest,
   ParallelSimulationResult,
+  SimulationFormulaInfo,
   SimulationRequest,
   SimulationResult,
 } from '@/types'
@@ -14,4 +15,7 @@ export const simulationApi = {
     http
       .post<ParallelSimulationResult>('/api/simulation/run_parallel', request)
       .then((r) => r.data),
+
+  formulas: () =>
+    http.get<SimulationFormulaInfo>('/api/simulation/formulas').then((r) => r.data),
 }

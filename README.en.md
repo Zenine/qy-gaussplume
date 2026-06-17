@@ -43,6 +43,7 @@ Run the full verification entrypoint before committing:
 ## What You Can Do
 
 - Choose meteorology, pollutant, simulation range, and grid resolution from the dashboard.
+- Open the formula drawer to inspect Gaussian plume, decay, multi-wind aggregation, and pollutant-specific parameters.
 - Adjust temporary wind speed and direction for a single-wind run without overwriting saved meteorology.
 - Draw a rectangle on the map and simulate only the selected sources and receptors.
 - Batch import emission sources and receptors through Excel templates.
@@ -88,7 +89,7 @@ The repository includes `backend/air_pollution.db` as anonymized demo data for l
 
 ## Verification
 
-The current verification suite contains 146 backend xUnit tests, 79 frontend Vitest tests, and a production frontend build with type checking.
+The current verification suite contains 147 backend xUnit tests, 83 frontend Vitest tests, and a production frontend build with type checking.
 
 ```bash
 ./scripts/verify.sh
@@ -96,7 +97,7 @@ The current verification suite contains 146 backend xUnit tests, 79 frontend Vit
 
 ## Version
 
-The current version is 3.0.9. The latest update focuses on the wind-rose pointer, batch deletion in data management, independent pollutant calculations, and multi-wind aggregation consistency. See [CHANGELOG.md](CHANGELOG.md).
+The current version is 3.0.9. The latest update focuses on the wind-rose pointer, batch deletion in data management, independent pollutant calculations, formula visibility, and multi-wind aggregation consistency. See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

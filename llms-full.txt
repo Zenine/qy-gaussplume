@@ -38,6 +38,7 @@ cd qy-gaussplume
 
 - 在主控台选择气象场、污染物、模拟范围和网格分辨率。
 - 直接调节临时风速和风向运行单风向模拟，不覆盖保存的气象记录。
+- 在主控台打开公式说明，查看高斯烟羽、衰减、多风向聚合和不同污染因子的计算参数。
 - 在地图上框选区域，只模拟区域内排放源对受体点的影响。
 - 通过 Excel 模板批量导入排放源和受体点。
 - 查看 PM2.5、PM10、TSP、VOCs、NOx、O3 的浓度场和贡献分析。
@@ -82,7 +83,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-当前验证规模：后端 146 个 xUnit 用例、前端 79 个 Vitest 用例，并包含前端生产构建与类型检查。
+当前验证规模：后端 147 个 xUnit 用例、前端 83 个 Vitest 用例，并包含前端生产构建与类型检查。
 
 ```bash
 ./scripts/verify.sh
@@ -90,7 +91,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Version
 
-当前版本为 3.0.9，最近更新聚焦风向指针圆心坐标、数据管理批量删除、多污染因子独立计算和多风向聚合一致性。详见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本为 3.0.9，最近更新聚焦风向指针圆心坐标、数据管理批量删除、多污染因子独立计算、公式说明展示和多风向聚合一致性。详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
@@ -309,6 +310,42 @@ backend-dotnet (ASP.NET Core 9)
 }
 ```
 
+### `GET /api/simulation/formulas` - 公式说明
+
+返回前端公式抽屉展示所需的算法说明。污染因子参数来自后端 `PollutantProperties`，用于确认 PM2.5、PM10、SO2、NOx、CO、O3 等污染物分别使用各自的沉降、湿清除、化学衰减和温度修正参数；前端不应复制这些参数。
+
+**响应** `SimulationFormulaInfoDto`:
+
+```json
+{
+  "gaussianPlumeFormula": "C = Q / (2πuσyσz) × exp(...)",
+  "decayFormula": "C_final = C_plume × dry × wet × chemical × temperature",
+  "windAggregationFormula": "C_agg = Σ(C_wind × normalized_weight)",
+  "pollutants": [
+    {
+      "type": "PM2.5",
+      "name": "细颗粒物",
+      "gravitationalSettlingVelocity": 0.0002,
+      "dryResistanceRb": 100,
+      "dryResistanceRc": 200,
+      "wetScavengingA": 0.00001,
+      "wetScavengingB": 0.8,
+      "chemicalRate": 0.00002,
+      "chemicalEnhanced": false,
+      "temperatureCorrected": false
+    }
+  ],
+  "sourceTypes": [
+    {
+      "type": "equivalent_area",
+      "name": "等效面源",
+      "formula": "concentration-clamped area source",
+      "notes": "使用实测浓度约束面源贡献"
+    }
+  ]
+}
+```
+
 ## 标记配置 `/api/config`
 
 | 方法 | 路径 | 说明 |
@@ -484,7 +521,7 @@ src/
 ├── router/       ← Vue Router，懒加载 + document.title 自动设置
 ├── views/        ← 4 个页面（Dashboard/Sources/Receptors/Meteorology）
 ├── components/   ← 可复用：MapPanel、HeatmapCanvas（通过 composable）、
-│                    ColorLegend、ContributionPanel、ParallelSimulationDialog
+│                    ColorLegend、ContributionPanel、FormulaDrawer、ParallelSimulationDialog
 ├── composables/  ← useHeatmapRenderer（Canvas 渲染与 LatLng 计算）
 └── utils/        ← coords、colorScale、selection、download、error（纯函数，好测）
 ```
@@ -513,8 +550,9 @@ src/
 | **P13** | 主控台临时气象参数 + 排放源/受体点批量管理 + 等效面源污染物显示修复 | 138 | 70 |
 | **P14** | 风玫瑰指针 SVG 圆心锚定修复 | 138 | 71 |
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
+| **P16** | 公式说明接口 + 主控台公式抽屉 | 147 | 83 |
 
-**当前**：225 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：230 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 
@@ -533,6 +571,10 @@ NTS 本身不做 CRS 变换。ProjNet 是微软系维护的轻量投影库，支
 ### 为什么多风向也按污染物独立计算
 
 PM2.5、PM10、SO2、NOx、CO、O3 等污染物的沉降、湿清除和化学衰减参数不同。多风向 `/run_parallel` 过去曾按排放比例拆分总浓度场，但这会抹平不同污染因子的公式差异；当前实现与单风向 `/run` 一样，对每个污染物单独计算浓度场，再按风向权重聚合。
+
+### 为什么公式说明由后端提供
+
+污染物参数和源类型公式属于后端算法契约。主控台 `FormulaDrawer` 只调用 `GET /api/simulation/formulas` 展示公式说明，避免前端复制一份容易漂移的沉降、湿清除、化学衰减参数。
 
 ---
 
@@ -564,14 +606,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（146 用例，~30s）
+# 后端（147 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（79 用例）
+# 前端（83 用例）
 cd frontend-vue
 npm test
 
@@ -589,8 +631,8 @@ npm run test:watch
 
 1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
 2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
-3. 批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。
-4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView}.spec.ts`。
+3. 排放源、受体点、气象场表格支持勾选；批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。刷新或筛选变化后应显式清空选中状态，关闭确认框不应显示失败提示。
+4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`。
 
 ## 常见变更模板
 
@@ -644,6 +686,12 @@ npm run test:watch
 4. 聚合权重必须绑定请求中的原始风向顺序；部分风向失败时，只对成功风向的原始权重重新归一化。所有风向均失败时应返回明确错误，不返回成功空结果。
 5. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。
 
+### 改公式说明展示
+
+1. 页面公式说明必须从 `GET /api/simulation/formulas` 读取，前端只负责展示，不硬编码污染因子沉降、湿清除、化学衰减等算法参数。
+2. 后端公式元数据与 `GnnSimulation.Core.Atmosphere.PollutantProperties` 保持同源；如果核心公式或污染物参数变化，应同步更新接口返回文案和回归测试。
+3. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`、`frontend-vue/tests/api.spec.ts` 和 `frontend-vue/tests/views/DashboardView.spec.ts`。
+
 ### 改前端页面
 
 1. 动 `.vue` 文件
@@ -693,11 +741,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 146
+# 预期：已通过! - 失败: 0，通过: 147
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 79 passed
+# 预期：Test Files 18 passed, Tests 83 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)
@@ -766,7 +814,7 @@ QY-GaussPlume 的常见问题围绕本地启动、数据来源、模拟参数、
 
 ### 提交前应该运行什么验证？
 
-运行 `./scripts/verify.sh`。该脚本会执行后端 146 个 xUnit 用例、前端 79 个 Vitest 用例和前端生产构建。
+运行 `./scripts/verify.sh`。该脚本会执行后端 147 个 xUnit 用例、前端 83 个 Vitest 用例和前端生产构建。
 
 ---
 
@@ -965,7 +1013,7 @@ Equivalent-area sources use measured `concentration` to calculate an equivalent 
 
 ### What should run before committing?
 
-Run `./scripts/verify.sh`. It executes 146 backend xUnit tests, 79 frontend Vitest tests, and the frontend production build.
+Run `./scripts/verify.sh`. It executes 147 backend xUnit tests, 83 frontend Vitest tests, and the frontend production build.
 
 ---
 
@@ -1164,7 +1212,7 @@ QY-GaussPlume のよくある質問は、ローカル起動、デモデータ、
 
 ### コミット前に何を実行すべきですか？
 
-`./scripts/verify.sh` を実行してください。バックエンド xUnit 146 件、フロントエンド Vitest 79 件、本番ビルドを実行します。
+`./scripts/verify.sh` を実行してください。バックエンド xUnit 147 件、フロントエンド Vitest 83 件、本番ビルドを実行します。
 
 ---
 
@@ -1363,7 +1411,7 @@ QY-GaussPlume 的常見問題圍繞本地啟動、資料來源、模擬參數、
 
 ### 提交前應該執行什麼驗證？
 
-執行 `./scripts/verify.sh`。該腳本會執行後端 146 個 xUnit 用例、前端 79 個 Vitest 用例和前端生產建置。
+執行 `./scripts/verify.sh`。該腳本會執行後端 147 個 xUnit 用例、前端 83 個 Vitest 用例和前端生產建置。
 
 ---
 

@@ -208,6 +208,34 @@ export interface SimulationResult {
   availablePollutants: string[] | null
 }
 
+export interface PollutantFormulaParameter {
+  type: string
+  name: string
+  gravitationalSettlingVelocity: number
+  dryResistanceRb: number
+  dryResistanceRc: number
+  wetScavengingA: number
+  wetScavengingB: number
+  chemicalRate: number
+  chemicalEnhanced: boolean
+  temperatureCorrected: boolean
+}
+
+export interface SourceFormulaInfo {
+  type: string
+  name: string
+  formula: string
+  notes: string
+}
+
+export interface SimulationFormulaInfo {
+  gaussianPlumeFormula: string
+  decayFormula: string
+  windAggregationFormula: string
+  pollutants: PollutantFormulaParameter[]
+  sourceTypes: SourceFormulaInfo[]
+}
+
 // -------- 并行模拟 --------
 export interface ParallelSimulationRequest {
   meteorologyId: number

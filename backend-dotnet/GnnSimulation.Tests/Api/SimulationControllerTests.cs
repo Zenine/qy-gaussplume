@@ -55,6 +55,20 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 公式说明_返回污染物参数和源类型说明()
+    {
+        var resp = await _client.GetAsync("/api/simulation/formulas");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var dto = await resp.ReadJsonAsync<SimulationFormulaInfoDto>();
+        dto.GaussianPlumeFormula.Should().Contain("exp");
+        dto.WindAggregationFormula.Should().Contain("权重");
+        dto.Pollutants.Should().Contain(p => p.Type == "PM2.5" && p.GravitationalSettlingVelocity > 0);
+        dto.Pollutants.Should().Contain(p => p.Type == "NOx" && p.ChemicalEnhanced);
+        dto.SourceTypes.Should().Contain(s => s.Type == "equivalent_area" && s.Formula.Contains("concentration"));
+    }
+
+    [Fact]
     public async Task 没有激活的源返回400()
     {
         var met = await CreateMet();

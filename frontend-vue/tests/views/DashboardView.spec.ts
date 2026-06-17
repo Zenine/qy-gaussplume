@@ -104,6 +104,7 @@ function mountView() {
         ColorLegend: true,
         ContributionPanel: true,
         ParallelSimulationDialog: true,
+        FormulaDrawer: true,
       },
     },
   })
@@ -137,6 +138,7 @@ describe('DashboardView', () => {
     expect(wrapper.find('[data-test="stats-card"]').text()).toContain('1')
     expect(wrapper.find('[data-test="stats-card"]').text()).toContain('2')
     expect(wrapper.text()).toContain('冬季北风')
+    expect(wrapper.text()).toContain('公式说明')
   })
 
   it('运行模拟时提交主界面当前风速风向', async () => {
@@ -198,5 +200,17 @@ describe('DashboardView', () => {
     expect(y2).toBeCloseTo(100.24, 2)
     expect(cx).toBeCloseTo(x2, 2)
     expect(cy).toBeCloseTo(y2, 2)
+  })
+
+  it('点击公式说明后打开公式抽屉', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const formulaButton = wrapper.findAll('button').find((b) => b.text().includes('公式说明'))
+    await formulaButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const drawer = wrapper.findComponent({ name: 'FormulaDrawer' })
+    expect(drawer.attributes('visible')).toBe('true')
   })
 })

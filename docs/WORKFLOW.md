@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（146 用例，~30s）
+# 后端（147 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（79 用例）
+# 前端（83 用例）
 cd frontend-vue
 npm test
 
@@ -105,6 +105,12 @@ npm run test:watch
 4. 聚合权重必须绑定请求中的原始风向顺序；部分风向失败时，只对成功风向的原始权重重新归一化。所有风向均失败时应返回明确错误，不返回成功空结果。
 5. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。
 
+### 改公式说明展示
+
+1. 页面公式说明必须从 `GET /api/simulation/formulas` 读取，前端只负责展示，不硬编码污染因子沉降、湿清除、化学衰减等算法参数。
+2. 后端公式元数据与 `GnnSimulation.Core.Atmosphere.PollutantProperties` 保持同源；如果核心公式或污染物参数变化，应同步更新接口返回文案和回归测试。
+3. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`、`frontend-vue/tests/api.spec.ts` 和 `frontend-vue/tests/views/DashboardView.spec.ts`。
+
 ### 改前端页面
 
 1. 动 `.vue` 文件
@@ -154,11 +160,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 146
+# 预期：已通过! - 失败: 0，通过: 147
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 17 passed, Tests 79 passed
+# 预期：Test Files 18 passed, Tests 83 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

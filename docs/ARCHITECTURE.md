@@ -142,7 +142,7 @@ src/
 ├── router/       ← Vue Router，懒加载 + document.title 自动设置
 ├── views/        ← 4 个页面（Dashboard/Sources/Receptors/Meteorology）
 ├── components/   ← 可复用：MapPanel、HeatmapCanvas（通过 composable）、
-│                    ColorLegend、ContributionPanel、ParallelSimulationDialog
+│                    ColorLegend、ContributionPanel、FormulaDrawer、ParallelSimulationDialog
 ├── composables/  ← useHeatmapRenderer（Canvas 渲染与 LatLng 计算）
 └── utils/        ← coords、colorScale、selection、download、error（纯函数，好测）
 ```
@@ -171,8 +171,9 @@ src/
 | **P13** | 主控台临时气象参数 + 排放源/受体点批量管理 + 等效面源污染物显示修复 | 138 | 70 |
 | **P14** | 风玫瑰指针 SVG 圆心锚定修复 | 138 | 71 |
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
+| **P16** | 公式说明接口 + 主控台公式抽屉 | 147 | 83 |
 
-**当前**：225 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：230 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 
@@ -191,3 +192,7 @@ NTS 本身不做 CRS 变换。ProjNet 是微软系维护的轻量投影库，支
 ### 为什么多风向也按污染物独立计算
 
 PM2.5、PM10、SO2、NOx、CO、O3 等污染物的沉降、湿清除和化学衰减参数不同。多风向 `/run_parallel` 过去曾按排放比例拆分总浓度场，但这会抹平不同污染因子的公式差异；当前实现与单风向 `/run` 一样，对每个污染物单独计算浓度场，再按风向权重聚合。
+
+### 为什么公式说明由后端提供
+
+污染物参数和源类型公式属于后端算法契约。主控台 `FormulaDrawer` 只调用 `GET /api/simulation/formulas` 展示公式说明，避免前端复制一份容易漂移的沉降、湿清除、化学衰减参数。
