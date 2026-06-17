@@ -64,6 +64,17 @@ const {
 // ---------- 气象控制 ----------
 const draftWindDirection = ref(0)
 const draftWindSpeed = ref(0.1)
+const windPointer = computed(() => {
+  const center = 75
+  const radius = 44
+  const radians = (draftWindDirection.value * Math.PI) / 180
+  const x = center + Math.sin(radians) * radius
+  const y = center - Math.cos(radians) * radius
+  return {
+    x: x.toFixed(2),
+    y: y.toFixed(2),
+  }
+})
 
 const selectedMeteorology = computed(
   () => meteorologies.value.find((m) => m.id === selectedMeteorologyId.value) ?? null,
@@ -349,6 +360,20 @@ onMounted(loadAll)
     </div>
 
     <aside class="right-stack">
+      <section v-if="!result" class="floating-card" data-test="draw-card">
+        <div class="card-title">
+          <span>绘制选择区域</span>
+          <el-button size="small" type="primary" :icon="Brush" @click="startSelection">
+            绘制
+          </el-button>
+        </div>
+        <p class="hint">在地图上拖拽绘制矩形区域，仅模拟区域内排放源的影响。</p>
+        <div v-if="selectionBounds" class="selection-summary">
+          已选择 {{ effectiveSources.length }} 个排放源，{{ effectiveReceptors.length }} 个受体点
+          <el-button link size="small" :icon="Close" @click="clearResult">清除</el-button>
+        </div>
+      </section>
+
       <section class="floating-card" data-test="weather-card">
         <div class="card-title">
           <span>气象控制</span>
@@ -370,17 +395,15 @@ onMounted(loadAll)
               data-test="wind-direction-pointer"
               x1="75"
               y1="75"
-              x2="75"
-              y2="31"
-              :transform="`rotate(${draftWindDirection} 75 75)`"
+              :x2="windPointer.x"
+              :y2="windPointer.y"
             />
             <circle
               class="wind-pointer-tip"
               data-test="wind-direction-pointer-tip"
-              cx="75"
-              cy="31"
+              :cx="windPointer.x"
+              :cy="windPointer.y"
               r="6"
-              :transform="`rotate(${draftWindDirection} 75 75)`"
             />
           </svg>
         </div>
@@ -398,40 +421,24 @@ onMounted(loadAll)
         <p v-else class="hint">运行模拟会使用当前风速风向。</p>
       </section>
 
-      <template v-if="!result">
-        <section class="floating-card" data-test="draw-card">
-          <div class="card-title">
-            <span>绘制选择区域</span>
-            <el-button size="small" type="primary" :icon="Brush" @click="startSelection">
-              绘制
-            </el-button>
+      <section v-if="!result" class="floating-card" data-test="stats-card">
+        <div class="card-title">
+          <span>数据统计</span>
+          <el-icon><Histogram /></el-icon>
+        </div>
+        <div class="stat-grid">
+          <div>
+            <strong>{{ effectiveSources.length }}</strong>
+            <span>排放源</span>
           </div>
-          <p class="hint">在地图上拖拽绘制矩形区域，仅模拟区域内排放源的影响。</p>
-          <div v-if="selectionBounds" class="selection-summary">
-            已选择 {{ effectiveSources.length }} 个排放源，{{ effectiveReceptors.length }} 个受体点
-            <el-button link size="small" :icon="Close" @click="clearResult">清除</el-button>
+          <div>
+            <strong>{{ effectiveReceptors.length }}</strong>
+            <span>受体点</span>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="floating-card" data-test="stats-card">
-          <div class="card-title">
-            <span>数据统计</span>
-            <el-icon><Histogram /></el-icon>
-          </div>
-          <div class="stat-grid">
-            <div>
-              <strong>{{ effectiveSources.length }}</strong>
-              <span>排放源</span>
-            </div>
-            <div>
-              <strong>{{ effectiveReceptors.length }}</strong>
-              <span>受体点</span>
-            </div>
-          </div>
-        </section>
-      </template>
-
-      <template v-else>
+      <template v-if="result">
         <section class="floating-card" data-test="result-card">
           <div class="card-title">
             <span>模拟结果</span>

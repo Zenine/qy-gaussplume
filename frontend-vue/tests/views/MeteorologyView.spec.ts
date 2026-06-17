@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MeteorologyView from '@/views/MeteorologyView.vue'
 import { meteorologyApi } from '@/api'
@@ -68,5 +69,66 @@ describe('MeteorologyView', () => {
     const dialog = document.querySelector('.el-dialog')
     expect(dialog).not.toBeNull()
     expect(dialog!.textContent).toContain('新增气象场')
+  })
+
+  it('支持勾选气象场并批量删除_部分失败后仍刷新列表', async () => {
+    const rows: Meteorology[] = [
+      sample[0],
+      { ...sample[0], id: 2, name: '夏季南风', windDirection: 180 },
+    ]
+    vi.mocked(meteorologyApi.list).mockResolvedValue(rows)
+    vi.spyOn(meteorologyApi, 'delete')
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('删除失败'))
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
+    const wrapper = mountView()
+    await flushPromises()
+    vi.mocked(meteorologyApi.list).mockClear()
+
+    wrapper.findComponent({ name: 'ElTable' }).vm.$emit('selection-change', rows)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('批量删除 (2)')
+    const deleteBtn = wrapper.findAll('button').find((b) => b.text().includes('批量删除'))
+    await deleteBtn!.trigger('click')
+    await flushPromises()
+
+    expect(meteorologyApi.delete).toHaveBeenCalledTimes(2)
+    expect(meteorologyApi.delete).toHaveBeenNthCalledWith(1, 1)
+    expect(meteorologyApi.delete).toHaveBeenNthCalledWith(2, 2)
+    expect(meteorologyApi.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('刷新气象场列表后清空已选气象场_避免批量删除旧行对象', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'ElTable' }).vm.$emit('selection-change', [sample[0]])
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('批量删除 (1)')
+
+    const refreshBtn = wrapper.findAll('button').find((b) => b.text().includes('刷新'))
+    await refreshBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('批量删除 (0)')
+  })
+
+  it('关闭批量删除确认框时不显示失败提示', async () => {
+    vi.spyOn(meteorologyApi, 'delete').mockResolvedValue(undefined)
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('close')
+    const error = vi.spyOn(ElMessage, 'error')
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'ElTable' }).vm.$emit('selection-change', [sample[0]])
+    await wrapper.vm.$nextTick()
+
+    const deleteBtn = wrapper.findAll('button').find((b) => b.text().includes('批量删除'))
+    await deleteBtn!.trigger('click')
+    await flushPromises()
+
+    expect(meteorologyApi.delete).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
   })
 })

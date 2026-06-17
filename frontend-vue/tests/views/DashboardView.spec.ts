@@ -139,18 +139,6 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('冬季北风')
   })
 
-  it('模拟完成后仍保留风速风向控制框', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.find('[data-test="run-simulation"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('[data-test="weather-card"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风向')
-    expect(wrapper.find('[data-test="weather-card"]').text()).toContain('风速')
-  })
-
   it('运行模拟时提交主界面当前风速风向', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -167,6 +155,19 @@ describe('DashboardView', () => {
     )
   })
 
+  it('模拟完成后仍保留风速风向控制框', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    const weatherCard = wrapper.find('[data-test="weather-card"]')
+    expect(weatherCard.exists()).toBe(true)
+    expect(weatherCard.text()).toContain('风向')
+    expect(weatherCard.text()).toContain('风速')
+  })
+
   it('风向指针从风玫瑰圆心绘制并围绕圆心旋转', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -177,17 +178,25 @@ describe('DashboardView', () => {
     expect(pointer.exists()).toBe(true)
     expect(pointer.attributes('x1')).toBe('75')
     expect(pointer.attributes('y1')).toBe('75')
-    expect(pointer.attributes('y2')).toBe('31')
-    expect(pointer.attributes('transform')).toBe('rotate(0 75 75)')
-    expect(pointerTip.attributes('cx')).toBe('75')
-    expect(pointerTip.attributes('cy')).toBe('31')
-    expect(pointerTip.attributes('transform')).toBe('rotate(0 75 75)')
+    expect(pointer.attributes('x2')).toBe('75.00')
+    expect(pointer.attributes('y2')).toBe('31.00')
+    expect(pointerTip.attributes('cx')).toBe('75.00')
+    expect(pointerTip.attributes('cy')).toBe('31.00')
 
     const directionInput = wrapper.findAllComponents({ name: 'ElInputNumber' })[0]
     await directionInput.vm.$emit('update:modelValue', 125)
     await wrapper.vm.$nextTick()
 
-    expect(pointer.attributes('transform')).toBe('rotate(125 75 75)')
-    expect(pointerTip.attributes('transform')).toBe('rotate(125 75 75)')
+    const x2 = Number(pointer.attributes('x2'))
+    const y2 = Number(pointer.attributes('y2'))
+    const cx = Number(pointerTip.attributes('cx'))
+    const cy = Number(pointerTip.attributes('cy'))
+
+    expect(pointer.attributes('x1')).toBe('75')
+    expect(pointer.attributes('y1')).toBe('75')
+    expect(x2).toBeCloseTo(111.04, 2)
+    expect(y2).toBeCloseTo(100.24, 2)
+    expect(cx).toBeCloseTo(x2, 2)
+    expect(cy).toBeCloseTo(y2, 2)
   })
 })

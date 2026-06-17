@@ -6,17 +6,18 @@
 
 | 项目 | 内容 |
 |---|---|
-| 版本 | **3.0.3** |
-| 更新日期 | **2026-05-25** |
-| 主要范围 | 主控台风速风向控制、排放源等效面源污染物输入、排放源/受体点批量操作 |
-| 验证结果 | Vitest 70 个用例，`npm run build` 通过 |
+| 版本 | **3.0.9** |
+| 更新日期 | **2026-06-17** |
+| 主要范围 | 风向指针圆心坐标、排放源/气象场批量删除、多污染因子独立计算、多风向聚合一致性 |
+| 验证结果 | Vitest 79 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
-- **主控台气象控制生效**：模拟完成后仍展示风速、风向输入框；运行模拟会使用当前临时输入值，且不覆盖气象场管理中的保存值。
+- **主控台气象控制生效**：风速、风向输入框会随单风向模拟请求提交为临时参数，运行模拟立即使用当前输入值，且不覆盖气象场管理中的保存值。
 - **排放源等效面源输入修正**：等效面源只展示一个污染物数值框，保存到 `concentration`，列表展示同样读取 `concentration`，不再显示内部 `emissionRate=0`。
-- **批量入口补齐**：排放源管理页明确提供批量导入；受体点管理页提供批量导入和批量删除，批量删除部分失败时仍刷新列表。
-- **维护测试同步**：新增 Dashboard、Sources、Receptors 视图回归测试，覆盖上述行为。
+- **批量入口补齐**：排放源管理页明确提供批量导入和批量删除；受体点管理页提供批量导入、导出和批量删除；气象场管理页提供批量删除，批量删除部分失败时仍刷新列表。
+- **选中状态清理**：排放源筛选或刷新、气象场刷新后会清空表格选中状态；关闭批量删除确认框不会误报失败。
+- **维护测试同步**：新增 Dashboard、Sources、Receptors、Meteorology 视图回归测试，覆盖上述行为。
 
 ## GNN 首页 Hero 图
 
@@ -51,7 +52,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 70 用例 |
+| `npm test` | Vitest 一次跑完全部 79 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -75,9 +76,9 @@ frontend-vue/
 │   │   └── index.ts
 │   ├── views/
 │   │   ├── DashboardView.vue # 主控台：地图悬浮工具条 + 框选 + 结果/贡献卡 + 并行对话框
-│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段、Excel 批量导入）
+│   │   ├── SourcesView.vue   # 排放源 CRUD（含污染物子表、按类型动态字段、Excel 批量导入/批量删除）
 │   │   ├── ReceptorsView.vue # 受体点 CRUD + Excel 批量导入/导出 + 批量删除
-│   │   └── MeteorologyView.vue # 气象场 CRUD
+│   │   └── MeteorologyView.vue # 气象场 CRUD + 批量删除
 │   ├── components/
 │   │   ├── MapPanel.vue      # Leaflet 地图 + 高德瓦片 + 源/受体标记 + 热力图叠加
 │   │   ├── ColorLegend.vue   # 色阶图例条
@@ -127,17 +128,9 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 
 - 顶部工具条提供地图图层、气象场、污染物、运行模拟和清除结果。
 - 左下角用滑块控制模拟范围（km）和网格分辨率（m），并继续写入 `prefs`。
-- 右侧初始卡片提供矩形区域绘制、风速/风向气象控制、当前范围内排放源/受体点统计。
+- 右侧初始卡片提供矩形区域绘制、气象参数预览、当前范围内排放源/受体点统计。
 - 模拟完成后右侧切换为结果卡和受体点贡献分析卡，可调整色阶、透明度、渲染精度和浓度范围。
-- 模拟完成后仍保留风速/风向控制；运行模拟会使用当前临时输入值，且不写回气象场管理记录。
 - 框选区域后，前端会把区域内 `sourceIds` / `receptorIds` 随模拟请求提交；空受体列表保持为空，不回退到全部受体点。
-
-### 数据管理页批量操作
-
-- 排放源管理页提供模板下载、Excel 批量导入和按类型动态表单。
-- 等效面源污染物使用实测浓度 `concentration` 作为页面输入和列表展示值，提交时保持 `emissionRate=0`，由后端反算等效排放速率。
-- 受体点管理页提供模板下载、Excel 批量导入、所选受体点导出和所选受体点批量删除。
-- 批量删除使用逐项删除；如果部分请求失败，页面会提示失败数量并刷新列表，避免用户看到过期数据。
 
 ### 坐标系统（`utils/coords.ts`）
 
@@ -160,7 +153,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 17 文件 · 70 用例
+npm test          # 17 文件 · 79 用例
 npm run build     # 含 TS 类型检查
 ```
 
@@ -181,7 +174,7 @@ Vitest 用 jsdom，对 `<canvas>` 2D context 在 `tests/heatmap.spec.ts` 中做�
 | 状态管理 | 直接操作 DOM + localStorage | Pinia + 自动同步 |
 | 热力图 | 内联大块 JS | 拆分 composable，可测 |
 | 类型安全 | 无 | TypeScript 全覆盖 |
-| 测试 | 几乎无 | 69 单测 + 组件测试 |
+| 测试 | 几乎无 | 79 单测 + 组件测试 |
 
 ## 常见问题
 

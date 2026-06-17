@@ -10,6 +10,8 @@ const STABILITY_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 
 const items = ref<Meteorology[]>([])
 const loading = ref(false)
+const selected = ref<Meteorology[]>([])
+const tableRef = ref<{ clearSelection: () => void }>()
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -33,10 +35,20 @@ const formRules = {
   stabilityClass: [{ required: true, message: '请选择稳定度' }],
 }
 
+function clearSelectedRows() {
+  selected.value = []
+  tableRef.value?.clearSelection()
+}
+
+function isConfirmDismissed(e: unknown) {
+  return e === 'cancel' || e === 'close'
+}
+
 async function refresh() {
   loading.value = true
   try {
     items.value = await meteorologyApi.list(0, 1000)
+    clearSelectedRows()
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载气象场失败'))
   } finally {
@@ -107,8 +119,32 @@ async function remove(row: Meteorology) {
     ElMessage.success('已删除')
     await refresh()
   } catch (e) {
-    if (e === 'cancel') return
+    if (isConfirmDismissed(e)) return
     ElMessage.error(errorMessage(e, '删除失败'))
+  }
+}
+
+async function removeSelected() {
+  if (selected.value.length === 0) {
+    ElMessage.warning('请先勾选要删除的气象场')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定删除已选的 ${selected.value.length} 个气象场？`, '批量删除确认', {
+      type: 'warning',
+    })
+    const results = await Promise.allSettled(selected.value.map((row) => meteorologyApi.delete(row.id)))
+    const failed = results.filter((result) => result.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.error(`批量删除完成，${failed} 个气象场删除失败`)
+    } else {
+      ElMessage.success('已批量删除')
+    }
+    clearSelectedRows()
+    await refresh()
+  } catch (e) {
+    if (isConfirmDismissed(e)) return
+    ElMessage.error(errorMessage(e, '批量删除失败'))
   }
 }
 
@@ -119,12 +155,29 @@ onMounted(refresh)
   <div class="table-page meteorology-page">
     <div class="toolbar page-toolbar">
       <el-button type="primary" :icon="Plus" @click="openCreate">新增气象场</el-button>
+      <el-button
+        type="danger"
+        :icon="Delete"
+        :disabled="selected.length === 0"
+        @click="removeSelected"
+      >
+        批量删除 ({{ selected.length }})
+      </el-button>
       <span class="spacer" />
       <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 
     <div class="table-shell">
-      <el-table v-loading="loading" :data="items" stripe border row-key="id">
+      <el-table
+        ref="tableRef"
+        v-loading="loading"
+        :data="items"
+        stripe
+        border
+        row-key="id"
+        @selection-change="(v: Meteorology[]) => (selected = v)"
+      >
+        <el-table-column type="selection" width="46" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="名称" min-width="120" />
         <el-table-column label="风速" width="100">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
 import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { sourcesApi } from '@/api'
@@ -29,6 +29,8 @@ const items = ref<EmissionSource[]>([])
 const loading = ref(false)
 const pollutantTypes = ref<PollutantTypeInfo[]>([])
 const filterType = ref<SourceType | ''>('')
+const selected = ref<EmissionSource[]>([])
+const tableRef = ref<{ clearSelection: () => void }>()
 
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -68,10 +70,20 @@ const formRules = {
   longitude: [{ required: true, type: 'number', message: '请输入经度' }],
 }
 
+function clearSelectedRows() {
+  selected.value = []
+  tableRef.value?.clearSelection()
+}
+
+function isConfirmDismissed(e: unknown) {
+  return e === 'cancel' || e === 'close'
+}
+
 async function refresh() {
   loading.value = true
   try {
     items.value = await sourcesApi.list(0, 1000)
+    clearSelectedRows()
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载排放源失败'))
   } finally {
@@ -203,8 +215,34 @@ async function remove(row: EmissionSource) {
     ElMessage.success('已删除')
     await refresh()
   } catch (e) {
-    if (e === 'cancel') return
+    if (isConfirmDismissed(e)) return
     ElMessage.error(errorMessage(e, '删除失败'))
+  }
+}
+
+async function removeSelected() {
+  if (selected.value.length === 0) {
+    ElMessage.warning('请先勾选要删除的排放源')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除已选的 ${selected.value.length} 个排放源？相关污染物记录也会被删除`,
+      '批量删除确认',
+      { type: 'warning' },
+    )
+    const results = await Promise.allSettled(selected.value.map((row) => sourcesApi.delete(row.id)))
+    const failed = results.filter((result) => result.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.error(`批量删除完成，${failed} 个排放源删除失败`)
+    } else {
+      ElMessage.success('已批量删除')
+    }
+    clearSelectedRows()
+    await refresh()
+  } catch (e) {
+    if (isConfirmDismissed(e)) return
+    ElMessage.error(errorMessage(e, '批量删除失败'))
   }
 }
 
@@ -237,6 +275,8 @@ onMounted(() => {
   refresh()
   loadMetadata()
 })
+
+watch(filterType, clearSelectedRows)
 </script>
 
 <template>
@@ -262,6 +302,14 @@ onMounted(() => {
       >
         <el-button :icon="Upload">批量导入</el-button>
       </el-upload>
+      <el-button
+        type="danger"
+        :icon="Delete"
+        :disabled="selected.length === 0"
+        @click="removeSelected"
+      >
+        批量删除 ({{ selected.length }})
+      </el-button>
       <span class="spacer" />
       <span>过滤：</span>
       <el-select v-model="filterType" style="width: 140px" clearable>
@@ -276,7 +324,16 @@ onMounted(() => {
     </div>
 
     <div class="table-shell">
-      <el-table v-loading="loading" :data="filteredItems()" stripe border row-key="id">
+      <el-table
+        ref="tableRef"
+        v-loading="loading"
+        :data="filteredItems()"
+        stripe
+        border
+        row-key="id"
+        @selection-change="(v: EmissionSource[]) => (selected = v)"
+      >
+        <el-table-column type="selection" width="46" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="名称" min-width="140" />
         <el-table-column label="类型" width="90">
@@ -461,6 +518,7 @@ onMounted(() => {
             :min="0"
             :step="0.1"
             placeholder="排放速率 g/s"
+            data-test="pollutant-emission-rate-input"
           />
           <el-input-number
             v-if="form.sourceType === 'equivalent_area'"
@@ -468,6 +526,7 @@ onMounted(() => {
             :min="0"
             :step="1"
             placeholder="测量浓度 μg/m³"
+            data-test="pollutant-concentration-input"
           />
           <el-button size="small" link type="danger" @click="removePollutant(idx)">
             移除

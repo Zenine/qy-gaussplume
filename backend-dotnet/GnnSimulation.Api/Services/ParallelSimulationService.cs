@@ -52,22 +52,33 @@ public class ParallelSimulationService
         var aggregated = request.ReturnAggregatedOnly || estimatedGb > 0.5;
 
         // 并发执行；使用 Task.Run 把 CPU 密集工作从请求线程挪到线程池
-        var results = await Task.Run(() =>
+        var indexedResults = await Task.Run(() =>
         {
-            var bag = new System.Collections.Concurrent.ConcurrentBag<WindDirectionResultDto>();
+            var bag = new System.Collections.Concurrent.ConcurrentBag<IndexedWindDirectionResult>();
             Parallel.ForEach(
-                request.WindDirections,
+                request.WindDirections.Select((windDir, index) => new { WindDirection = windDir, Index = index }),
                 new ParallelOptions { MaxDegreeOfParallelism = numWorkers, CancellationToken = ct },
-                windDir => bag.Add(WindDirectionWorker.Run(windDir, workerCtx)));
-            return bag.OrderBy(r => r.WindDirection).ToList();
+                item => bag.Add(new IndexedWindDirectionResult(
+                    item.Index,
+                    WindDirectionWorker.Run(item.WindDirection, workerCtx))));
+            return bag.OrderBy(r => r.Index).ToList();
         }, ct);
 
         stopwatch.Stop();
 
-        var successful = results.Where(r => r.Success).ToList();
-        var failed = results.Where(r => !r.Success)
-            .Select(r => new WindDirectionErrorDto { WindDirection = r.WindDirection, Error = r.Error ?? "未知错误" })
+        var successful = indexedResults.Where(r => r.Result.Success).ToList();
+        var failed = indexedResults.Where(r => !r.Result.Success)
+            .Select(r => new WindDirectionErrorDto
+            {
+                WindDirection = r.Result.WindDirection,
+                Error = r.Result.Error ?? "未知错误",
+            })
             .ToList();
+        if (successful.Count == 0)
+        {
+            var firstError = failed.FirstOrDefault()?.Error ?? "未知错误";
+            throw new SimulationBadRequestException($"所有风向模拟均失败：{firstError}");
+        }
 
         var elapsed = stopwatch.Elapsed.TotalSeconds;
         var speedup = elapsed > 0 ? request.WindDirections.Count * 60.0 / elapsed : 0;
@@ -88,12 +99,14 @@ public class ParallelSimulationService
             NumWorkersUsed = numWorkers,
             ComputationTimeSeconds = Math.Round(elapsed, 2),
             SpeedupFactor = Math.Round(speedup, 1),
-            Results = results,
+            Results = indexedResults.Select(r => r.Result).ToList(),
         };
     }
 
+    private sealed record IndexedWindDirectionResult(int Index, WindDirectionResultDto Result);
+
     private static ParallelSimulationResultDto BuildAggregatedResponse(
-        IReadOnlyList<WindDirectionResultDto> successful,
+        IReadOnlyList<IndexedWindDirectionResult> successful,
         IReadOnlyList<WindDirectionErrorDto> failed,
         ParallelSimulationRequestDto request,
         int numWorkers,
@@ -102,9 +115,10 @@ public class ParallelSimulationService
     {
         var n = successful.Count;
 
-        // 权重归一化；缺失/长度不对 → 等权重
-        var weights = request.Weights is { } w && w.Count == n
-            ? w.ToArray()
+        // 权重按请求中的原始风向索引绑定；部分风向失败时，只对成功方向的原始权重重新归一化。
+        // 缺失/长度不对时，对成功方向使用等权重。
+        var weights = request.Weights is { } w && w.Count == request.WindDirections.Count
+            ? successful.Select(r => w[r.Index]).ToArray()
             : Enumerable.Repeat(1.0 / Math.Max(n, 1), n).ToArray();
         var totalWeight = weights.Sum();
         var normalized = totalWeight > 0
@@ -119,7 +133,7 @@ public class ParallelSimulationService
 
         for (var i = 0; i < n; i++)
         {
-            var r = successful[i];
+            var r = successful[i].Result;
             var weight = normalized[i];
             var conc2d = JaggedTo2D(r.Concentrations!);
 
@@ -152,7 +166,7 @@ public class ParallelSimulationService
         for (var i = 0; i < n; i++)
         {
             var weight = normalized[i];
-            var receptorData = successful[i].ReceptorContributions;
+            var receptorData = successful[i].Result.ReceptorContributions;
             if (receptorData is null) continue;
 
             foreach (var rKv in receptorData)
@@ -229,14 +243,16 @@ public class ParallelSimulationService
     private async Task<List<EmissionSource>> LoadSourcesAsync(List<int>? ids, CancellationToken ct)
     {
         var q = _db.EmissionSources.AsNoTracking().Include(s => s.Pollutants);
-        var filtered = ids is { Count: > 0 } ? q.Where(s => ids.Contains(s.Id)) : q.Where(s => s.IsActive);
+        if (ids is not null && ids.Count == 0) return new List<EmissionSource>();
+        var filtered = ids is not null ? q.Where(s => ids.Contains(s.Id)) : q.Where(s => s.IsActive);
         return await filtered.ToListAsync(ct);
     }
 
     private async Task<List<Receptor>> LoadReceptorsAsync(List<int>? ids, CancellationToken ct)
     {
         var q = _db.Receptors.AsNoTracking();
-        var filtered = ids is { Count: > 0 } ? q.Where(r => ids.Contains(r.Id)) : q.Where(r => r.IsActive);
+        if (ids is not null && ids.Count == 0) return new List<Receptor>();
+        var filtered = ids is not null ? q.Where(r => ids.Contains(r.Id)) : q.Where(r => r.IsActive);
         return await filtered.ToListAsync(ct);
     }
 
