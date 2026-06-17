@@ -166,7 +166,8 @@ describe('DashboardView', () => {
 
     const weatherCard = wrapper.find('[data-test="weather-card"]')
     expect(weatherCard.exists()).toBe(true)
-    expect(weatherCard.text()).toContain('风向')
+    expect(weatherCard.text()).toContain('来风方向')
+    expect(weatherCard.text()).toContain('外端指向风吹来的方向')
     expect(weatherCard.text()).toContain('风速')
   })
 

@@ -415,7 +415,7 @@ onMounted(loadAll)
         </div>
         <div class="field-grid">
           <label>
-            风向 (°)
+            来风方向 (°)
             <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
           </label>
           <label>
@@ -423,8 +423,8 @@ onMounted(loadAll)
             <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
           </label>
         </div>
-        <p v-if="weatherDirty" class="hint warning">将使用当前临时风速风向运行，不会覆盖已保存气象场。</p>
-        <p v-else class="hint">运行模拟会使用当前风速风向。</p>
+        <p v-if="weatherDirty" class="hint warning">将使用当前临时风速和来风方向运行，不会覆盖已保存气象场。</p>
+        <p v-else class="hint">外端指向风吹来的方向，运行模拟会使用当前风速和来风方向。</p>
       </section>
 
       <section v-if="!result" class="floating-card" data-test="stats-card">
