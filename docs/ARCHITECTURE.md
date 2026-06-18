@@ -77,7 +77,7 @@ SimulationService.RunAsync
    ├─► 加载 Meteorology (by id)
    ├─► 加载 EmissionSource 列表（null=激活数据，[]=空集合，ids=指定集合）+ Include(Pollutants)
    ├─► 加载 Receptor 列表（null=激活数据，[]=空集合，ids=指定集合）
-   ├─► GridBuilder.Build → 外包框 + domain_size 构建方形网格 (clamp 50-500 点)
+   ├─► GridBuilder.Build → 源/受体外包框 + 有限余量构建网格 (单轴 clamp 50-500 点)
    │
    ├─► 遍历每个源：
    │     ComputeEmissionRates (合并污染物速率；等效面源: 浓度→等效速率)
@@ -128,8 +128,7 @@ ParallelSimulationService.RunAsync
 |---|---|---|
 | 并发模型 | `ProcessPoolExecutor` (进程) | `Parallel.ForEach` (线程) |
 | 数据传递 | pickle 序列化 | 零拷贝共享 |
-| 网格中心 | 源经纬度均值 | 同 |
-| 网格点数 | `int(domain/res)+1`，不夹 | 同 |
+| 网格边界 | 多按 `domain_size` 铺满 | 源/受体外包框 + 有限余量，不强制铺满 |
 | 每污染物场 | `source_conc × p_rate/total` | 每种污染物独立计算，使用各自沉降、湿清除和化学衰减参数 |
 
 ## 前端分层
@@ -171,7 +170,7 @@ src/
 | **P13** | 主控台临时气象参数 + 排放源/受体点批量管理 + 等效面源污染物显示修复 | 138 | 70 |
 | **P14** | 风玫瑰指针 SVG 圆心锚定修复 | 138 | 71 |
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
-| **P16** | 公式说明接口 + 主控台公式抽屉 | 148 | 107 |
+| **P16** | 公式说明接口 + 主控台公式抽屉 | 149 | 108 |
 
 **当前**：255 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
@@ -183,7 +182,7 @@ src/
 
 ### 为什么热力图和空气站点贡献排名分开
 
-热力图面向出图展示，使用 `concentrations` / `pollutantConcentrations` 在规则网格上快速渲染浓度场。空气站点贡献排名面向业务判断，使用 `receptorContributions[空气站点][污染物]` 直接表示各污染源对指定受体点的贡献浓度和占比。两者都来自同一次模拟，但不能互相替代；前端排名区只消费 `receptorContributions`，不从热力图网格或全域 `contributions` 反推。
+热力图面向出图展示，使用 `concentrations` / `pollutantConcentrations` 在规则网格上快速渲染浓度场。空气站点贡献排名面向业务判断，使用 `receptorContributions[空气站点][污染物]` 直接表示各污染源对指定受体点的贡献浓度和占比。两者都来自同一次模拟，但不能互相替代；前端排名区只消费 `receptorContributions`，不从热力图网格或全域 `contributions` 反推。排名展示层级固定为“空气站点 → 污染物指标 → 污染源”，空气站点和污染物按总贡献浓度降序，污染源按贡献浓度降序。
 
 ### 为什么用 ProjNet 而不是 NetTopologySuite 内置
 

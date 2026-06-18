@@ -20,6 +20,7 @@ import type {
   ParallelSimulationRequest,
   ParallelSimulationResult,
   Receptor,
+  ReceptorContributionEntry,
   SimulationResult,
 } from '@/types'
 import MapPanel from '@/components/MapPanel.vue'
@@ -247,82 +248,58 @@ const displayedResult = computed<SimulationResult | null>(() => {
   }
 })
 
-const rankedContributions = computed(() =>
-  rankingRows.value.slice(0, 10),
-)
-
-const rankingTotalConcentration = computed(() =>
-  rankingRows.value.reduce((sum, row) => sum + row.concentration, 0),
-)
-
 const isAllPollutantRanking = computed(() => !selectedPollutant.value)
 
 const receptorContributionNames = computed(() =>
-  displayedResult.value ? Object.keys(displayedResult.value.receptorContributions) : [],
+  result.value ? Object.keys(result.value.receptorContributions) : [],
 )
 
 const rankingPollutants = computed(() => {
-  if (!displayedResult.value || !selectedRankingReceptor.value) return []
-  return Object.keys(displayedResult.value.receptorContributions[selectedRankingReceptor.value] ?? {})
-})
-
-const rankingRows = computed(() => {
-  if (!displayedResult.value || !selectedRankingReceptor.value || !selectedRankingPollutant.value) {
-    return []
-  }
-  return (
-    displayedResult.value.receptorContributions[selectedRankingReceptor.value]?.[
-      selectedRankingPollutant.value
-    ] ?? []
-  ).filter((row) => row.concentration > 0)
-})
-
-const pollutantSummaryCards = computed(() => {
   if (!result.value) return []
+  const values = new Set<string>()
+  for (const byPollutant of Object.values(result.value.receptorContributions)) {
+    for (const pollutant of Object.keys(byPollutant)) values.add(pollutant)
+  }
+  return [...values]
+})
+
+function sortedPositiveContributions(rows: ReceptorContributionEntry[]) {
+  return rows
+    .filter((row) => row.concentration > 0)
+    .sort((a, b) => b.concentration - a.concentration)
+}
+
+const stationContributionCards = computed(() => {
+  if (!result.value) return []
+  const pollutantFilter = selectedRankingPollutant.value
   return Object.entries(result.value.receptorContributions)
     .map(([receptorName, byPollutant]) => {
-      const rows = Object.entries(byPollutant)
-        .map(([pollutant, contributions]) => ({
-          pollutant,
-          concentration: contributions.reduce(
-            (sum, row) => sum + (row.concentration > 0 ? row.concentration : 0),
-            0,
-          ),
-        }))
-        .filter((row) => row.concentration > 0)
-        .sort((a, b) => b.concentration - a.concentration)
-      const total = rows.reduce((sum, row) => sum + row.concentration, 0)
+      const pollutants = Object.entries(byPollutant)
+        .filter(([pollutant]) => !pollutantFilter || pollutant === pollutantFilter)
+        .map(([pollutant, contributions]) => {
+          const sortedRows = sortedPositiveContributions(contributions)
+          const total = sortedRows.reduce((sum, row) => sum + row.concentration, 0)
+          return {
+            pollutant,
+            total,
+            rows: sortedRows.slice(0, 10),
+          }
+        })
+        .filter((row) => row.total > 0)
+        .sort((a, b) => b.total - a.total)
+      const total = pollutants.reduce((sum, row) => sum + row.total, 0)
       return {
         receptorName,
         total,
-        rows: rows.map((row) => ({
+        pollutants: pollutants.map((row) => ({
           ...row,
-          percentage: total > 0 ? row.concentration / total * 100 : 0,
+          percentage: total > 0 ? row.total / total * 100 : 0,
         })),
       }
     })
     .filter((card) => card.total > 0)
     .sort((a, b) => b.total - a.total)
 })
-
-function contributionTotalFor(receptorName: string, pollutant: string) {
-  return (
-    displayedResult.value?.receptorContributions[receptorName]?.[pollutant] ?? []
-  ).reduce((sum, row) => sum + (row.concentration > 0 ? row.concentration : 0), 0)
-}
-
-function bestReceptorFor(pollutant: string, names: string[]) {
-  let best = ''
-  let bestTotal = 0
-  for (const name of names) {
-    const total = contributionTotalFor(name, pollutant)
-    if (total > bestTotal) {
-      best = name
-      bestTotal = total
-    }
-  }
-  return best
-}
 
 function persistSimulationResult() {
   if (!result.value) return
@@ -391,27 +368,21 @@ function onMapViewChange(payload: { center: [number, number]; zoom: number }) {
 }
 
 watch(
-  displayedResult,
+  result,
   (value) => {
-    const names = value ? Object.keys(value.receptorContributions) : []
-    const preferredPollutant = selectedPollutant.value
-    const preferredReceptor = preferredPollutant
-      ? bestReceptorFor(preferredPollutant, names)
-      : ''
-    selectedRankingReceptor.value = preferredReceptor
-      || (names.includes(selectedRankingReceptor.value) ? selectedRankingReceptor.value : names[0] ?? '')
-    const pollutants = selectedRankingReceptor.value
-      ? Object.keys(value?.receptorContributions[selectedRankingReceptor.value] ?? {})
-      : []
-    if (!preferredPollutant) {
+    if (!value) {
+      selectedRankingReceptor.value = ''
       selectedRankingPollutant.value = ''
       return
     }
-    selectedRankingPollutant.value = pollutants.includes(preferredPollutant)
-      ? selectedPollutant.value
-      : pollutants.includes(selectedRankingPollutant.value)
-        ? selectedRankingPollutant.value
-        : pollutants[0] ?? ''
+    const pollutants = rankingPollutants.value
+    if (!selectedPollutant.value) {
+      selectedRankingPollutant.value = ''
+    } else if (pollutants.includes(selectedPollutant.value)) {
+      selectedRankingPollutant.value = selectedPollutant.value
+    } else {
+      selectedRankingPollutant.value = ''
+    }
   },
   { immediate: true },
 )
@@ -421,32 +392,14 @@ watch(selectedPollutant, (pollutant) => {
     selectedRankingPollutant.value = ''
     return
   }
-  const names = receptorContributionNames.value
-  const preferredReceptor = bestReceptorFor(pollutant, names)
-  if (preferredReceptor) selectedRankingReceptor.value = preferredReceptor
   const pollutants = rankingPollutants.value
-  if (pollutants.includes(pollutant)) {
-    selectedRankingPollutant.value = pollutant
-  }
+  selectedRankingPollutant.value = pollutants.includes(pollutant) ? pollutant : ''
 })
 
 watch(selectedRankingPollutant, (pollutant) => {
   if (selectedPollutant.value !== pollutant) {
     selectedPollutant.value = pollutant
   }
-})
-
-watch(selectedRankingReceptor, () => {
-  if (!selectedPollutant.value) {
-    selectedRankingPollutant.value = ''
-    return
-  }
-  const pollutants = rankingPollutants.value
-  selectedRankingPollutant.value = pollutants.includes(selectedPollutant.value)
-    ? selectedPollutant.value
-    : pollutants.includes(selectedRankingPollutant.value)
-      ? selectedRankingPollutant.value
-      : pollutants[0] ?? ''
 })
 
 watch(boundaryEnabled, () => {
@@ -692,6 +645,9 @@ onMounted(() => {
         <el-radio-button value="parallel">多风向</el-radio-button>
       </el-radio-group>
       <template v-if="simulationMode === 'parallel'">
+        <span class="parallel-note" data-test="parallel-mode-note">
+          多风向表示按多个来风方向等权聚合，不是污染源方向。
+        </span>
         <el-select
           v-model="parallelDirectionCount"
           data-test="parallel-direction-count"
@@ -930,17 +886,6 @@ onMounted(() => {
           </div>
           <div v-if="receptorContributionNames.length" class="ranking-controls">
             <label>
-              选择空气站点
-              <el-select v-model="selectedRankingReceptor" size="small" placeholder="空气站点">
-                <el-option
-                  v-for="name in receptorContributionNames"
-                  :key="name"
-                  :value="name"
-                  :label="name"
-                />
-              </el-select>
-            </label>
-            <label>
               污染物指标
               <el-select
                 v-model="selectedRankingPollutant"
@@ -954,49 +899,55 @@ onMounted(() => {
             </label>
           </div>
           <div v-if="isAllPollutantRanking" class="ranking-summary">
-            全部污染物贡献摘要
+            全部污染物：按空气站点展示污染物与污染源贡献
           </div>
-          <div v-else-if="selectedRankingReceptor && selectedRankingPollutant" class="ranking-summary">
-            总贡献浓度：{{ rankingTotalConcentration.toFixed(4) }} µg/m³
+          <div v-else-if="selectedRankingPollutant" class="ranking-summary">
+            {{ selectedRankingPollutant }}：按空气站点展示污染源贡献排名
           </div>
-          <div v-if="isAllPollutantRanking" class="station-summary-list">
+          <div class="station-summary-list">
             <div
-              v-for="card in pollutantSummaryCards"
+              v-for="card in stationContributionCards"
               :key="card.receptorName"
               class="station-summary-card"
+              data-test="station-contribution-card"
             >
               <div class="station-summary-title">
                 <strong>{{ card.receptorName }}</strong>
-                <span>总贡献 {{ card.total.toFixed(4) }} µg/m³</span>
+                <span>总贡献浓度 {{ card.total.toFixed(4) }} µg/m³</span>
               </div>
-              <div v-for="row in card.rows" :key="row.pollutant" class="pollutant-summary-row">
-                <span class="pollutant-name">{{ row.pollutant }}</span>
-                <div class="ranking-bar" aria-hidden="true">
-                  <span :style="{ width: `${Math.min(100, row.percentage)}%` }" />
+              <div
+                v-for="pollutant in card.pollutants"
+                :key="pollutant.pollutant"
+                class="station-pollutant-block"
+              >
+                <div class="pollutant-summary-row">
+                  <span class="pollutant-name">{{ pollutant.pollutant }}</span>
+                  <div class="ranking-bar" aria-hidden="true">
+                    <span :style="{ width: `${Math.min(100, pollutant.percentage)}%` }" />
+                  </div>
+                  <span class="ranking-percent">{{ pollutant.percentage.toFixed(1) }}%</span>
+                  <strong>{{ pollutant.total.toFixed(4) }} µg/m³</strong>
                 </div>
-                <span class="ranking-percent">{{ row.percentage.toFixed(1) }}%</span>
-                <strong>{{ row.concentration.toFixed(4) }} µg/m³</strong>
+                <div class="ranking-list source-ranking-list">
+                  <div
+                    v-for="(item, index) in pollutant.rows"
+                    :key="`${pollutant.pollutant}-${item.sourceId}`"
+                    class="ranking-item"
+                  >
+                    <span class="ranking-index">{{ index + 1 }}</span>
+                    <div class="ranking-main">
+                      <div class="ranking-name">{{ item.sourceName }}</div>
+                      <div class="ranking-bar" aria-hidden="true">
+                        <span :style="{ width: `${Math.min(100, item.percentage)}%` }" />
+                      </div>
+                    </div>
+                    <span class="ranking-percent">{{ item.percentage.toFixed(1) }}%</span>
+                    <strong>{{ item.concentration.toFixed(4) }} µg/m³</strong>
+                  </div>
+                </div>
               </div>
             </div>
-            <p v-if="pollutantSummaryCards.length === 0" class="hint">暂无空气站点污染物贡献摘要</p>
-          </div>
-          <div v-else class="ranking-list">
-            <div
-              v-for="(item, index) in rankedContributions"
-              :key="item.sourceId"
-              class="ranking-item"
-            >
-              <span class="ranking-index">{{ index + 1 }}</span>
-              <div class="ranking-main">
-                <div class="ranking-name">{{ item.sourceName }}</div>
-                <div class="ranking-bar" aria-hidden="true">
-                  <span :style="{ width: `${Math.min(100, item.percentage)}%` }" />
-                </div>
-              </div>
-              <span class="ranking-percent">{{ item.percentage.toFixed(1) }}%</span>
-              <strong>{{ item.concentration.toFixed(4) }} µg/m³</strong>
-            </div>
-            <p v-if="rankedContributions.length === 0" class="hint">暂无空气站点污染源贡献数据</p>
+            <p v-if="stationContributionCards.length === 0" class="hint">暂无空气站点污染源贡献数据</p>
           </div>
         </section>
       </template>
@@ -1067,6 +1018,13 @@ onMounted(() => {
 
 .toolbar-mode {
   flex: 0 0 auto;
+}
+
+.parallel-note {
+  max-width: 220px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .toolbar-compact {
@@ -1281,7 +1239,7 @@ onMounted(() => {
 
 .ranking-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin-top: 12px;
 }
@@ -1339,12 +1297,20 @@ onMounted(() => {
   font-size: 11px;
 }
 
+.station-pollutant-block {
+  padding-top: 8px;
+}
+
+.station-pollutant-block + .station-pollutant-block {
+  margin-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
 .pollutant-summary-row {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 52px 92px;
+  grid-template-columns: 52px minmax(0, 1fr) 48px 86px;
   align-items: center;
   gap: 8px;
-  padding-top: 8px;
   color: #31545c;
   font-size: 12px;
 }
@@ -1355,11 +1321,17 @@ onMounted(() => {
 
 .ranking-item {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 52px 92px;
+  grid-template-columns: 20px minmax(0, 1fr) 48px 86px;
   align-items: center;
   gap: 8px;
   color: #31545c;
   font-size: 12px;
+}
+
+.source-ranking-list {
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 4px;
 }
 
 .ranking-index,
