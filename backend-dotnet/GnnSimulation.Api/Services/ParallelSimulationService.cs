@@ -22,7 +22,7 @@ public class ParallelSimulationService
         var stopwatch = Stopwatch.StartNew();
 
         var met = await _db.Meteorology.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == request.MeteorologyId, ct)
+            .FirstOrDefaultAsync(m => m.Id == request.MeteorologyId && m.IsActive, ct)
             ?? throw new SimulationNotFoundException("气象场未找到");
 
         var sources = await LoadSourcesAsync(request.SourceIds, ct);

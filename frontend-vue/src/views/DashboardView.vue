@@ -31,6 +31,7 @@ import ParallelSimulationDialog from '@/components/ParallelSimulationDialog.vue'
 import { concentrationRange } from '@/utils/colorScale'
 import { wgs84ToGcj02 } from '@/utils/coords'
 import { usePrefsStore } from '@/stores/prefs'
+import { useRegionStore } from '@/stores/region'
 import { errorMessage } from '@/utils/error'
 import { filterEntitiesByBounds, type SelectionBounds } from '@/utils/selection'
 
@@ -66,7 +67,7 @@ type LastSimulationInputs =
     calculationPollutant: string
   }
 
-const SIMULATION_RESULT_STORAGE_KEY = 'gnn.simulationResult.v1'
+const SIMULATION_RESULT_STORAGE_PREFIX = 'gnn.simulationResult.v1'
 const MAX_PERSISTED_RESULT_BYTES = 10 * 1024 * 1024
 
 const lastSimulationInputs = ref<LastSimulationInputs | null>(null)
@@ -87,6 +88,8 @@ const parallelDirectionCount = ref<8 | 16 | 32 | 64 | 72>(16)
 const parallelWindSpeed = ref(3.0)
 
 // ---------- 偏好（持久化） ----------
+const regionStore = useRegionStore()
+const { currentRegionKey } = storeToRefs(regionStore)
 const prefs = usePrefsStore()
 const {
   scale,
@@ -118,6 +121,29 @@ const windPointer = computed(() => {
     y: y.toFixed(2),
   }
 })
+
+
+function updateWindFromDial(event: MouseEvent) {
+  const target = event.currentTarget as SVGElement | null
+  if (!target) return
+  const rect = target.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+
+  const centerX = rect.left + rect.width / 2
+  const centerY = rect.top + rect.height / 2
+  const dx = event.clientX - centerX
+  const dy = centerY - event.clientY
+  const maxRadius = Math.min(rect.width, rect.height) / 2
+  const distance = Math.min(maxRadius, Math.hypot(dx, dy))
+
+  const degrees = (Math.atan2(dx, dy) * 180) / Math.PI
+  draftWindDirection.value = Math.round((degrees + 360) % 360)
+
+  const minSpeed = 0.1
+  const maxSpeed = 20
+  const ratio = distance / maxRadius
+  draftWindSpeed.value = Number((minSpeed + ratio * (maxSpeed - minSpeed)).toFixed(1))
+}
 
 const selectedMeteorology = computed(
   () => meteorologies.value.find((m) => m.id === selectedMeteorologyId.value) ?? null,
@@ -236,6 +262,13 @@ const autoRange = computed(() => {
 
 const effectiveMin = computed(() => customMin.value ?? autoRange.value.min)
 const effectiveMax = computed(() => customMax.value ?? autoRange.value.max)
+const colorRangeCustomized = computed(() => customMin.value !== null || customMax.value !== null)
+const colorRangeInvalid = computed(() => effectiveMax.value <= effectiveMin.value)
+
+function resetColorRange() {
+  customMin.value = null
+  customMax.value = null
+}
 
 // 按当前选中的污染物显示对应浓度场（由后端分别返回 pollutantConcentrations 字典）
 const displayedResult = computed<SimulationResult | null>(() => {
@@ -301,6 +334,10 @@ const stationContributionCards = computed(() => {
     .sort((a, b) => b.total - a.total)
 })
 
+function simulationResultStorageKey() {
+  return `${SIMULATION_RESULT_STORAGE_PREFIX}.${currentRegionKey.value}`
+}
+
 function persistSimulationResult() {
   if (!result.value) return
   try {
@@ -312,10 +349,10 @@ function persistSimulationResult() {
       lastSimulationInputs: lastSimulationInputs.value,
     })
     if (payload.length > MAX_PERSISTED_RESULT_BYTES) {
-      localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
+      localStorage.removeItem(simulationResultStorageKey())
       return
     }
-    localStorage.setItem(SIMULATION_RESULT_STORAGE_KEY, payload)
+    localStorage.setItem(simulationResultStorageKey(), payload)
   } catch {
     // localStorage 配额或隐私模式不可用时，不影响当前模拟结果。
   }
@@ -323,7 +360,7 @@ function persistSimulationResult() {
 
 function restoreSimulationResult() {
   try {
-    const raw = localStorage.getItem(SIMULATION_RESULT_STORAGE_KEY)
+    const raw = localStorage.getItem(simulationResultStorageKey())
     if (!raw) return
     const parsed = JSON.parse(raw)
     if (!parsed?.result?.concentrations || !parsed?.result?.gridLat || !parsed?.result?.gridLon) return
@@ -345,7 +382,7 @@ function restoreSimulationResult() {
       }
     }
   } catch {
-    localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
+    localStorage.removeItem(simulationResultStorageKey())
   }
 }
 
@@ -406,19 +443,32 @@ watch(boundaryEnabled, () => {
   void onBoundaryEnabledChange()
 })
 
+watch(currentRegionKey, () => {
+  result.value = null
+  lastSimulationInputs.value = null
+  customMin.value = null
+  customMax.value = null
+  selectedMeteorologyId.value = null
+  selectionBounds.value = null
+  selectionEnabled.value = false
+  mapRef.value?.clearSelection()
+  void loadAll().then(() => restoreSimulationResult())
+})
+
 // ---------- 数据加载与模拟 ----------
 async function loadAll() {
   try {
     const [srcs, recs, mets] = await Promise.all([
-      sourcesApi.list(0, 1000),
-      receptorsApi.list(0, 1000),
-      meteorologyApi.list(0, 1000),
+      sourcesApi.list(0, 1000, currentRegionKey.value),
+      receptorsApi.list(0, 1000, currentRegionKey.value),
+      meteorologyApi.list(0, 1000, currentRegionKey.value),
     ])
     sources.value = srcs
     receptors.value = recs
-    meteorologies.value = mets
-    if (mets.length > 0 && selectedMeteorologyId.value === null) {
-      selectedMeteorologyId.value = mets[0].id
+    const activeMeteorologies = mets.filter((m) => m.isActive)
+    meteorologies.value = activeMeteorologies
+    if (!activeMeteorologies.some((m) => m.id === selectedMeteorologyId.value)) {
+      selectedMeteorologyId.value = activeMeteorologies[0]?.id ?? null
     }
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载数据失败'))
@@ -524,7 +574,7 @@ function runCurrentSimulation() {
 function clearResult() {
   result.value = null
   lastSimulationInputs.value = null
-  localStorage.removeItem(SIMULATION_RESULT_STORAGE_KEY)
+  localStorage.removeItem(simulationResultStorageKey())
   customMin.value = null
   customMax.value = null
   selectionBounds.value = null
@@ -615,6 +665,9 @@ onMounted(() => {
     />
 
     <div class="floating-toolbar" data-test="floating-toolbar">
+      <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
+        <el-radio-button v-for="r in regionStore.regions" :key="r.key" :value="r.key">{{ r.name }}</el-radio-button>
+      </el-radio-group>
       <el-select v-model="tileLayer" size="small" class="toolbar-select">
         <el-option value="street" label="高德街道" />
         <el-option value="satellite" label="高德卫星" />
@@ -742,7 +795,7 @@ onMounted(() => {
           <el-icon><Compass /></el-icon>
         </div>
         <div class="wind-rose">
-          <svg viewBox="0 0 150 150" role="img" aria-label="风向指示">
+          <svg viewBox="0 0 150 150" role="img" aria-label="风向指示" data-test="wind-control-dial" @click="updateWindFromDial">
             <circle class="wind-ring" cx="75" cy="75" r="74" />
             <circle class="wind-ring" cx="75" cy="75" r="50" />
             <circle class="wind-ring" cx="75" cy="75" r="26" />
@@ -772,18 +825,18 @@ onMounted(() => {
         <div class="field-grid">
           <label>
             来风方向 (°)
-            <el-input-number v-model="draftWindDirection" size="small" :min="0" :max="360" :step="1" />
+            <el-input-number v-model="draftWindDirection" data-test="wind-direction-input" size="small" :min="0" :max="360" :step="1" />
           </label>
           <label>
             风速 (m/s)
-            <el-input-number v-model="draftWindSpeed" size="small" :min="0.1" :max="20" :step="0.1" />
+            <el-input-number v-model="draftWindSpeed" data-test="wind-speed-input" size="small" :min="0.1" :max="20" :step="0.1" />
           </label>
         </div>
         <p v-if="resultWeatherOutdated" class="hint warning">
           气象参数已修改，当前结果未更新，请点击运行模拟。
         </p>
         <p v-else-if="weatherDirty" class="hint warning">将使用当前临时风速和来风方向运行，不会覆盖已保存气象场。</p>
-        <p v-else class="hint">外端指向风吹来的方向，运行模拟会使用当前风速和来风方向。</p>
+        <p v-else class="hint">点击圆盘可调整来风方向和风速；外端指向风吹来的方向，运行模拟会使用当前风速和来风方向。</p>
       </section>
 
       <section v-if="!result" class="floating-card" data-test="stats-card">
@@ -840,16 +893,38 @@ onMounted(() => {
               <el-option value="spectral_r" label="Spectral R" />
             </el-select>
           </label>
+          <div class="range-header">
+            <span>
+              色阶范围
+              <small>自动：{{ autoRange.min.toFixed(3) }} - {{ autoRange.max.toFixed(3) }} μg/m³</small>
+            </span>
+            <el-button size="small" link data-test="reset-color-range" :disabled="!colorRangeCustomized" @click="resetColorRange">
+              恢复自动
+            </el-button>
+          </div>
           <div class="field-grid">
             <label>
               最小值
-              <el-input-number v-model="customMin" size="small" :controls="false" />
+              <el-input-number
+                v-model="customMin"
+                data-test="color-range-min"
+                size="small"
+                :controls="false"
+                :placeholder="autoRange.min.toFixed(3)"
+              />
             </label>
             <label>
               最大值
-              <el-input-number v-model="customMax" size="small" :controls="false" />
+              <el-input-number
+                v-model="customMax"
+                data-test="color-range-max"
+                size="small"
+                :controls="false"
+                :placeholder="autoRange.max.toFixed(3)"
+              />
             </label>
           </div>
+          <p v-if="colorRangeInvalid" class="hint warning">色阶最大值必须大于最小值，否则图层会显示为最低色。</p>
           <div class="visual-controls">
             <label>
               透明度
@@ -995,17 +1070,23 @@ onMounted(() => {
 .floating-toolbar {
   position: absolute;
   top: 14px;
+  left: 76px;
   right: 14px;
   z-index: 1000;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
-  max-width: calc(100% - 28px);
   padding: 8px;
   border: 1px solid #dce6ec;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 28px rgba(15, 46, 60, 0.14);
+}
+
+.toolbar-region {
+  flex: 0 0 auto;
 }
 
 .toolbar-select {
@@ -1127,6 +1208,7 @@ onMounted(() => {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
 }
 
 .wind-rose text {
@@ -1177,6 +1259,22 @@ onMounted(() => {
 
 .full-field {
   margin-top: 12px;
+}
+
+.range-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.range-header small {
+  display: block;
+  margin-top: 2px;
+  color: #94a3b8;
 }
 
 .visual-controls {
@@ -1370,7 +1468,7 @@ onMounted(() => {
 .quick-actions {
   position: absolute;
   left: 18px;
-  top: 18px;
+  top: 92px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -1385,11 +1483,12 @@ onMounted(() => {
 
   .floating-toolbar {
     left: 14px;
-    flex-wrap: wrap;
+    top: 76px;
+    justify-content: flex-start;
   }
 
   .right-stack {
-    top: 150px;
+    top: 220px;
     width: min(300px, calc(100% - 28px));
   }
 }

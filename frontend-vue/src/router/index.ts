@@ -34,9 +34,8 @@ const router = createRouter({
   ],
 })
 
-router.afterEach((to) => {
-  const title = (to.meta?.title as string | undefined) ?? 'GNN-GaussPlume'
-  document.title = `${title} - GNN-GaussPlume`
+router.afterEach(() => {
+  document.title = 'GNN-GaussPlume'
 })
 
 export default router

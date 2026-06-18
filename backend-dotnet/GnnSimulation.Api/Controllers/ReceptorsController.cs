@@ -2,6 +2,7 @@ using GnnSimulation.Api.Dtos;
 using GnnSimulation.Api.Mapping;
 using GnnSimulation.Api.Services;
 using GnnSimulation.Data;
+using GnnSimulation.Data.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,14 +20,16 @@ public class ReceptorsController : ControllerBase
     public async Task<IReadOnlyList<ReceptorDto>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
+        [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
-        var items = await _db.Receptors
-            .AsNoTracking()
-            .OrderBy(x => x.Id)
-            .Skip(skip)
-            .Take(limit)
-            .ToListAsync(ct);
+        var q = _db.Receptors.AsNoTracking();
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is not null)
+        {
+            q = q.Where(x => _db.RegionReceptors.Any(r => r.RegionId == region.Id && r.ReceptorId == x.Id));
+        }
+        var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
         return items.Select(x => x.ToDto()).ToList();
     }
 
@@ -40,22 +43,26 @@ public class ReceptorsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ReceptorDto>> Create(
         [FromBody] ReceptorCreateDto dto,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entity = dto.ToEntity();
         _db.Receptors.Add(entity);
         await _db.SaveChangesAsync(ct);
+        await BindToRegionAsync(entity.Id, regionKey, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
     [HttpPost("batch")]
     public async Task<ActionResult<IReadOnlyList<ReceptorDto>>> CreateBatch(
         [FromBody] List<ReceptorCreateDto> items,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.Receptors.AddRange(entities);
         await _db.SaveChangesAsync(ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -86,6 +93,14 @@ public class ReceptorsController : ControllerBase
         return new { message = "受体点已删除", id };
     }
 
+    private async Task BindToRegionAsync(int receptorId, string? regionKey, CancellationToken ct)
+    {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is null) return;
+        _db.RegionReceptors.Add(new RegionReceptor { RegionId = region.Id, ReceptorId = receptorId });
+        await _db.SaveChangesAsync(ct);
+    }
+
     private const string XlsxMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     [HttpGet("template")]
@@ -108,6 +123,8 @@ public class ReceptorsController : ControllerBase
         {
             _db.Receptors.AddRange(items);
             await _db.SaveChangesAsync(ct);
+            var regionKey = Request.Query["regionKey"].FirstOrDefault();
+            foreach (var item in items) await BindToRegionAsync(item.Id, regionKey, ct);
         }
 
         return new

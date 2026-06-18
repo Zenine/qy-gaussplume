@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
-import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
+import { Check, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { receptorsApi } from '@/api'
+import { useRegionStore } from '@/stores/region'
 import type { Receptor, ReceptorCreate } from '@/types'
 import { downloadBlob } from '@/utils/download'
 import { errorMessage } from '@/utils/error'
 
+const regionStore = useRegionStore()
 const items = ref<Receptor[]>([])
 const loading = ref(false)
 const selected = ref<Receptor[]>([])
@@ -33,7 +35,7 @@ const formRules = {
 async function refresh() {
   loading.value = true
   try {
-    items.value = await receptorsApi.list(0, 1000)
+    items.value = await receptorsApi.list(0, 1000, regionStore.currentRegionKey)
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载受体点失败'))
   } finally {
@@ -74,7 +76,7 @@ function openEdit(row: Receptor) {
 async function submit() {
   try {
     if (dialogMode.value === 'create') {
-      await receptorsApi.create({ ...form })
+      await receptorsApi.create({ ...form }, regionStore.currentRegionKey)
       ElMessage.success('创建成功')
     } else if (editId.value !== null) {
       await receptorsApi.update(editId.value, { ...form })
@@ -125,6 +127,36 @@ async function removeSelected() {
   }
 }
 
+
+async function setActive(row: Receptor, isActive: boolean) {
+  const previous = row.isActive
+  row.isActive = isActive
+  try {
+    await receptorsApi.update(row.id, { isActive })
+    ElMessage.success(isActive ? '已启用' : '已停用')
+    await refresh()
+  } catch (e) {
+    row.isActive = previous
+    ElMessage.error(errorMessage(e, '更新启用状态失败'))
+  }
+}
+
+async function enableAll() {
+  const targets = items.value.filter((row) => !row.isActive)
+  if (targets.length === 0) {
+    ElMessage.success('受体点已全部启用')
+    return
+  }
+  const results = await Promise.allSettled(targets.map((row) => receptorsApi.update(row.id, { isActive: true })))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.error(`全部启用完成，${failed} 个受体点启用失败`)
+  } else {
+    ElMessage.success('受体点已全部启用')
+  }
+  await refresh()
+}
+
 async function downloadTemplate() {
   try {
     const blob = await receptorsApi.downloadTemplate()
@@ -136,7 +168,7 @@ async function downloadTemplate() {
 
 async function importFile(file: UploadRawFile) {
   try {
-    const res = await receptorsApi.importFile(file as unknown as File)
+    const res = await receptorsApi.importFile(file as unknown as File, regionStore.currentRegionKey)
     ElMessage.success(res.message)
     await refresh()
   } catch (e) {
@@ -159,11 +191,13 @@ async function exportSelected() {
 }
 
 onMounted(refresh)
+watch(() => regionStore.currentRegionKey, () => { void refresh() })
 </script>
 
 <template>
   <div class="table-page receptors-page">
     <div class="toolbar page-toolbar">
+      <el-tag type="primary" effect="plain">{{ regionStore.regions.find((r) => r.key === regionStore.currentRegionKey)?.name }}</el-tag>
       <el-button type="primary" :icon="Plus" @click="openCreate">新增受体点</el-button>
       <el-button :icon="Download" @click="downloadTemplate">下载模板</el-button>
       <el-upload
@@ -177,6 +211,7 @@ onMounted(refresh)
       <el-button :icon="Download" :disabled="selected.length === 0" @click="exportSelected">
         导出已选 ({{ selected.length }})
       </el-button>
+      <el-button type="success" :icon="Check" @click="enableAll">全部启用</el-button>
       <el-button
         type="danger"
         :icon="Delete"
@@ -209,11 +244,14 @@ onMounted(refresh)
             <el-tag :color="row.markerColor" effect="dark">{{ row.markerSymbol }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isActive" label="启用" width="80">
+        <el-table-column prop="isActive" label="启用" width="96">
           <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'info'">
-              {{ row.isActive ? '是' : '否' }}
-            </el-tag>
+            <el-switch
+              v-model="row.isActive"
+              :data-test="`receptor-active-${row.id}`"
+              size="small"
+              @change="(value: boolean) => setActive(row, value)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">

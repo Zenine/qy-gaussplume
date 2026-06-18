@@ -3,6 +3,7 @@ using System;
 using GnnSimulation.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GnnSimulation.Data.Migrations
 {
     [DbContext(typeof(GnnDbContext))]
-    partial class GnnDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618021138_AddMeteorologyIsActive")]
+    partial class AddMeteorologyIsActive
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
@@ -393,100 +396,6 @@ namespace GnnSimulation.Data.Migrations
                     b.ToTable("receptors", (string)null);
                 });
 
-            modelBuilder.Entity("GnnSimulation.Data.Entities.Region", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("key");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("name");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("sort_order");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.ToTable("regions", (string)null);
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionEmissionSource", b =>
-                {
-                    b.Property<int>("RegionId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("region_id");
-
-                    b.Property<int>("SourceId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("source_id");
-
-                    b.HasKey("RegionId", "SourceId");
-
-                    b.HasIndex("SourceId");
-
-                    b.ToTable("region_sources", (string)null);
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionMeteorology", b =>
-                {
-                    b.Property<int>("RegionId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("region_id");
-
-                    b.Property<int>("MeteorologyId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("meteorology_id");
-
-                    b.HasKey("RegionId", "MeteorologyId");
-
-                    b.HasIndex("MeteorologyId");
-
-                    b.ToTable("region_meteorology", (string)null);
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionReceptor", b =>
-                {
-                    b.Property<int>("RegionId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("region_id");
-
-                    b.Property<int>("ReceptorId")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("receptor_id");
-
-                    b.HasKey("RegionId", "ReceptorId");
-
-                    b.HasIndex("ReceptorId");
-
-                    b.ToTable("region_receptors", (string)null);
-                });
-
             modelBuilder.Entity("GnnSimulation.Data.Entities.PollutantEmission", b =>
                 {
                     b.HasOne("GnnSimulation.Data.Entities.EmissionSource", "Source")
@@ -498,75 +407,9 @@ namespace GnnSimulation.Data.Migrations
                     b.Navigation("Source");
                 });
 
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionEmissionSource", b =>
-                {
-                    b.HasOne("GnnSimulation.Data.Entities.Region", "Region")
-                        .WithMany("Sources")
-                        .HasForeignKey("RegionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GnnSimulation.Data.Entities.EmissionSource", "Source")
-                        .WithMany()
-                        .HasForeignKey("SourceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Region");
-
-                    b.Navigation("Source");
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionMeteorology", b =>
-                {
-                    b.HasOne("GnnSimulation.Data.Entities.Meteorology", "Meteorology")
-                        .WithMany()
-                        .HasForeignKey("MeteorologyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GnnSimulation.Data.Entities.Region", "Region")
-                        .WithMany("Meteorologies")
-                        .HasForeignKey("RegionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Meteorology");
-
-                    b.Navigation("Region");
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.RegionReceptor", b =>
-                {
-                    b.HasOne("GnnSimulation.Data.Entities.Receptor", "Receptor")
-                        .WithMany()
-                        .HasForeignKey("ReceptorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GnnSimulation.Data.Entities.Region", "Region")
-                        .WithMany("Receptors")
-                        .HasForeignKey("RegionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Receptor");
-
-                    b.Navigation("Region");
-                });
-
             modelBuilder.Entity("GnnSimulation.Data.Entities.EmissionSource", b =>
                 {
                     b.Navigation("Pollutants");
-                });
-
-            modelBuilder.Entity("GnnSimulation.Data.Entities.Region", b =>
-                {
-                    b.Navigation("Meteorologies");
-
-                    b.Navigation("Receptors");
-
-                    b.Navigation("Sources");
                 });
 #pragma warning restore 612, 618
         }

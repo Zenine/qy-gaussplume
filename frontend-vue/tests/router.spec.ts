@@ -14,9 +14,12 @@ describe('router', () => {
     )
   })
 
-  it('页面标题使用 GNN 品牌', async () => {
+  it('浏览器标题固定使用 GNN 品牌，不随路由变化', async () => {
     await router.push('/dashboard')
     await router.isReady()
-    expect(document.title).toBe('主控台 - GNN-GaussPlume')
+    expect(document.title).toBe('GNN-GaussPlume')
+
+    await router.push('/sources')
+    expect(document.title).toBe('GNN-GaussPlume')
   })
 })

@@ -131,6 +131,7 @@ describe('DashboardView', () => {
         humidity: 50,
         cloudCover: 0,
         precipitation: 0,
+        isActive: true,
         recordTime: '',
         createdAt: '',
         updatedAt: '',

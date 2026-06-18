@@ -22,6 +22,10 @@ public class DbContextShapeTests
     [InlineData(typeof(Receptor), "receptors")]
     [InlineData(typeof(Meteorology), "meteorology")]
     [InlineData(typeof(MarkerConfig), "marker_configs")]
+    [InlineData(typeof(Region), "regions")]
+    [InlineData(typeof(RegionEmissionSource), "region_sources")]
+    [InlineData(typeof(RegionReceptor), "region_receptors")]
+    [InlineData(typeof(RegionMeteorology), "region_meteorology")]
     public void 实体应映射到预期的snake_case表名(Type entityType, string expectedTable)
     {
         using var ctx = BuildContext();
@@ -65,10 +69,10 @@ public class DbContextShapeTests
     }
 
     [Fact]
-    public void 所有实体应有5张表()
+    public void 所有实体应有9张表()
     {
         using var ctx = BuildContext();
         var tables = ctx.Model.GetEntityTypes().Select(t => t.GetTableName()).Distinct().ToList();
-        tables.Should().HaveCount(5);
+        tables.Should().HaveCount(9);
     }
 }

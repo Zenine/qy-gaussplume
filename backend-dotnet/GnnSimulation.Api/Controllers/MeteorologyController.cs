@@ -1,6 +1,8 @@
 using GnnSimulation.Api.Dtos;
 using GnnSimulation.Api.Mapping;
+using GnnSimulation.Api.Services;
 using GnnSimulation.Data;
+using GnnSimulation.Data.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,14 +20,16 @@ public class MeteorologyController : ControllerBase
     public async Task<IReadOnlyList<MeteorologyDto>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
+        [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
-        var items = await _db.Meteorology
-            .AsNoTracking()
-            .OrderBy(x => x.Id)
-            .Skip(skip)
-            .Take(limit)
-            .ToListAsync(ct);
+        var q = _db.Meteorology.AsNoTracking();
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is not null)
+        {
+            q = q.Where(x => _db.RegionMeteorologies.Any(r => r.RegionId == region.Id && r.MeteorologyId == x.Id));
+        }
+        var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
         return items.Select(x => x.ToDto()).ToList();
     }
 
@@ -39,22 +43,26 @@ public class MeteorologyController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<MeteorologyDto>> Create(
         [FromBody] MeteorologyCreateDto dto,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entity = dto.ToEntity();
         _db.Meteorology.Add(entity);
         await _db.SaveChangesAsync(ct);
+        await BindToRegionAsync(entity.Id, regionKey, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
     [HttpPost("batch")]
     public async Task<ActionResult<IReadOnlyList<MeteorologyDto>>> CreateBatch(
         [FromBody] List<MeteorologyCreateDto> items,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.Meteorology.AddRange(entities);
         await _db.SaveChangesAsync(ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -71,6 +79,14 @@ public class MeteorologyController : ControllerBase
         entity.ApplyUpdate(dto);
         await _db.SaveChangesAsync(ct);
         return entity.ToDto();
+    }
+
+    private async Task BindToRegionAsync(int meteorologyId, string? regionKey, CancellationToken ct)
+    {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is null) return;
+        _db.RegionMeteorologies.Add(new RegionMeteorology { RegionId = region.Id, MeteorologyId = meteorologyId });
+        await _db.SaveChangesAsync(ct);
     }
 
     [HttpDelete("{id:int}")]

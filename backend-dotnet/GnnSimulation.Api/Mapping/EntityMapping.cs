@@ -172,6 +172,7 @@ internal static class EntityMapping
         Humidity = dto.Humidity,
         CloudCover = dto.CloudCover,
         Precipitation = dto.Precipitation,
+        IsActive = dto.IsActive,
         RecordTime = dto.RecordTime ?? DateTime.UtcNow,
     };
 
@@ -186,6 +187,7 @@ internal static class EntityMapping
         if (dto.Humidity.HasValue) target.Humidity = dto.Humidity.Value;
         if (dto.CloudCover.HasValue) target.CloudCover = dto.CloudCover.Value;
         if (dto.Precipitation.HasValue) target.Precipitation = dto.Precipitation.Value;
+        if (dto.IsActive.HasValue) target.IsActive = dto.IsActive.Value;
         if (dto.RecordTime.HasValue) target.RecordTime = dto.RecordTime.Value;
     }
 
@@ -201,6 +203,7 @@ internal static class EntityMapping
         Humidity = e.Humidity,
         CloudCover = e.CloudCover,
         Precipitation = e.Precipitation,
+        IsActive = e.IsActive,
         RecordTime = e.RecordTime,
         CreatedAt = e.CreatedAt,
         UpdatedAt = e.UpdatedAt,

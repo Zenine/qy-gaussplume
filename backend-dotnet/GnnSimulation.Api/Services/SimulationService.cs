@@ -21,7 +21,7 @@ public class SimulationService
     public async Task<SimulationResultDto> RunAsync(SimulationRequestDto request, CancellationToken ct = default)
     {
         var met = await _db.Meteorology.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == request.MeteorologyId, ct)
+            .FirstOrDefaultAsync(m => m.Id == request.MeteorologyId && m.IsActive, ct)
             ?? throw new SimulationNotFoundException("气象场未找到");
 
         var sources = await LoadSourcesAsync(request.SourceIds, ct);

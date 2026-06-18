@@ -52,6 +52,48 @@ public class MeteorologyControllerTests : IDisposable
         updated.WindDirection.Should().Be(90);
     }
 
+
+
+    [Fact]
+    public async Task PUT_可单独更新启用状态()
+    {
+        var create = await _client.PostJsonAsync("/api/meteorology", new MeteorologyCreateDto
+        {
+            Name = "待停用", IsActive = true,
+        });
+        var dto = await create.ReadJsonAsync<MeteorologyDto>();
+
+        var put = await _client.PutJsonAsync($"/api/meteorology/{dto.Id}", new MeteorologyUpdateDto
+        {
+            IsActive = false,
+        });
+        put.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var updated = await put.ReadJsonAsync<MeteorologyDto>();
+        updated.IsActive.Should().BeFalse();
+        updated.Name.Should().Be("待停用");
+    }
+
+
+    [Fact]
+    public async Task 区域参数_隔离气象场列表()
+    {
+        await _client.PostJsonAsync("/api/meteorology?regionKey=nanhu", new MeteorologyCreateDto
+        {
+            Name = "南湖气象", WindSpeed = 3, WindDirection = 0,
+        });
+        await _client.PostJsonAsync("/api/meteorology?regionKey=tongxiang", new MeteorologyCreateDto
+        {
+            Name = "桐乡气象", WindSpeed = 2, WindDirection = 90,
+        });
+
+        var resp = await _client.GetAsync("/api/meteorology?regionKey=nanhu");
+        var list = await resp.ReadJsonAsync<List<MeteorologyDto>>();
+
+        list.Select(x => x.Name).Should().Contain("南湖气象");
+        list.Select(x => x.Name).Should().NotContain("桐乡气象");
+    }
+
     [Fact]
     public async Task DELETE_不存在_返回404()
     {

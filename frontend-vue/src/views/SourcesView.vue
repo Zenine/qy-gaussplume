@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
-import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
+import { Check, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { sourcesApi } from '@/api'
+import { useRegionStore } from '@/stores/region'
 import type {
   EmissionSource,
   EmissionSourceCreate,
@@ -25,6 +26,7 @@ function labelOf(t: string) {
   return SOURCE_TYPES.find((x) => x.value === t)?.label ?? t
 }
 
+const regionStore = useRegionStore()
 const items = ref<EmissionSource[]>([])
 const loading = ref(false)
 const pollutantTypes = ref<PollutantTypeInfo[]>([])
@@ -82,7 +84,7 @@ function isConfirmDismissed(e: unknown) {
 async function refresh() {
   loading.value = true
   try {
-    items.value = await sourcesApi.list(0, 1000)
+    items.value = await sourcesApi.list(0, 1000, regionStore.currentRegionKey)
     clearSelectedRows()
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载排放源失败'))
@@ -193,7 +195,7 @@ async function submit() {
       concentration: payload.sourceType === 'equivalent_area' ? (p.concentration ?? 0) : null,
     }))
     if (dialogMode.value === 'create') {
-      await sourcesApi.create(payload)
+      await sourcesApi.create(payload, regionStore.currentRegionKey)
       ElMessage.success('创建成功')
     } else if (editId.value !== null) {
       await sourcesApi.update(editId.value, payload)
@@ -246,6 +248,36 @@ async function removeSelected() {
   }
 }
 
+
+async function setActive(row: EmissionSource, isActive: boolean) {
+  const previous = row.isActive
+  row.isActive = isActive
+  try {
+    await sourcesApi.update(row.id, { isActive })
+    ElMessage.success(isActive ? '已启用' : '已停用')
+    await refresh()
+  } catch (e) {
+    row.isActive = previous
+    ElMessage.error(errorMessage(e, '更新启用状态失败'))
+  }
+}
+
+async function enableAll() {
+  const targets = items.value.filter((row) => !row.isActive)
+  if (targets.length === 0) {
+    ElMessage.success('排放源已全部启用')
+    return
+  }
+  const results = await Promise.allSettled(targets.map((row) => sourcesApi.update(row.id, { isActive: true })))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.error(`全部启用完成，${failed} 个排放源启用失败`)
+  } else {
+    ElMessage.success('排放源已全部启用')
+  }
+  await refresh()
+}
+
 async function downloadTemplate() {
   try {
     const blob = await sourcesApi.downloadTemplate(importType.value)
@@ -257,7 +289,7 @@ async function downloadTemplate() {
 
 async function importFile(file: UploadRawFile) {
   try {
-    const res = await sourcesApi.importFile(importType.value, file as unknown as File)
+    const res = await sourcesApi.importFile(importType.value, file as unknown as File, regionStore.currentRegionKey)
     ElMessage.success(res.message)
     await refresh()
   } catch (e) {
@@ -277,11 +309,13 @@ onMounted(() => {
 })
 
 watch(filterType, clearSelectedRows)
+watch(() => regionStore.currentRegionKey, () => { void refresh() })
 </script>
 
 <template>
   <div class="table-page sources-page">
     <div class="toolbar page-toolbar">
+      <el-tag type="primary" effect="plain">{{ regionStore.regions.find((r) => r.key === regionStore.currentRegionKey)?.name }}</el-tag>
       <el-button type="primary" :icon="Plus" @click="openCreate">新增排放源</el-button>
       <el-divider direction="vertical" />
       <span>类型：</span>
@@ -302,6 +336,7 @@ watch(filterType, clearSelectedRows)
       >
         <el-button :icon="Upload">批量导入</el-button>
       </el-upload>
+      <el-button type="success" :icon="Check" @click="enableAll">全部启用</el-button>
       <el-button
         type="danger"
         :icon="Delete"
@@ -359,11 +394,14 @@ watch(filterType, clearSelectedRows)
             <span v-if="row.pollutants.length === 0" class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="启用" width="70">
+        <el-table-column label="启用" width="96">
           <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
-              {{ row.isActive ? '是' : '否' }}
-            </el-tag>
+            <el-switch
+              v-model="row.isActive"
+              :data-test="`source-active-${row.id}`"
+              size="small"
+              @change="(value: boolean) => setActive(row, value)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">

@@ -87,6 +87,7 @@ const meteorologies: Meteorology[] = [
     humidity: 60,
     cloudCover: 2,
     precipitation: 0,
+    isActive: true,
     recordTime: '',
     createdAt: '',
     updatedAt: '',
@@ -184,7 +185,7 @@ function mountView() {
       stubs: {
         MapPanel: {
           name: 'MapPanel',
-          props: ['result', 'boundaryGeoJson', 'initialCenter', 'initialZoom'],
+          props: ['result', 'boundaryGeoJson', 'initialCenter', 'initialZoom', 'min', 'max'],
           emits: ['view-change'],
           template: '<div class="map-panel-stub" />',
           methods: { fitBounds: vi.fn(), clearSelection: vi.fn(), fitSelection: vi.fn() },
@@ -366,6 +367,68 @@ describe('DashboardView', () => {
     expect(weatherCard.text()).toContain('风速')
   })
 
+
+  it('气象圆盘支持鼠标点击同时调整来风方向和风速', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const dial = wrapper.find('[data-test="wind-control-dial"]')
+    expect(dial.exists()).toBe(true)
+    vi.spyOn(dial.element, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 150,
+      bottom: 150,
+      width: 150,
+      height: 150,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    await dial.trigger('click', { clientX: 149, clientY: 75 })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findComponent('[data-test="wind-direction-input"]').props('modelValue')).toBe(90)
+    expect(wrapper.findComponent('[data-test="wind-speed-input"]').props('modelValue')).toBeGreaterThan(13)
+  })
+
+
+
+  it('扩散色阶默认使用当前结果范围，也支持手动设置并恢复自动', async () => {
+    vi.mocked(simulationApi.run).mockResolvedValue({
+      ...contributionResult,
+      concentrations: [
+        [0, 2],
+        [5, 10],
+      ],
+      pollutantConcentrations: null,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    const mapPanel = wrapper.findComponent({ name: 'MapPanel' })
+    expect(mapPanel.props('min')).toBe(2)
+    expect(mapPanel.props('max')).toBe(10)
+    expect(wrapper.find('[data-test="result-card"]').text()).toContain('自动：2.000 - 10.000 μg/m³')
+
+    await wrapper.findComponent('[data-test="color-range-min"]').vm.$emit('update:modelValue', 1)
+    await wrapper.findComponent('[data-test="color-range-max"]').vm.$emit('update:modelValue', 20)
+    await wrapper.vm.$nextTick()
+
+    expect(mapPanel.props('min')).toBe(1)
+    expect(mapPanel.props('max')).toBe(20)
+
+    await wrapper.find('[data-test="reset-color-range"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(mapPanel.props('min')).toBe(2)
+    expect(mapPanel.props('max')).toBe(10)
+  })
+
   it('运行结果保存到本地，刷新后可恢复结果展示', async () => {
     vi.mocked(simulationApi.run).mockResolvedValue(contributionResult)
     const wrapper = mountView()
@@ -374,7 +437,7 @@ describe('DashboardView', () => {
     await wrapper.find('[data-test="run-simulation"]').trigger('click')
     await flushPromises()
 
-    expect(localStorage.getItem('gnn.simulationResult.v1')).toContain('工地源1')
+    expect(localStorage.getItem('gnn.simulationResult.v1.nanhu')).toContain('工地源1')
     const restored = mountView()
     await flushPromises()
 

@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { createPinia, setActivePinia } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SourcesView from '@/views/SourcesView.vue'
@@ -78,7 +79,7 @@ const sample: EmissionSource[] = [
     lineSegmentLength: 10,
     markerSymbol: 'factory',
     markerColor: '#FF5722',
-    isActive: true,
+    isActive: false,
     pollutants: [],
     createdAt: '',
     updatedAt: '',
@@ -130,12 +131,14 @@ const sample: EmissionSource[] = [
 
 function mountView() {
   return mount(SourcesView, {
-    global: { plugins: [ElementPlus] },
+    global: { plugins: [createPinia(), ElementPlus] },
     attachTo: document.body,
   })
 }
 
 beforeEach(() => {
+  localStorage.clear()
+  setActivePinia(createPinia())
   vi.spyOn(sourcesApi, 'list').mockResolvedValue(sample)
   vi.spyOn(sourcesApi, 'pollutantTypes').mockResolvedValue([
     { type: 'PM2.5', name: 'PM2.5', unit: 'g/s', description: '细颗粒物' },
@@ -197,6 +200,24 @@ describe('SourcesView', () => {
     expect(sourcesApi.delete).toHaveBeenNthCalledWith(1, 1)
     expect(sourcesApi.delete).toHaveBeenNthCalledWith(2, 2)
     expect(sourcesApi.list).toHaveBeenCalledTimes(1)
+  })
+
+
+
+  it('支持单独启用/停用排放源并提供全部启用', async () => {
+    vi.spyOn(sourcesApi, 'update').mockResolvedValue(sample[0])
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findAllComponents({ name: 'ElSwitch' })[0].vm.$emit('change', false)
+    await flushPromises()
+    expect(sourcesApi.update).toHaveBeenCalledWith(1, { isActive: false })
+
+    vi.mocked(sourcesApi.update).mockClear()
+    const enableAllBtn = wrapper.findAll('button').find((b) => b.text().includes('全部启用'))
+    await enableAllBtn!.trigger('click')
+    await flushPromises()
+    expect(sourcesApi.update).toHaveBeenCalledWith(2, { isActive: true })
   })
 
   it('筛选条件改变后清空已选排放源_避免删除过滤视图外旧行', async () => {

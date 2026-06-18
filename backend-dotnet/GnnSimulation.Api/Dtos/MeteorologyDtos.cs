@@ -11,6 +11,7 @@ public class MeteorologyCreateDto
     public double Humidity { get; set; } = 50.0;
     public double CloudCover { get; set; } = 0.0;
     public double Precipitation { get; set; } = 0.0;
+    public bool IsActive { get; set; } = true;
     public DateTime? RecordTime { get; set; }
 }
 
@@ -25,6 +26,7 @@ public class MeteorologyUpdateDto
     public double? Humidity { get; set; }
     public double? CloudCover { get; set; }
     public double? Precipitation { get; set; }
+    public bool? IsActive { get; set; }
     public DateTime? RecordTime { get; set; }
 }
 
@@ -40,6 +42,7 @@ public class MeteorologyDto
     public double? Humidity { get; set; }
     public double? CloudCover { get; set; }
     public double? Precipitation { get; set; }
+    public bool IsActive { get; set; }
     public DateTime RecordTime { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

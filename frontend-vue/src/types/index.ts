@@ -138,6 +138,7 @@ export interface Meteorology {
   humidity: number | null
   cloudCover: number | null
   precipitation: number | null
+  isActive: boolean
   recordTime: string
   createdAt: string
   updatedAt: string
@@ -153,6 +154,7 @@ export interface MeteorologyCreate {
   humidity?: number
   cloudCover?: number
   precipitation?: number
+  isActive?: boolean
   recordTime?: string
 }
 

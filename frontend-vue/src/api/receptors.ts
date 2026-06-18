@@ -2,16 +2,16 @@ import { http } from './client'
 import type { Receptor, ReceptorCreate, ReceptorUpdate } from '@/types'
 
 export const receptorsApi = {
-  list: (skip = 0, limit = 100) =>
-    http.get<Receptor[]>('/api/receptors', { params: { skip, limit } }).then((r) => r.data),
+  list: (skip = 0, limit = 100, regionKey?: string) =>
+    http.get<Receptor[]>('/api/receptors', { params: { skip, limit, regionKey } }).then((r) => r.data),
 
   get: (id: number) => http.get<Receptor>(`/api/receptors/${id}`).then((r) => r.data),
 
-  create: (payload: ReceptorCreate) =>
-    http.post<Receptor>('/api/receptors', payload).then((r) => r.data),
+  create: (payload: ReceptorCreate, regionKey?: string) =>
+    http.post<Receptor>('/api/receptors', payload, { params: { regionKey } }).then((r) => r.data),
 
-  createBatch: (payload: ReceptorCreate[]) =>
-    http.post<Receptor[]>('/api/receptors/batch', payload).then((r) => r.data),
+  createBatch: (payload: ReceptorCreate[], regionKey?: string) =>
+    http.post<Receptor[]>('/api/receptors/batch', payload, { params: { regionKey } }).then((r) => r.data),
 
   update: (id: number, payload: ReceptorUpdate) =>
     http.put<Receptor>(`/api/receptors/${id}`, payload).then((r) => r.data),
@@ -21,14 +21,14 @@ export const receptorsApi = {
   downloadTemplate: () =>
     http.get('/api/receptors/template', { responseType: 'blob' }).then((r) => r.data),
 
-  importFile: (file: File) => {
+  importFile: (file: File, regionKey?: string) => {
     const form = new FormData()
     form.append('file', file)
     return http
       .post<{ imported_count: number; errors: string[] | null; message: string }>(
         '/api/receptors/import',
         form,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        { headers: { 'Content-Type': 'multipart/form-data' }, params: { regionKey } },
       )
       .then((r) => r.data)
   },

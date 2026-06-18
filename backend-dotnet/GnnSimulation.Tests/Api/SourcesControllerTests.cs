@@ -145,6 +145,51 @@ public class SourcesControllerTests : IDisposable
         hit.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+
+    [Fact]
+    public async Task DELETE_有污染物记录时一并删除_不依赖数据库级联()
+    {
+        var create = await _client.PostJsonAsync("/api/sources", new EmissionSourceCreateDto
+        {
+            Name = "带污染物待删",
+            Latitude = 0,
+            Longitude = 0,
+            Height = 0,
+            Pollutants = new List<PollutantEmissionCreateDto>
+            {
+                new("PM2.5", 1.2, null),
+                new("NOx", 0.8, null),
+            },
+        });
+        var created = await create.ReadJsonAsync<EmissionSourceDto>();
+
+        var del = await _client.DeleteAsync($"/api/sources/{created.Id}");
+        del.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var hit = await _client.GetAsync($"/api/sources/{created.Id}");
+        hit.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+
+    [Fact]
+    public async Task 区域参数_隔离排放源列表()
+    {
+        await _client.PostJsonAsync("/api/sources?regionKey=nanhu", new EmissionSourceCreateDto
+        {
+            Name = "南湖源", Latitude = 30.1, Longitude = 120.1, Height = 10,
+        });
+        await _client.PostJsonAsync("/api/sources?regionKey=xiuzhou", new EmissionSourceCreateDto
+        {
+            Name = "秀洲源", Latitude = 30.2, Longitude = 120.2, Height = 10,
+        });
+
+        var resp = await _client.GetAsync("/api/sources?regionKey=nanhu");
+        var list = await resp.ReadJsonAsync<List<EmissionSourceDto>>();
+
+        list.Select(x => x.Name).Should().Contain("南湖源");
+        list.Select(x => x.Name).Should().NotContain("秀洲源");
+    }
+
     [Fact]
     public async Task POST_batch_批量创建()
     {

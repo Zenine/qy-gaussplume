@@ -10,16 +10,16 @@ import type {
 } from '@/types'
 
 export const sourcesApi = {
-  list: (skip = 0, limit = 100) =>
-    http.get<EmissionSource[]>('/api/sources', { params: { skip, limit } }).then((r) => r.data),
+  list: (skip = 0, limit = 100, regionKey?: string) =>
+    http.get<EmissionSource[]>('/api/sources', { params: { skip, limit, regionKey } }).then((r) => r.data),
 
   get: (id: number) => http.get<EmissionSource>(`/api/sources/${id}`).then((r) => r.data),
 
-  create: (payload: EmissionSourceCreate) =>
-    http.post<EmissionSource>('/api/sources', payload).then((r) => r.data),
+  create: (payload: EmissionSourceCreate, regionKey?: string) =>
+    http.post<EmissionSource>('/api/sources', payload, { params: { regionKey } }).then((r) => r.data),
 
-  createBatch: (payload: EmissionSourceCreate[]) =>
-    http.post<EmissionSource[]>('/api/sources/batch', payload).then((r) => r.data),
+  createBatch: (payload: EmissionSourceCreate[], regionKey?: string) =>
+    http.post<EmissionSource[]>('/api/sources/batch', payload, { params: { regionKey } }).then((r) => r.data),
 
   update: (id: number, payload: EmissionSourceUpdate) =>
     http.put<EmissionSource>(`/api/sources/${id}`, payload).then((r) => r.data),
@@ -41,14 +41,14 @@ export const sourcesApi = {
   downloadTemplate: (sourceType: string) =>
     http.get(`/api/sources/template/${sourceType}`, { responseType: 'blob' }).then((r) => r.data),
 
-  importFile: (sourceType: string, file: File) => {
+  importFile: (sourceType: string, file: File, regionKey?: string) => {
     const form = new FormData()
     form.append('file', file)
     return http
       .post<{ imported_count: number; errors: string[] | null; message: string }>(
         `/api/sources/import/${sourceType}`,
         form,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
+        { headers: { 'Content-Type': 'multipart/form-data' }, params: { regionKey } },
       )
       .then((r) => r.data)
   },

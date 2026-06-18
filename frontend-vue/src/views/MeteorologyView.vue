@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
+import { Check, Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { meteorologyApi } from '@/api'
+import { useRegionStore } from '@/stores/region'
 import type { Meteorology, MeteorologyCreate } from '@/types'
 import { errorMessage } from '@/utils/error'
+
+const regionStore = useRegionStore()
 
 const STABILITY_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 
@@ -26,6 +29,7 @@ const form = reactive<MeteorologyCreate>({
   humidity: 50.0,
   cloudCover: 0.0,
   precipitation: 0.0,
+  isActive: true,
 })
 
 const formRules = {
@@ -47,7 +51,7 @@ function isConfirmDismissed(e: unknown) {
 async function refresh() {
   loading.value = true
   try {
-    items.value = await meteorologyApi.list(0, 1000)
+    items.value = await meteorologyApi.list(0, 1000, regionStore.currentRegionKey)
     clearSelectedRows()
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载气象场失败'))
@@ -67,6 +71,7 @@ function resetForm() {
     humidity: 50.0,
     cloudCover: 0.0,
     precipitation: 0.0,
+    isActive: true,
   })
 }
 
@@ -90,6 +95,7 @@ function openEdit(row: Meteorology) {
     humidity: row.humidity ?? 50.0,
     cloudCover: row.cloudCover ?? 0.0,
     precipitation: row.precipitation ?? 0.0,
+    isActive: row.isActive,
   })
   dialogVisible.value = true
 }
@@ -97,7 +103,7 @@ function openEdit(row: Meteorology) {
 async function submit() {
   try {
     if (dialogMode.value === 'create') {
-      await meteorologyApi.create({ ...form })
+      await meteorologyApi.create({ ...form }, regionStore.currentRegionKey)
       ElMessage.success('创建成功')
     } else if (editId.value !== null) {
       await meteorologyApi.update(editId.value, { ...form })
@@ -148,13 +154,46 @@ async function removeSelected() {
   }
 }
 
+
+async function setActive(row: Meteorology, isActive: boolean) {
+  const previous = row.isActive
+  row.isActive = isActive
+  try {
+    await meteorologyApi.update(row.id, { isActive })
+    ElMessage.success(isActive ? '已启用' : '已停用')
+    await refresh()
+  } catch (e) {
+    row.isActive = previous
+    ElMessage.error(errorMessage(e, '更新启用状态失败'))
+  }
+}
+
+async function enableAll() {
+  const targets = items.value.filter((row) => !row.isActive)
+  if (targets.length === 0) {
+    ElMessage.success('气象场已全部启用')
+    return
+  }
+  const results = await Promise.allSettled(targets.map((row) => meteorologyApi.update(row.id, { isActive: true })))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.error(`全部启用完成，${failed} 个气象场启用失败`)
+  } else {
+    ElMessage.success('气象场已全部启用')
+  }
+  await refresh()
+}
+
 onMounted(refresh)
+watch(() => regionStore.currentRegionKey, () => { void refresh() })
 </script>
 
 <template>
   <div class="table-page meteorology-page">
     <div class="toolbar page-toolbar">
+      <el-tag type="primary" effect="plain">{{ regionStore.regions.find((r) => r.key === regionStore.currentRegionKey)?.name }}</el-tag>
       <el-button type="primary" :icon="Plus" @click="openCreate">新增气象场</el-button>
+      <el-button type="success" :icon="Check" @click="enableAll">全部启用</el-button>
       <el-button
         type="danger"
         :icon="Delete"
@@ -195,6 +234,16 @@ onMounted(refresh)
         </el-table-column>
         <el-table-column label="湿度 (%)" width="100">
           <template #default="{ row }">{{ row.humidity }}</template>
+        </el-table-column>
+        <el-table-column label="启用" width="96">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.isActive"
+              :data-test="`meteorology-active-${row.id}`"
+              size="small"
+              @change="(value: boolean) => setActive(row, value)"
+            />
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
@@ -244,6 +293,9 @@ onMounted(refresh)
         </el-form-item>
         <el-form-item label="降水 (mm/h)">
           <el-input-number v-model="form.precipitation" :min="0" :step="0.5" />
+        </el-form-item>
+        <el-form-item label="是否启用">
+          <el-switch v-model="form.isActive" />
         </el-form-item>
       </el-form>
       <template #footer>

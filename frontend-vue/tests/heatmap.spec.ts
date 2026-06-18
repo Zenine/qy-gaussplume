@@ -3,6 +3,7 @@ import {
   computeBounds,
   renderHeatmapToCanvas,
 } from '@/composables/useHeatmapRenderer'
+import { wgs84ToGcj02 } from '@/utils/coords'
 
 let lastImageData: ImageData | null = null
 
@@ -156,6 +157,30 @@ describe('computeBounds', () => {
     expect(b[0][1]).toBe(116.4) // west
     expect(b[1][0]).toBe(39.95)
     expect(b[1][1]).toBe(116.5)
+  })
+
+
+
+  it('GCJ02 边界使用四角转换后的外包框，避免浓度图层相对高德底图偏移', () => {
+    const gridLat = [31.1, 31.3]
+    const gridLon = [120.2, 120.6]
+    const b = computeBounds(gridLat, gridLon, true) as [
+      [number, number],
+      [number, number],
+    ]
+    const converted = [
+      wgs84ToGcj02(31.1, 120.2),
+      wgs84ToGcj02(31.1, 120.6),
+      wgs84ToGcj02(31.3, 120.2),
+      wgs84ToGcj02(31.3, 120.6),
+    ]
+    const lats = converted.map(([lat]) => lat)
+    const lons = converted.map(([, lon]) => lon)
+
+    expect(b[0][0]).toBe(Math.min(...lats))
+    expect(b[0][1]).toBe(Math.min(...lons))
+    expect(b[1][0]).toBe(Math.max(...lats))
+    expect(b[1][1]).toBe(Math.max(...lons))
   })
 
   it('GCJ02 边界相对原始偏移（国内）', () => {

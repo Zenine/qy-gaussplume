@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { createPinia, setActivePinia } from 'pinia'
 import { ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReceptorsView from '@/views/ReceptorsView.vue'
@@ -35,12 +36,14 @@ const sampleReceptors: Receptor[] = [
 
 function mountView() {
   return mount(ReceptorsView, {
-    global: { plugins: [ElementPlus] },
+    global: { plugins: [createPinia(), ElementPlus] },
     attachTo: document.body,
   })
 }
 
 beforeEach(() => {
+  localStorage.clear()
+  setActivePinia(createPinia())
   vi.spyOn(receptorsApi, 'list').mockResolvedValue(sampleReceptors)
 })
 
@@ -100,6 +103,24 @@ describe('ReceptorsView', () => {
 
     expect(wrapper.text()).toContain('批量导入')
     expect(wrapper.text()).toContain('批量删除')
+  })
+
+
+
+  it('支持单独启用/停用受体点并提供全部启用', async () => {
+    vi.spyOn(receptorsApi, 'update').mockResolvedValue(sampleReceptors[0])
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findAllComponents({ name: 'ElSwitch' })[0].vm.$emit('change', false)
+    await flushPromises()
+    expect(receptorsApi.update).toHaveBeenCalledWith(1, { isActive: false })
+
+    vi.mocked(receptorsApi.update).mockClear()
+    const enableAllBtn = wrapper.findAll('button').find((b) => b.text().includes('全部启用'))
+    await enableAllBtn!.trigger('click')
+    await flushPromises()
+    expect(receptorsApi.update).toHaveBeenCalledWith(2, { isActive: true })
   })
 
   it('批量删除部分失败后仍刷新列表', async () => {

@@ -34,6 +34,7 @@ describe('sourcesApi', () => {
     expect(spy).toHaveBeenCalledWith(
       '/api/sources',
       expect.objectContaining({ name: '源' }),
+      expect.objectContaining({ params: expect.any(Object) }),
     )
   })
 
@@ -67,6 +68,7 @@ describe('meteorologyApi', () => {
     expect(spy).toHaveBeenCalledWith(
       '/api/meteorology',
       expect.objectContaining({ name: '北风', windSpeed: 3.0 }),
+      expect.objectContaining({ params: expect.any(Object) }),
     )
   })
 

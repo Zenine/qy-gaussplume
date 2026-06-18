@@ -12,6 +12,10 @@ public class GnnDbContext : DbContext
     public DbSet<Receptor> Receptors => Set<Receptor>();
     public DbSet<Meteorology> Meteorology => Set<Meteorology>();
     public DbSet<MarkerConfig> MarkerConfigs => Set<MarkerConfig>();
+    public DbSet<Region> Regions => Set<Region>();
+    public DbSet<RegionEmissionSource> RegionEmissionSources => Set<RegionEmissionSource>();
+    public DbSet<RegionReceptor> RegionReceptors => Set<RegionReceptor>();
+    public DbSet<RegionMeteorology> RegionMeteorologies => Set<RegionMeteorology>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,6 +24,7 @@ public class GnnDbContext : DbContext
         ConfigureReceptor(modelBuilder);
         ConfigureMeteorology(modelBuilder);
         ConfigureMarkerConfig(modelBuilder);
+        ConfigureRegion(modelBuilder);
     }
 
     public override int SaveChanges()
@@ -152,6 +157,7 @@ public class GnnDbContext : DbContext
         e.Property(x => x.Humidity).HasColumnName("humidity");
         e.Property(x => x.CloudCover).HasColumnName("cloud_cover");
         e.Property(x => x.Precipitation).HasColumnName("precipitation");
+        e.Property(x => x.IsActive).HasColumnName("is_active");
         e.Property(x => x.RecordTime).HasColumnName("record_time").HasDefaultValueSql("CURRENT_TIMESTAMP");
         e.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
         e.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -171,4 +177,43 @@ public class GnnDbContext : DbContext
         e.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
         e.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
+
+    private static void ConfigureRegion(ModelBuilder b)
+    {
+        var r = b.Entity<Region>();
+        r.ToTable("regions");
+        r.HasKey(x => x.Id);
+        r.HasIndex(x => x.Key).IsUnique();
+        r.Property(x => x.Id).HasColumnName("id");
+        r.Property(x => x.Key).HasColumnName("key").HasMaxLength(50).IsRequired();
+        r.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+        r.Property(x => x.SortOrder).HasColumnName("sort_order");
+        r.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+        r.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        var rs = b.Entity<RegionEmissionSource>();
+        rs.ToTable("region_sources");
+        rs.HasKey(x => new { x.RegionId, x.SourceId });
+        rs.Property(x => x.RegionId).HasColumnName("region_id");
+        rs.Property(x => x.SourceId).HasColumnName("source_id");
+        rs.HasOne(x => x.Region).WithMany(x => x.Sources).HasForeignKey(x => x.RegionId).OnDelete(DeleteBehavior.Cascade);
+        rs.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId).OnDelete(DeleteBehavior.Cascade);
+
+        var rr = b.Entity<RegionReceptor>();
+        rr.ToTable("region_receptors");
+        rr.HasKey(x => new { x.RegionId, x.ReceptorId });
+        rr.Property(x => x.RegionId).HasColumnName("region_id");
+        rr.Property(x => x.ReceptorId).HasColumnName("receptor_id");
+        rr.HasOne(x => x.Region).WithMany(x => x.Receptors).HasForeignKey(x => x.RegionId).OnDelete(DeleteBehavior.Cascade);
+        rr.HasOne(x => x.Receptor).WithMany().HasForeignKey(x => x.ReceptorId).OnDelete(DeleteBehavior.Cascade);
+
+        var rm = b.Entity<RegionMeteorology>();
+        rm.ToTable("region_meteorology");
+        rm.HasKey(x => new { x.RegionId, x.MeteorologyId });
+        rm.Property(x => x.RegionId).HasColumnName("region_id");
+        rm.Property(x => x.MeteorologyId).HasColumnName("meteorology_id");
+        rm.HasOne(x => x.Region).WithMany(x => x.Meteorologies).HasForeignKey(x => x.RegionId).OnDelete(DeleteBehavior.Cascade);
+        rm.HasOne(x => x.Meteorology).WithMany().HasForeignKey(x => x.MeteorologyId).OnDelete(DeleteBehavior.Cascade);
+    }
+
 }

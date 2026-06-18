@@ -20,15 +20,16 @@ public class SourcesController : ControllerBase
     public async Task<IReadOnlyList<EmissionSourceDto>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
+        [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
-        var items = await _db.EmissionSources
-            .AsNoTracking()
-            .Include(x => x.Pollutants)
-            .OrderBy(x => x.Id)
-            .Skip(skip)
-            .Take(limit)
-            .ToListAsync(ct);
+        IQueryable<EmissionSource> q = _db.EmissionSources.AsNoTracking().Include(x => x.Pollutants);
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is not null)
+        {
+            q = q.Where(x => _db.RegionEmissionSources.Any(r => r.RegionId == region.Id && r.SourceId == x.Id));
+        }
+        var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
         return items.Select(x => x.ToDto()).ToList();
     }
 
@@ -57,22 +58,26 @@ public class SourcesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<EmissionSourceDto>> Create(
         [FromBody] EmissionSourceCreateDto dto,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entity = dto.ToEntity();
         _db.EmissionSources.Add(entity);
         await _db.SaveChangesAsync(ct);
+        await BindToRegionAsync(entity.Id, regionKey, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
     [HttpPost("batch")]
     public async Task<ActionResult<IReadOnlyList<EmissionSourceDto>>> CreateBatch(
         [FromBody] List<EmissionSourceCreateDto> items,
-        CancellationToken ct)
+        [FromQuery] string? regionKey = null,
+        CancellationToken ct = default)
     {
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.EmissionSources.AddRange(entities);
         await _db.SaveChangesAsync(ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -108,6 +113,10 @@ public class SourcesController : ControllerBase
         if (entity is null)
             return NotFound(new { detail = "排放源未找到" });
 
+        // 历史 SQLite 库不一定带数据库级 ON DELETE CASCADE；先显式删除子表，
+        // 避免点击删除排放源时因 pollutant_emissions 外键约束而失败。
+        var pollutants = await _db.PollutantEmissions.Where(x => x.SourceId == id).ToListAsync(ct);
+        _db.PollutantEmissions.RemoveRange(pollutants);
         _db.EmissionSources.Remove(entity);
         await _db.SaveChangesAsync(ct);
         return new { message = "排放源已删除", id };
@@ -157,6 +166,14 @@ public class SourcesController : ControllerBase
         return new { message = "污染物排放记录已删除", id = pollutantId };
     }
 
+    private async Task BindToRegionAsync(int sourceId, string? regionKey, CancellationToken ct)
+    {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (region is null) return;
+        _db.RegionEmissionSources.Add(new RegionEmissionSource { RegionId = region.Id, SourceId = sourceId });
+        await _db.SaveChangesAsync(ct);
+    }
+
     private const string XlsxMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     [HttpGet("template/{sourceType}")]
@@ -183,6 +200,8 @@ public class SourcesController : ControllerBase
         {
             _db.EmissionSources.AddRange(items);
             await _db.SaveChangesAsync(ct);
+            var regionKey = Request.Query["regionKey"].FirstOrDefault();
+            foreach (var item in items) await BindToRegionAsync(item.Id, regionKey, ct);
         }
 
         return new

@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { createPinia, setActivePinia } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MeteorologyView from '@/views/MeteorologyView.vue'
@@ -18,6 +19,7 @@ const sample: Meteorology[] = [
     humidity: 60,
     cloudCover: 2,
     precipitation: 0,
+    isActive: true,
     recordTime: '2026-01-01T00:00:00Z',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -26,12 +28,14 @@ const sample: Meteorology[] = [
 
 function mountView() {
   return mount(MeteorologyView, {
-    global: { plugins: [ElementPlus] },
+    global: { plugins: [createPinia(), ElementPlus] },
     attachTo: document.body,
   })
 }
 
 beforeEach(() => {
+  localStorage.clear()
+  setActivePinia(createPinia())
   vi.spyOn(meteorologyApi, 'list').mockResolvedValue(sample)
 })
 
@@ -113,6 +117,29 @@ describe('MeteorologyView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('批量删除 (0)')
+  })
+
+
+
+  it('支持单独启用/停用气象场并提供全部启用', async () => {
+    const rows: Meteorology[] = [
+      sample[0],
+      { ...sample[0], id: 2, name: '停用气象', isActive: false },
+    ]
+    vi.mocked(meteorologyApi.list).mockResolvedValue(rows)
+    vi.spyOn(meteorologyApi, 'update').mockResolvedValue(rows[0])
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findAllComponents({ name: 'ElSwitch' })[0].vm.$emit('change', false)
+    await flushPromises()
+    expect(meteorologyApi.update).toHaveBeenCalledWith(1, { isActive: false })
+
+    vi.mocked(meteorologyApi.update).mockClear()
+    const enableAllBtn = wrapper.findAll('button').find((b) => b.text().includes('全部启用'))
+    await enableAllBtn!.trigger('click')
+    await flushPromises()
+    expect(meteorologyApi.update).toHaveBeenCalledWith(2, { isActive: true })
   })
 
   it('关闭批量删除确认框时不显示失败提示', async () => {

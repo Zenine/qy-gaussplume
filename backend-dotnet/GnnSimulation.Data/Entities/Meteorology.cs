@@ -17,5 +17,7 @@ public class Meteorology : EntityBase
     public double? CloudCover { get; set; } = 0.0;
     public double? Precipitation { get; set; } = 0.0;
 
+    public bool IsActive { get; set; } = true;
+
     public DateTime RecordTime { get; set; } = DateTime.UtcNow;
 }

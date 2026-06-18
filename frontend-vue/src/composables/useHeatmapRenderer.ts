@@ -117,10 +117,18 @@ export function computeBounds(
       [north, east],
     ]
   }
-  const [s, w] = wgs84ToGcj02(south, west)
-  const [n, e] = wgs84ToGcj02(north, east)
+  // GCJ02 偏移随经纬度略有变化，不能只转换西南/东北两个角。
+  // 对四个角分别转换后取外包框，避免浓度图层在高德底图上出现边界偏移。
+  const corners = [
+    wgs84ToGcj02(south, west),
+    wgs84ToGcj02(south, east),
+    wgs84ToGcj02(north, west),
+    wgs84ToGcj02(north, east),
+  ]
+  const lats = corners.map(([lat]) => lat)
+  const lons = corners.map(([, lon]) => lon)
   return [
-    [s, w],
-    [n, e],
+    [Math.min(...lats), Math.min(...lons)],
+    [Math.max(...lats), Math.max(...lons)],
   ]
 }
