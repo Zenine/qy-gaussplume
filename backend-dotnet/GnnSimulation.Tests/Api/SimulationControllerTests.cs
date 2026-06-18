@@ -96,8 +96,8 @@ public class SimulationControllerTests : IDisposable
 
         var result = await resp.ReadJsonAsync<SimulationResultDto>();
         result.Concentrations.Should().NotBeEmpty();
-        result.GridLat.Length.Should().BeGreaterThan(50);
-        result.GridLon.Length.Should().BeGreaterThan(50);
+        result.GridLat.Length.Should().BeGreaterThanOrEqualTo(50);
+        result.GridLon.Length.Should().BeGreaterThanOrEqualTo(50);
         result.Concentrations.Length.Should().Be(result.GridLat.Length);
         result.Concentrations[0].Length.Should().Be(result.GridLon.Length);
 
@@ -359,5 +359,33 @@ public class SimulationControllerTests : IDisposable
         });
         var big = await respBig.ReadJsonAsync<SimulationResultDto>();
         big.GridLat.Length.Should().BeLessThanOrEqualTo(500);
+    }
+
+    [Fact]
+    public async Task 网格范围_只围绕源和受体有限外扩()
+    {
+        var met = await CreateMet();
+        await CreatePointSource(lat: 39.900, lon: 116.400);
+        await CreateReceptor(lat: 39.902, lon: 116.402);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            GridResolution = 100,
+            DomainSize = 50_000,
+        });
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await resp.ReadJsonAsync<SimulationResultDto>();
+        var latRangeMeters = (result.GridLat.Max() - result.GridLat.Min()) * 111_000;
+        var lonRangeMeters = (result.GridLon.Max() - result.GridLon.Min()) * 111_000
+            * Math.Cos(result.GridLat.Average() * Math.PI / 180.0);
+
+        result.GridLat.Min().Should().BeLessThan(39.900);
+        result.GridLat.Max().Should().BeGreaterThan(39.902);
+        result.GridLon.Min().Should().BeLessThan(116.400);
+        result.GridLon.Max().Should().BeGreaterThan(116.402);
+        latRangeMeters.Should().BeLessThan(3_000);
+        lonRangeMeters.Should().BeLessThan(3_000);
     }
 }

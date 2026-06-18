@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（148 用例，~30s）
+# 后端（149 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（108 用例）
+# 前端（109 用例）
 cd frontend-vue
 npm test
 
@@ -105,7 +105,7 @@ npm run test:watch
 3. 地图热力图用于展示从污染源出发的扩散浓度场；默认“羽流突出”模式过滤近零低值并使用分段色阶，避免整张模拟网格被低浓度底色铺满；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。两种模式都只影响展示，不改变计算结果。
 4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
 5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
-6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；这只控制计算域和出图范围，不表示污染源需要规则网格布点。
+6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它仍作为请求参数和结果过期判断口径，但浓度场实际边界由参与排放源和空气站点外包框有限外扩得到，原则是覆盖受体点周边少量面积，不把羽流图层无限铺满到无关区域。
 7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
 8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
 9. 小于 10 MB 的模拟结果可以保存到 `localStorage.gnn.simulationResult.v1`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
@@ -118,10 +118,10 @@ npm run test:watch
 2. 不要从网格浓度场反推污染源贡献排名，也不要用 `contributions` 的全域网格汇总替代空气站点贡献。业务目标是回答“某个污染源对指定空气站点某项污染物贡献多少 µg/m³”。
 3. 顶部“计算污染物”只决定下一次 `/api/simulation/run` / `/api/simulation/run_parallel` 的 `pollutantType`；修改后应提示当前结果未更新，但不能立即切换已有地图结果。
 4. 右侧“污染物指标”和结果卡“显示污染物”都属于结果展示筛选，切换后应立即联动地图分场和贡献排名，但不能改变下一次模拟请求的 `pollutantType`。
-5. 主控台右侧排名默认跟随展示污染物选择，并优先选中当前污染物下总贡献浓度最大的空气站点；展示时过滤 0 贡献源，只显示本次模拟结果中贡献最高的前 10 个污染源。
-6. 当污染物指标为“全部污染物”时，右侧不展示单污染物的污染源排名，而是按空气站点分组展示各污染物总贡献摘要；选择具体污染物后再展示该污染物的前 10 个污染源排名。
-7. 详情抽屉同样使用 `receptorContributions`，总贡献浓度由当前空气站点和当前污染物下的非零贡献行求和。
-8. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts`、`frontend-vue/tests/components/ContributionPanel.spec.ts` 和 `frontend-vue/tests/sourceGeometry.spec.ts`。
+5. 主控台右侧排名默认按“空气站点 → 污染物指标 → 污染源”直接展示所有有贡献点位；点位按所有展示污染物总贡献浓度降序，污染物按当前点位内总贡献浓度降序，污染源按当前点位和当前污染物内贡献浓度降序。
+6. 右侧“污染物指标”选择具体污染物时，只显示各空气站点该污染物的污染源排名；选择“全部污染物”时，展示各空气站点下所有污染物分组，并在每个污染物下继续展示前 10 个非零贡献污染源。
+7. 详情抽屉同样使用 `receptorContributions`，默认展示所有空气站点，不再要求先选一个空气站点；总贡献浓度由当前空气站点、当前污染物下的非零贡献行求和。
+8. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `frontend-vue/tests/components/ContributionPanel.spec.ts`。
 
 ### 改多风向并行模拟
 
@@ -189,11 +189,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 147
+# 预期：已通过! - 失败: 0，通过: 149
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 20 passed, Tests 108 passed
+# 预期：Test Files 20 passed, Tests 109 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

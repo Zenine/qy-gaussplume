@@ -121,12 +121,32 @@ const contributionResult: SimulationResult = {
         },
       ],
     },
+    医院: {
+      'PM2.5': [
+        {
+          sourceId: 201,
+          sourceName: '医院旁工地',
+          concentration: 30,
+          pollutant: 'PM2.5',
+          percentage: 100,
+        },
+      ],
+      NOx: [
+        {
+          sourceId: 202,
+          sourceName: '锅炉房',
+          concentration: 4,
+          pollutant: 'NOx',
+          percentage: 100,
+        },
+      ],
+    },
   },
   pollutantConcentrations: {
     'PM2.5': [[0, 1]],
     PM10: [[0, 2]],
   },
-  availablePollutants: ['PM2.5', 'PM10'],
+  availablePollutants: ['PM2.5', 'PM10', 'NOx'],
 }
 
 const zeroFirstReceptorResult: SimulationResult = {
@@ -302,6 +322,8 @@ describe('DashboardView', () => {
     await wrapper.findComponent('[data-test="simulation-mode-select"]').vm.$emit('update:modelValue', 'parallel')
     await wrapper.findComponent('[data-test="parallel-direction-count"]').vm.$emit('update:modelValue', 64)
     await wrapper.findComponent('[data-test="parallel-wind-speed"]').vm.$emit('update:modelValue', 2.5)
+    expect(wrapper.find('[data-test="parallel-mode-note"]').text()).toContain('多风向表示按多个来风方向等权聚合')
+    expect(wrapper.find('[data-test="parallel-mode-note"]').text()).toContain('不是污染源方向')
     await wrapper.find('[data-test="run-simulation"]').trigger('click')
     await flushPromises()
 
@@ -358,7 +380,7 @@ describe('DashboardView', () => {
 
     expect(restored.find('[data-test="ranking-card"]').text()).toContain('工地源1')
     expect(restored.findComponent({ name: 'MapPanel' }).props('result')).toMatchObject({
-      availablePollutants: ['PM2.5', 'PM10'],
+      availablePollutants: ['PM2.5', 'PM10', 'NOx'],
     })
   })
 
@@ -418,7 +440,7 @@ describe('DashboardView', () => {
     expect(drawer.attributes('visible')).toBe('true')
   })
 
-  it('运行模拟后展示空气站点污染源贡献排名前10名', async () => {
+  it('运行模拟后按空气站点直接展示污染源贡献排名前10名', async () => {
     vi.mocked(simulationApi.run).mockResolvedValueOnce(contributionResult)
     const wrapper = mountView()
     await flushPromises()
@@ -428,10 +450,13 @@ describe('DashboardView', () => {
 
     const rankingCard = wrapper.find('[data-test="ranking-card"]')
     expect(rankingCard.text()).toContain('空气站点污染源贡献排名')
-    expect(rankingCard.text()).toContain('选择空气站点')
+    expect(rankingCard.text()).not.toContain('选择空气站点')
     expect(rankingCard.text()).toContain('污染物指标')
     expect(rankingCard.text()).toContain('总贡献浓度')
     expect(rankingCard.text()).toContain('µg/m³')
+    expect(rankingCard.text()).toContain('学校')
+    expect(rankingCard.text()).toContain('医院')
+    expect(rankingCard.text().indexOf('学校')).toBeLessThan(rankingCard.text().indexOf('医院'))
     expect(rankingCard.text()).toContain('工地源1')
     expect(rankingCard.text()).toContain('40.0%')
     expect(rankingCard.text()).toContain('20.0000 µg/m³')
@@ -440,7 +465,7 @@ describe('DashboardView', () => {
     expect(rankingCard.text()).not.toContain('道路扬尘')
   })
 
-  it('默认选择当前污染物下有贡献的空气站点并隐藏零贡献源', async () => {
+  it('默认展示当前污染物下有贡献的空气站点并隐藏零贡献源', async () => {
     vi.mocked(simulationApi.run).mockResolvedValueOnce(zeroFirstReceptorResult)
     const wrapper = mountView()
     await flushPromises()
@@ -522,7 +547,7 @@ describe('DashboardView', () => {
     )
   })
 
-  it('右侧污染物指标清空后按空气站点展示全部污染物贡献摘要', async () => {
+  it('右侧污染物指标清空后按空气站点展示全部污染物和污染源排名', async () => {
     vi.mocked(simulationApi.run).mockResolvedValue(contributionResult)
     const wrapper = mountView()
     await flushPromises()
@@ -537,13 +562,16 @@ describe('DashboardView', () => {
     const topPollutantSelect = wrapper.findComponent('[data-test="top-pollutant-select"]')
     const rankingCard = wrapper.find('[data-test="ranking-card"]')
     expect(topPollutantSelect.props('modelValue')).toBe('')
-    expect(rankingCard.text()).toContain('全部污染物贡献摘要')
+    expect(rankingCard.text()).toContain('全部污染物：按空气站点展示污染物与污染源贡献')
     expect(rankingCard.text()).toContain('学校')
+    expect(rankingCard.text()).toContain('医院')
     expect(rankingCard.text()).toContain('PM2.5')
     expect(rankingCard.text()).toContain('PM10')
     expect(rankingCard.text()).toContain('165.0000 µg/m³')
     expect(rankingCard.text()).toContain('8.0000 µg/m³')
-    expect(rankingCard.text()).not.toContain('工地源1')
+    expect(rankingCard.text()).toContain('工地源1')
+    expect(rankingCard.text()).toContain('道路扬尘')
+    expect(rankingCard.text()).toContain('锅炉房')
   })
 
   it('模拟完成后修改气象参数提示当前结果未更新，重新运行后提示消失', async () => {

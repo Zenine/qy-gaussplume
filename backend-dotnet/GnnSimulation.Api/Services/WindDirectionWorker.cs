@@ -18,8 +18,6 @@ internal static class WindDirectionWorker
         string? PollutantType,
         double ReceptorHeight);
 
-    private const double MetersPerDegree = 111_000.0;
-
     public static WindDirectionResultDto Run(double windDirection, Context ctx)
     {
         // Worker 不向外抛异常，而是把单个风向失败记录在结果中，
@@ -55,17 +53,10 @@ internal static class WindDirectionWorker
             cloudCover: met.CloudCover ?? 0.0,
             precipitation: met.Precipitation ?? 0.0);
 
-        // 网格中心 = 所有源的经纬度均值（不考虑受体）。
-        // 多风向场景通常关注排放源周边的平均影响，因此不使用 GridBuilder 的外包框逻辑。
-        var centerLat = ctx.Sources.Count > 0 ? ctx.Sources.Average(s => s.Latitude) : 39.9;
-        var centerLon = ctx.Sources.Count > 0 ? ctx.Sources.Average(s => s.Longitude) : 116.4;
-
-        var gridPoints = (int)(ctx.DomainSize / ctx.GridResolution) + 1;
-        var latOffset = ctx.DomainSize / MetersPerDegree / 2;
-        var lonOffset = ctx.DomainSize / (MetersPerDegree * Math.Cos(centerLat * Math.PI / 180.0)) / 2;
-
-        var gridLat = GridBuilder.Linspace(centerLat - latOffset, centerLat + latOffset, gridPoints);
-        var gridLon = GridBuilder.Linspace(centerLon - lonOffset, centerLon + lonOffset, gridPoints);
+        // 多风向与单风向复用同一源/受体外包框网格，避免并行结果向源中心外无限铺开。
+        var grid = GridBuilder.Build(ctx.Sources, ctx.Receptors, ctx.GridResolution, ctx.DomainSize);
+        var gridLat = grid.Lat;
+        var gridLon = grid.Lon;
 
         var nLat = gridLat.Length;
         var nLon = gridLon.Length;

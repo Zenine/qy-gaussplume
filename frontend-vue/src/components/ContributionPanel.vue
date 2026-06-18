@@ -17,57 +17,65 @@ const innerVisible = computed({
   set: (v) => emit('update:visible', v),
 })
 
-const receptorNames = computed(() =>
-  props.result ? Object.keys(props.result.receptorContributions) : [],
-)
-const selectedReceptor = ref<string>('')
 const selectedPollutant = ref<string>('')
 
 const pollutants = computed(() => {
-  if (!props.result || !selectedReceptor.value) return []
-  const entry = props.result.receptorContributions[selectedReceptor.value]
-  return entry ? Object.keys(entry) : []
+  if (!props.result) return []
+  const values = new Set<string>()
+  for (const byPollutant of Object.values(props.result.receptorContributions)) {
+    for (const pollutant of Object.keys(byPollutant)) values.add(pollutant)
+  }
+  return [...values]
 })
 
-// 单次 watch 覆盖：结果到达即同步填充默认受体与默认污染物
 watch(
   () => props.result,
   (res) => {
     if (!res) {
-      selectedReceptor.value = ''
       selectedPollutant.value = ''
       return
     }
-    const names = Object.keys(res.receptorContributions)
-    if (names.length === 0) {
-      selectedReceptor.value = ''
+    if (!pollutants.value.includes(selectedPollutant.value)) {
       selectedPollutant.value = ''
-      return
     }
-    if (!names.includes(selectedReceptor.value)) selectedReceptor.value = names[0]
-    const pols = Object.keys(res.receptorContributions[selectedReceptor.value] ?? {})
-    if (!pols.includes(selectedPollutant.value)) selectedPollutant.value = pols[0] ?? ''
   },
   { immediate: true },
 )
 
-watch(selectedReceptor, () => {
-  const pols = pollutants.value
-  if (pols.length > 0 && !pols.includes(selectedPollutant.value)) {
-    selectedPollutant.value = pols[0]
-  }
-})
+function sortedPositiveContributions(rows: ReceptorContributionEntry[]) {
+  return rows
+    .filter((row) => row.concentration > 0)
+    .sort((a, b) => b.concentration - a.concentration)
+}
 
-const rows = computed<ReceptorContributionEntry[]>(() => {
-  if (!props.result || !selectedReceptor.value || !selectedPollutant.value) return []
-  return (
-    props.result.receptorContributions[selectedReceptor.value]?.[selectedPollutant.value] ?? []
-  ).filter((row) => row.concentration > 0)
+const stationContributionCards = computed(() => {
+  if (!props.result) return []
+  const pollutantFilter = selectedPollutant.value
+  return Object.entries(props.result.receptorContributions)
+    .map(([receptorName, byPollutant]) => {
+      const pollutantCards = Object.entries(byPollutant)
+        .filter(([pollutant]) => !pollutantFilter || pollutant === pollutantFilter)
+        .map(([pollutant, contributions]) => {
+          const rows = sortedPositiveContributions(contributions)
+          const total = rows.reduce((acc, row) => acc + row.concentration, 0)
+          return {
+            pollutant,
+            total,
+            rows: rows.slice(0, 10),
+          }
+        })
+        .filter((card) => card.total > 0)
+        .sort((a, b) => b.total - a.total)
+      const total = pollutantCards.reduce((acc, card) => acc + card.total, 0)
+      return {
+        receptorName,
+        total,
+        pollutants: pollutantCards,
+      }
+    })
+    .filter((card) => card.total > 0)
+    .sort((a, b) => b.total - a.total)
 })
-
-const totalConcentration = computed(() =>
-  rows.value.reduce((acc, r) => acc + r.concentration, 0),
-)
 </script>
 
 <template>
@@ -75,53 +83,64 @@ const totalConcentration = computed(() =>
     v-model="innerVisible"
     title="空气站点污染源贡献明细"
     direction="rtl"
-    size="500px"
+    size="640px"
   >
     <div v-if="!props.result" class="empty">运行模拟后会显示各空气站点的污染源贡献排名</div>
 
     <template v-else>
       <div class="row">
-        <label>选择空气站点</label>
-        <el-select v-model="selectedReceptor" size="small" style="width: 180px">
-          <el-option v-for="n in receptorNames" :key="n" :value="n" :label="n" />
-        </el-select>
-
         <label>污染物指标</label>
-        <el-select v-model="selectedPollutant" size="small" style="width: 120px">
+        <el-select
+          v-model="selectedPollutant"
+          data-test="panel-pollutant-select"
+          size="small"
+          clearable
+          placeholder="全部污染物"
+          style="width: 180px"
+        >
           <el-option v-for="p in pollutants" :key="p" :value="p" :label="p" />
         </el-select>
       </div>
 
-      <div class="summary">
-        <div class="metric">
-          <div class="k">总贡献浓度</div>
-          <div class="v">{{ totalConcentration.toFixed(4) }} µg/m³</div>
-        </div>
-        <div class="metric">
-          <div class="k">污染源数</div>
-          <div class="v">{{ rows.length }}</div>
-        </div>
+      <div class="station-list">
+        <section
+          v-for="card in stationContributionCards"
+          :key="card.receptorName"
+          class="station-card"
+        >
+          <header class="station-header">
+            <strong>{{ card.receptorName }}</strong>
+            <span>总贡献浓度：{{ card.total.toFixed(4) }} µg/m³</span>
+          </header>
+          <div
+            v-for="pollutant in card.pollutants"
+            :key="pollutant.pollutant"
+            class="pollutant-block"
+          >
+            <div class="pollutant-header">
+              <strong>{{ pollutant.pollutant }}</strong>
+              <span>总贡献浓度：{{ pollutant.total.toFixed(4) }} µg/m³</span>
+            </div>
+            <div class="table-header">
+              <span>排名</span>
+              <span>污染源名称</span>
+              <span>贡献浓度 (µg/m³)</span>
+              <span>贡献占比</span>
+            </div>
+            <div
+              v-for="(row, index) in pollutant.rows"
+              :key="`${pollutant.pollutant}-${row.sourceId}`"
+              class="source-row"
+            >
+              <span>#{{ index + 1 }}</span>
+              <strong>{{ row.sourceName }}</strong>
+              <span>{{ row.concentration.toFixed(4) }}</span>
+              <span>{{ row.percentage.toFixed(1) }}%</span>
+            </div>
+          </div>
+        </section>
+        <div v-if="stationContributionCards.length === 0" class="empty">无贡献数据</div>
       </div>
-
-      <el-table :data="rows" stripe size="small" :empty-text="'无贡献数据'">
-        <el-table-column label="排名" width="60">
-          <template #default="{ $index }">#{{ $index + 1 }}</template>
-        </el-table-column>
-        <el-table-column prop="sourceName" label="污染源名称" min-width="130" />
-        <el-table-column label="贡献浓度 (μg/m³)" width="150">
-          <template #default="{ row }">{{ row.concentration.toFixed(4) }}</template>
-        </el-table-column>
-        <el-table-column label="贡献占比" width="140">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="Math.min(100, +row.percentage.toFixed(1))"
-              :text-inside="true"
-              :stroke-width="16"
-              :color="row.percentage > 50 ? '#f56c6c' : row.percentage > 20 ? '#e6a23c' : '#67c23a'"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
     </template>
   </el-drawer>
 </template>
@@ -142,20 +161,86 @@ const totalConcentration = computed(() =>
   font-size: 13px;
   color: #6b7280;
 }
-.summary {
+
+.station-list {
   display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-  padding: 12px;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.station-card {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   background: #f9fafb;
-  border-radius: 6px;
 }
-.metric .k {
+
+.station-header,
+.pollutant-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.station-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.station-header strong {
+  color: #1677ff;
+  font-size: 15px;
+}
+
+.station-header span,
+.pollutant-header span {
+  color: #64748b;
   font-size: 12px;
-  color: #9ca3af;
 }
-.metric .v {
-  font-size: 18px;
+
+.pollutant-block {
+  padding-top: 12px;
+}
+
+.pollutant-block + .pollutant-block {
+  margin-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.pollutant-header strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.table-header,
+.source-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 132px 84px;
+  gap: 10px;
+  align-items: center;
+}
+
+.table-header {
+  margin-top: 10px;
+  padding: 8px 0;
+  color: #6b7280;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.source-row {
+  padding: 8px 0;
+  color: #374151;
+  font-size: 13px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.source-row strong {
+  min-width: 0;
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

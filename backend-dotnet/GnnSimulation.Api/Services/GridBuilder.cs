@@ -5,12 +5,15 @@ namespace GnnSimulation.Api.Services;
 internal static class GridBuilder
 {
     private const double MetersPerDegree = 111_000.0;
+    private const double MinimumPaddingMeters = 500.0;
+    private const double MinimumRangeMeters = 1_000.0;
 
     public record Grid(double[] Lat, double[] Lon);
 
-    // 基于源/受体的外包框 + domain_size + grid_resolution 构建方形网格。
-    // 先取全部参与对象的经纬度范围，再用 domain_size 保底扩展模拟域；
-    // 这里保留 50-500 的网格点夹紧，避免极小分辨率导致响应过大。
+    // 基于源/受体的外包框 + 有限余量构建网格。
+    // domain_size 保留为请求参数和结果过期判断口径，但不强制铺满；
+    // 点位很近时只多覆盖受体点周边一些面积，点位更远时优先覆盖全部点位。
+    // 这里保留 50-500 的单轴网格点夹紧，避免极小分辨率导致响应过大。
     public static Grid Build(
         IReadOnlyList<EmissionSource> sources,
         IReadOnlyList<Receptor> receptors,
@@ -28,20 +31,24 @@ internal static class GridBuilder
         var minLon = lons.Min(); var maxLon = lons.Max();
         var centerLat = (minLat + maxLat) / 2;
         var centerLon = (minLon + maxLon) / 2;
-        var latSpan = maxLat - minLat;
-        var lonSpan = maxLon - minLon;
+        var lonMeter = MetersPerDegree * Math.Cos(centerLat * Math.PI / 180.0);
+        var latSpanMeters = Math.Max(0, (maxLat - minLat) * MetersPerDegree);
+        var lonSpanMeters = Math.Max(0, (maxLon - minLon) * lonMeter);
+        var maxSpanMeters = Math.Max(latSpanMeters, lonSpanMeters);
+        var paddingMeters = Math.Max(
+            MinimumPaddingMeters,
+            Math.Max(gridResolution * 5, maxSpanMeters * 0.2));
+        var desiredLatRangeMeters = Math.Max(MinimumRangeMeters, latSpanMeters + paddingMeters * 2);
+        var desiredLonRangeMeters = Math.Max(MinimumRangeMeters, lonSpanMeters + paddingMeters * 2);
+        var requiredLatRange = desiredLatRangeMeters / MetersPerDegree;
+        var requiredLonRange = desiredLonRangeMeters / lonMeter;
 
-        var requiredLatRange = Math.Max(domainSize / MetersPerDegree, latSpan * 1.5 + 0.1);
-        var requiredLonRange = Math.Max(
-            domainSize / (MetersPerDegree * Math.Cos(centerLat * Math.PI / 180.0)),
-            lonSpan * 1.5 + 0.1);
-
-        var gridPoints = (int)(Math.Max(requiredLatRange, requiredLonRange) * MetersPerDegree / gridResolution);
-        gridPoints = Math.Clamp(gridPoints, 50, 500);
+        var latPoints = Math.Clamp((int)(desiredLatRangeMeters / gridResolution) + 1, 50, 500);
+        var lonPoints = Math.Clamp((int)(desiredLonRangeMeters / gridResolution) + 1, 50, 500);
 
         return new Grid(
-            Linspace(centerLat - requiredLatRange / 2, centerLat + requiredLatRange / 2, gridPoints),
-            Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, gridPoints));
+            Linspace(centerLat - requiredLatRange / 2, centerLat + requiredLatRange / 2, latPoints),
+            Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, lonPoints));
     }
 
     // np.linspace 等价实现（包含两端点）。多风向并行和单风向网格都复用它，

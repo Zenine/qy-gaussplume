@@ -60,7 +60,7 @@ describe('ContributionPanel', () => {
     document.body.innerHTML = ''
   })
 
-  it('有结果时渲染受体列表 + 第一位源贡献', async () => {
+  it('有结果时按空气站点分组展示污染物总贡献和污染源排名', async () => {
     mount(ContributionPanel, {
       props: { visible: true, result: fakeResult },
       global: { plugins: [ElementPlus] },
@@ -69,15 +69,42 @@ describe('ContributionPanel', () => {
     await flushPromises()
     const text = document.querySelector('.el-drawer')!.textContent ?? ''
     expect(text).toContain('空气站点污染源贡献明细')
-    expect(text).toContain('选择空气站点')
+    expect(text).not.toContain('选择空气站点')
     expect(text).toContain('污染物指标')
+    expect(text).toContain('总贡献浓度')
     expect(text).toContain('污染源名称')
-    expect(text).toContain('贡献浓度 (μg/m³)')
+    expect(text).toContain('贡献浓度 (µg/m³)')
     expect(text).toContain('贡献占比')
     expect(text).toContain('学校')
+    expect(text).toContain('医院')
+    expect(text).toContain('PM2.5')
+    expect(text).toContain('NOx')
     expect(text).toContain('钢厂烟囱')
+    expect(text).toContain('X 厂')
     expect(text).toContain('10.0000') // concentration 4 decimals
+    expect(text).toContain('5.0000')
     expect(text).not.toContain('道路尾气')
+    document.body.innerHTML = ''
+  })
+
+  it('污染物筛选只影响抽屉展示，不显示其他污染物分组', async () => {
+    const wrapper = mount(ContributionPanel, {
+      props: { visible: true, result: fakeResult },
+      global: { plugins: [ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const pollutantSelect = wrapper.findComponent('[data-test="panel-pollutant-select"]')
+    await pollutantSelect.vm.$emit('update:modelValue', 'NOx')
+    await flushPromises()
+
+    const text = document.querySelector('.el-drawer')!.textContent ?? ''
+    expect(text).toContain('医院')
+    expect(text).toContain('NOx')
+    expect(text).toContain('X 厂')
+    expect(text).not.toContain('PM2.5')
+    expect(text).not.toContain('钢厂烟囱')
     document.body.innerHTML = ''
   })
 })
