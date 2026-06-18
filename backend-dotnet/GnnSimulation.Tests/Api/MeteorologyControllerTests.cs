@@ -95,6 +95,27 @@ public class MeteorologyControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 区域参数_非法区域返回400且不退化成全量列表()
+    {
+        await _client.PostJsonAsync("/api/meteorology?regionKey=nanhu", new MeteorologyCreateDto
+        {
+            Name = "南湖气象", WindSpeed = 3, WindDirection = 0,
+        });
+
+        var listResp = await _client.GetAsync("/api/meteorology?regionKey=missing");
+        listResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var createResp = await _client.PostJsonAsync("/api/meteorology?regionKey=missing", new MeteorologyCreateDto
+        {
+            Name = "不应创建", WindSpeed = 3, WindDirection = 0,
+        });
+        createResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var all = await (await _client.GetAsync("/api/meteorology")).ReadJsonAsync<List<MeteorologyDto>>();
+        all.Select(x => x.Name).Should().NotContain("不应创建");
+    }
+
+    [Fact]
     public async Task DELETE_不存在_返回404()
     {
         var resp = await _client.DeleteAsync("/api/meteorology/99999");

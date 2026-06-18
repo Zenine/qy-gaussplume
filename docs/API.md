@@ -11,12 +11,21 @@
 
 ## 排放源 `/api/sources`
 
+排放源、受体点和气象场都支持固定区域隔离。列表、创建、批量创建和导入接口可传 `regionKey`：
+
+- `nanhu`：南湖区
+- `xiuzhou`：秀洲区
+- `jiashan`：嘉善县
+- `tongxiang`：桐乡市
+
+未传 `regionKey` 时保留兼容口径，返回全量数据；传入非法 `regionKey` 时返回 `400`，不会退化为全量列表。历史无区域归属数据会在迁移或启动自愈时默认绑定到 `nanhu`，避免升级后页面看不到原有数据。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/sources?skip=0&limit=100` | 列表（含污染物 include） |
+| GET | `/api/sources?skip=0&limit=100&regionKey=nanhu` | 列表（含污染物 include），可按区域过滤 |
 | GET | `/api/sources/{id}` | 单个 |
-| POST | `/api/sources` | 创建，body `EmissionSourceCreateDto` |
-| POST | `/api/sources/batch` | 批量，body `EmissionSourceCreateDto[]` |
+| POST | `/api/sources?regionKey=nanhu` | 创建并绑定区域，body `EmissionSourceCreateDto` |
+| POST | `/api/sources/batch?regionKey=nanhu` | 批量创建并绑定区域，body `EmissionSourceCreateDto[]` |
 | PUT | `/api/sources/{id}` | 部分更新（PATCH 语义：传 null 不改；`pollutants` 非 null 整体替换） |
 | DELETE | `/api/sources/{id}` | 删除（级联污染物） |
 | GET | `/api/sources/pollutant-types` | 六种污染物元数据 |
@@ -24,7 +33,7 @@
 | POST | `/api/sources/{id}/pollutants` | 追加或覆盖一个污染物排放 |
 | DELETE | `/api/sources/{id}/pollutants/{pid}` | 移除一个污染物 |
 | GET | `/api/sources/template/{type}` | 下载 Excel 模板（type ∈ point/area/equivalent_area/line） |
-| POST | `/api/sources/import/{type}` | 上传 Excel 导入，multipart/form-data `file` |
+| POST | `/api/sources/import/{type}?regionKey=nanhu` | 上传 Excel 导入并绑定区域，multipart/form-data `file` |
 
 **`EmissionSourceCreateDto` 关键字段**：
 
@@ -54,14 +63,14 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/receptors?skip=0&limit=100` | 列表 |
+| GET | `/api/receptors?skip=0&limit=100&regionKey=nanhu` | 列表，可按区域过滤 |
 | GET | `/api/receptors/{id}` | 单个 |
-| POST | `/api/receptors` | 创建 |
-| POST | `/api/receptors/batch` | 批量 |
+| POST | `/api/receptors?regionKey=nanhu` | 创建并绑定区域 |
+| POST | `/api/receptors/batch?regionKey=nanhu` | 批量创建并绑定区域 |
 | PUT | `/api/receptors/{id}` | 部分更新 |
 | DELETE | `/api/receptors/{id}` | 删除 |
 | GET | `/api/receptors/template` | 下载 Excel 模板 |
-| POST | `/api/receptors/import` | 上传 Excel 导入 |
+| POST | `/api/receptors/import?regionKey=nanhu` | 上传 Excel 导入并绑定区域 |
 | POST | `/api/receptors/export` | 导出所选 id 的 xlsx（body：`int[]`） |
 
 ```json
@@ -80,10 +89,10 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/meteorology` | 列表 |
+| GET | `/api/meteorology?regionKey=nanhu` | 列表，可按区域过滤 |
 | GET | `/api/meteorology/{id}` | 单个 |
-| POST | `/api/meteorology` | 创建 |
-| POST | `/api/meteorology/batch` | 批量 |
+| POST | `/api/meteorology?regionKey=nanhu` | 创建并绑定区域 |
+| POST | `/api/meteorology/batch?regionKey=nanhu` | 批量创建并绑定区域 |
 | PUT | `/api/meteorology/{id}` | 部分更新 |
 | DELETE | `/api/meteorology/{id}` | 删除 |
 
@@ -97,8 +106,26 @@
   "temperature": 293.15,
   "humidity": 50,
   "cloudCover": 0,
-  "precipitation": 0
+  "precipitation": 0,
+  "isActive": true
 }
+```
+
+## 固定区域 `/api/regions`
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/regions` | 返回固定区域列表，按 `sortOrder` 排序 |
+
+响应示例：
+
+```json
+[
+  { "id": 1, "key": "nanhu", "name": "南湖区", "sortOrder": 1 },
+  { "id": 2, "key": "xiuzhou", "name": "秀洲区", "sortOrder": 2 },
+  { "id": 3, "key": "jiashan", "name": "嘉善县", "sortOrder": 3 },
+  { "id": 4, "key": "tongxiang", "name": "桐乡市", "sortOrder": 4 }
+]
 ```
 
 ## 模拟 `/api/simulation`

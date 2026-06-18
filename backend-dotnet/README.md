@@ -104,9 +104,10 @@ JSON 会被 csproj 的 `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirec
 
 | 资源 | 端点 |
 |---|---|
-| 排放源 | `GET/POST/PUT/DELETE /api/sources` + `/batch` + `/pollutant-types` + `/marker-symbols` + `/{id}/pollutants` + `/template/{type}` + `/import/{type}` |
-| 受体点 | `GET/POST/PUT/DELETE /api/receptors` + `/batch` + `/template` + `/import` + `/export` |
-| 气象场 | `GET/POST/PUT/DELETE /api/meteorology` + `/batch` |
+| 固定区域 | `GET /api/regions`，固定返回南湖区、秀洲区、嘉善县、桐乡市 |
+| 排放源 | `GET/POST/PUT/DELETE /api/sources` + `/batch` + `/pollutant-types` + `/marker-symbols` + `/{id}/pollutants` + `/template/{type}` + `/import/{type}`；列表、创建、批量创建、导入支持 `regionKey` |
+| 受体点 | `GET/POST/PUT/DELETE /api/receptors` + `/batch` + `/template` + `/import` + `/export`；列表、创建、批量创建、导入支持 `regionKey` |
+| 气象场 | `GET/POST/PUT/DELETE /api/meteorology` + `/batch`；列表、创建、批量创建支持 `regionKey`，支持 `isActive` |
 | 标记配置 | `GET /api/config` + `GET/POST/PUT /api/config/{type}` |
 | 模拟 | `POST /api/simulation/run` · `POST /api/simulation/run_parallel` · `GET /api/simulation/formulas` |
 | 地图 | `GET /api/map/geojson` · `/bounds` · `/info` |
@@ -131,7 +132,9 @@ e.Property(x => x.SourceType).HasColumnName("source_type").HasMaxLength(20);
 
 ### 老 DB 历史 NULL 兼容
 
-`Program.cs` 启动时执行一次 `UPDATE receptors SET is_active = 1 WHERE is_active IS NULL`（及 `emission_sources`），避免历史数据 NULL 导致 `GetBoolean` 崩溃。测试环境（`ASPNETCORE_ENVIRONMENT=Testing`）跳过。
+`Program.cs` 启动时执行一次 `UPDATE receptors SET is_active = 1 WHERE is_active IS NULL`（及 `emission_sources`、`meteorology`），避免历史数据 NULL 导致 `GetBoolean` 崩溃。测试环境（`ASPNETCORE_ENVIRONMENT=Testing`）跳过表结构自愈。
+
+固定区域表启动时会自动种子化 4 个区域；历史无区域归属的排放源、受体点和气象场会默认绑定到 `nanhu`，避免升级后主控台默认区域看不到原有数据。传入非法 `regionKey` 时 API 返回 400，不退化为全量列表。
 
 ### ID 过滤语义
 

@@ -74,6 +74,46 @@ public class ReceptorsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 区域参数_隔离受体点列表()
+    {
+        await _client.PostJsonAsync("/api/receptors?regionKey=nanhu", new ReceptorCreateDto
+        {
+            Name = "南湖受体", Latitude = 30.1, Longitude = 120.1, Height = 1.5,
+        });
+        await _client.PostJsonAsync("/api/receptors?regionKey=jiashan", new ReceptorCreateDto
+        {
+            Name = "嘉善受体", Latitude = 30.2, Longitude = 120.2, Height = 1.5,
+        });
+
+        var resp = await _client.GetAsync("/api/receptors?regionKey=nanhu");
+        var list = await resp.ReadJsonAsync<List<ReceptorDto>>();
+
+        list.Select(x => x.Name).Should().Contain("南湖受体");
+        list.Select(x => x.Name).Should().NotContain("嘉善受体");
+    }
+
+    [Fact]
+    public async Task 区域参数_非法区域返回400且不退化成全量列表()
+    {
+        await _client.PostJsonAsync("/api/receptors?regionKey=nanhu", new ReceptorCreateDto
+        {
+            Name = "南湖受体", Latitude = 30.1, Longitude = 120.1, Height = 1.5,
+        });
+
+        var listResp = await _client.GetAsync("/api/receptors?regionKey=missing");
+        listResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var createResp = await _client.PostJsonAsync("/api/receptors?regionKey=missing", new ReceptorCreateDto
+        {
+            Name = "不应创建", Latitude = 30.1, Longitude = 120.1, Height = 1.5,
+        });
+        createResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var all = await (await _client.GetAsync("/api/receptors")).ReadJsonAsync<List<ReceptorDto>>();
+        all.Select(x => x.Name).Should().NotContain("不应创建");
+    }
+
+    [Fact]
     public async Task POST_batch_一次性导入多个()
     {
         var payload = Enumerable.Range(1, 5).Select(i => new ReceptorCreateDto

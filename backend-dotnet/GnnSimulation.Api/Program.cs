@@ -62,7 +62,7 @@ if (!app.Environment.IsEnvironment("Testing"))
     }
     catch (Exception ex)
     {
-        app.Logger.LogWarning(ex, "启动时 is_active 自愈失败（非致命）");
+        app.Logger.LogWarning(ex, "启动时历史库自愈失败（非致命）");
     }
 }
 
@@ -70,6 +70,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<GnnDbContext>();
     await RegionCatalog.EnsureSeededAsync(db);
+    await RegionCatalog.BackfillDefaultRegionAsync(db);
 }
 
 if (app.Environment.IsDevelopment())

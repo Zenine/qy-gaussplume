@@ -191,6 +191,46 @@ public class SourcesControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 区域参数_非法区域返回400且不退化成全量列表()
+    {
+        await _client.PostJsonAsync("/api/sources?regionKey=nanhu", new EmissionSourceCreateDto
+        {
+            Name = "南湖源", Latitude = 30.1, Longitude = 120.1, Height = 10,
+        });
+
+        var listResp = await _client.GetAsync("/api/sources?regionKey=missing");
+        listResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var createResp = await _client.PostJsonAsync("/api/sources?regionKey=missing", new EmissionSourceCreateDto
+        {
+            Name = "不应创建", Latitude = 30.1, Longitude = 120.1, Height = 10,
+        });
+        createResp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var all = await (await _client.GetAsync("/api/sources")).ReadJsonAsync<List<EmissionSourceDto>>();
+        all.Select(x => x.Name).Should().NotContain("不应创建");
+    }
+
+    [Fact]
+    public async Task POST_batch_指定区域时批量数据只绑定到该区域()
+    {
+        var payload = new List<EmissionSourceCreateDto>
+        {
+            new() { Name = "南湖批量1", Latitude = 0, Longitude = 0, Height = 0 },
+            new() { Name = "南湖批量2", Latitude = 0, Longitude = 0, Height = 0 },
+        };
+
+        var resp = await _client.PostJsonAsync("/api/sources/batch?regionKey=nanhu", payload);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var nanhu = await (await _client.GetAsync("/api/sources?regionKey=nanhu")).ReadJsonAsync<List<EmissionSourceDto>>();
+        var xiuzhou = await (await _client.GetAsync("/api/sources?regionKey=xiuzhou")).ReadJsonAsync<List<EmissionSourceDto>>();
+
+        nanhu.Select(x => x.Name).Should().Contain(new[] { "南湖批量1", "南湖批量2" });
+        xiuzhou.Select(x => x.Name).Should().NotContain(new[] { "南湖批量1", "南湖批量2" });
+    }
+
+    [Fact]
     public async Task POST_batch_批量创建()
     {
         var payload = new List<EmissionSourceCreateDto>

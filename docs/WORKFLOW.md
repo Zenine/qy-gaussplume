@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（149 用例，~30s）
+# 后端（164 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（109 用例）
+# 前端（115 用例）
 cd frontend-vue
 npm test
 
@@ -52,7 +52,9 @@ npm run test:watch
 1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
 2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
 3. 排放源、受体点、气象场表格支持勾选；批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。刷新或筛选变化后应显式清空选中状态，关闭确认框不应显示失败提示。
-4. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`。
+4. 主控台固定 4 个业务区域：`nanhu` 南湖区、`xiuzhou` 秀洲区、`jiashan` 嘉善县、`tongxiang` 桐乡市。排放源、受体点、气象场通过区域关联表隔离，不在业务表中直接加区域字段。
+5. 列表、创建、批量创建和导入接口传入非法 `regionKey` 时必须返回 400，不能退化成全量列表；历史无区域归属数据默认回填到 `nanhu`，避免升级后页面看不到原有数据。
+6. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`、`backend-dotnet/GnnSimulation.Tests/Api/{SourcesControllerTests,ReceptorsControllerTests,MeteorologyControllerTests,RegionCatalogTests}.cs`。
 
 ## 常见变更模板
 
@@ -108,7 +110,7 @@ npm run test:watch
 6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它仍作为请求参数和结果过期判断口径，但浓度场实际边界由参与排放源和空气站点外包框有限外扩得到，原则是覆盖受体点周边少量面积，不把羽流图层无限铺满到无关区域。
 7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
 8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
-9. 小于 10 MB 的模拟结果可以保存到 `localStorage.gnn.simulationResult.v1`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
+9. 小于 10 MB 的模拟结果可以按区域保存到 `localStorage.gnn.simulationResult.v1.<regionKey>`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
 10. 地图中心和缩放级别属于 UI 偏好，写入 `localStorage.gnn.prefs.v1` 的 `mapCenter/mapZoom`，恢复视角时不要再强制初始 `fitBounds` 覆盖用户视角。
 11. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
 
@@ -189,11 +191,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 149
+# 预期：已通过! - 失败: 0，通过: 164
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 20 passed, Tests 109 passed
+# 预期：Test Files 20 passed, Tests 115 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

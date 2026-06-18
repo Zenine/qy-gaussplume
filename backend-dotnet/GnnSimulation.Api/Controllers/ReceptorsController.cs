@@ -17,7 +17,7 @@ public class ReceptorsController : ControllerBase
     public ReceptorsController(GnnDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IReadOnlyList<ReceptorDto>> List(
+    public async Task<ActionResult<IReadOnlyList<ReceptorDto>>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
         [FromQuery] string? regionKey = null,
@@ -25,12 +25,14 @@ public class ReceptorsController : ControllerBase
     {
         var q = _db.Receptors.AsNoTracking();
         var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
         if (region is not null)
         {
             q = q.Where(x => _db.RegionReceptors.Any(r => r.RegionId == region.Id && r.ReceptorId == x.Id));
         }
         var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
-        return items.Select(x => x.ToDto()).ToList();
+        return Ok(items.Select(x => x.ToDto()).ToList());
     }
 
     [HttpGet("{id:int}")]
@@ -46,10 +48,14 @@ public class ReceptorsController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entity = dto.ToEntity();
         _db.Receptors.Add(entity);
         await _db.SaveChangesAsync(ct);
-        await BindToRegionAsync(entity.Id, regionKey, ct);
+        await BindToRegionAsync(entity.Id, region, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
@@ -59,10 +65,14 @@ public class ReceptorsController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.Receptors.AddRange(entities);
         await _db.SaveChangesAsync(ct);
-        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, region, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -93,9 +103,8 @@ public class ReceptorsController : ControllerBase
         return new { message = "受体点已删除", id };
     }
 
-    private async Task BindToRegionAsync(int receptorId, string? regionKey, CancellationToken ct)
+    private async Task BindToRegionAsync(int receptorId, Region? region, CancellationToken ct)
     {
-        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
         if (region is null) return;
         _db.RegionReceptors.Add(new RegionReceptor { RegionId = region.Id, ReceptorId = receptorId });
         await _db.SaveChangesAsync(ct);
@@ -116,6 +125,11 @@ public class ReceptorsController : ControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(new { detail = "文件为空" });
 
+        var regionKey = Request.Query["regionKey"].FirstOrDefault();
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         await using var stream = file.OpenReadStream();
         var (items, errors) = ExcelService.ParseReceptors(stream);
 
@@ -123,8 +137,7 @@ public class ReceptorsController : ControllerBase
         {
             _db.Receptors.AddRange(items);
             await _db.SaveChangesAsync(ct);
-            var regionKey = Request.Query["regionKey"].FirstOrDefault();
-            foreach (var item in items) await BindToRegionAsync(item.Id, regionKey, ct);
+            foreach (var item in items) await BindToRegionAsync(item.Id, region, ct);
         }
 
         return new

@@ -17,7 +17,7 @@ public class MeteorologyController : ControllerBase
     public MeteorologyController(GnnDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IReadOnlyList<MeteorologyDto>> List(
+    public async Task<ActionResult<IReadOnlyList<MeteorologyDto>>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
         [FromQuery] string? regionKey = null,
@@ -25,12 +25,14 @@ public class MeteorologyController : ControllerBase
     {
         var q = _db.Meteorology.AsNoTracking();
         var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
         if (region is not null)
         {
             q = q.Where(x => _db.RegionMeteorologies.Any(r => r.RegionId == region.Id && r.MeteorologyId == x.Id));
         }
         var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
-        return items.Select(x => x.ToDto()).ToList();
+        return Ok(items.Select(x => x.ToDto()).ToList());
     }
 
     [HttpGet("{id:int}")]
@@ -46,10 +48,14 @@ public class MeteorologyController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entity = dto.ToEntity();
         _db.Meteorology.Add(entity);
         await _db.SaveChangesAsync(ct);
-        await BindToRegionAsync(entity.Id, regionKey, ct);
+        await BindToRegionAsync(entity.Id, region, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
@@ -59,10 +65,14 @@ public class MeteorologyController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.Meteorology.AddRange(entities);
         await _db.SaveChangesAsync(ct);
-        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, region, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -81,9 +91,8 @@ public class MeteorologyController : ControllerBase
         return entity.ToDto();
     }
 
-    private async Task BindToRegionAsync(int meteorologyId, string? regionKey, CancellationToken ct)
+    private async Task BindToRegionAsync(int meteorologyId, Region? region, CancellationToken ct)
     {
-        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
         if (region is null) return;
         _db.RegionMeteorologies.Add(new RegionMeteorology { RegionId = region.Id, MeteorologyId = meteorologyId });
         await _db.SaveChangesAsync(ct);

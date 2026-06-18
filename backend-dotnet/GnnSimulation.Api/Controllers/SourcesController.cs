@@ -17,7 +17,7 @@ public class SourcesController : ControllerBase
     public SourcesController(GnnDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IReadOnlyList<EmissionSourceDto>> List(
+    public async Task<ActionResult<IReadOnlyList<EmissionSourceDto>>> List(
         [FromQuery] int skip = 0,
         [FromQuery] int limit = 100,
         [FromQuery] string? regionKey = null,
@@ -25,12 +25,14 @@ public class SourcesController : ControllerBase
     {
         IQueryable<EmissionSource> q = _db.EmissionSources.AsNoTracking().Include(x => x.Pollutants);
         var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
         if (region is not null)
         {
             q = q.Where(x => _db.RegionEmissionSources.Any(r => r.RegionId == region.Id && r.SourceId == x.Id));
         }
         var items = await q.OrderBy(x => x.Id).Skip(skip).Take(limit).ToListAsync(ct);
-        return items.Select(x => x.ToDto()).ToList();
+        return Ok(items.Select(x => x.ToDto()).ToList());
     }
 
     [HttpGet("pollutant-types")]
@@ -61,10 +63,14 @@ public class SourcesController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entity = dto.ToEntity();
         _db.EmissionSources.Add(entity);
         await _db.SaveChangesAsync(ct);
-        await BindToRegionAsync(entity.Id, regionKey, ct);
+        await BindToRegionAsync(entity.Id, region, ct);
         return CreatedAtAction(nameof(Get), new { id = entity.Id }, entity.ToDto());
     }
 
@@ -74,10 +80,14 @@ public class SourcesController : ControllerBase
         [FromQuery] string? regionKey = null,
         CancellationToken ct = default)
     {
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         var entities = items.Select(x => x.ToEntity()).ToList();
         _db.EmissionSources.AddRange(entities);
         await _db.SaveChangesAsync(ct);
-        foreach (var entity in entities) await BindToRegionAsync(entity.Id, regionKey, ct);
+        foreach (var entity in entities) await BindToRegionAsync(entity.Id, region, ct);
         return Ok(entities.Select(x => x.ToDto()).ToList());
     }
 
@@ -166,9 +176,8 @@ public class SourcesController : ControllerBase
         return new { message = "污染物排放记录已删除", id = pollutantId };
     }
 
-    private async Task BindToRegionAsync(int sourceId, string? regionKey, CancellationToken ct)
+    private async Task BindToRegionAsync(int sourceId, Region? region, CancellationToken ct)
     {
-        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
         if (region is null) return;
         _db.RegionEmissionSources.Add(new RegionEmissionSource { RegionId = region.Id, SourceId = sourceId });
         await _db.SaveChangesAsync(ct);
@@ -193,6 +202,11 @@ public class SourcesController : ControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(new { detail = "文件为空" });
 
+        var regionKey = Request.Query["regionKey"].FirstOrDefault();
+        var region = await RegionCatalog.FindAsync(_db, regionKey, ct);
+        if (RegionCatalog.IsInvalidRequestedRegion(regionKey, region))
+            return BadRequest(new { detail = "无效的区域" });
+
         await using var stream = file.OpenReadStream();
         var (items, errors) = ExcelService.ParseSources(stream, sourceType);
 
@@ -200,8 +214,7 @@ public class SourcesController : ControllerBase
         {
             _db.EmissionSources.AddRange(items);
             await _db.SaveChangesAsync(ct);
-            var regionKey = Request.Query["regionKey"].FirstOrDefault();
-            foreach (var item in items) await BindToRegionAsync(item.Id, regionKey, ct);
+            foreach (var item in items) await BindToRegionAsync(item.Id, region, ct);
         }
 
         return new
