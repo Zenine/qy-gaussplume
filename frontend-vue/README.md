@@ -9,7 +9,7 @@
 | 版本 | **3.0.9** |
 | 更新日期 | **2026-06-17** |
 | 主要范围 | 风向指针圆心坐标、排放源/气象场批量删除、多污染因子独立计算、公式说明展示、多风向聚合一致性 |
-| 验证结果 | Vitest 109 个用例，`npm run build` 通过 |
+| 验证结果 | Vitest 115 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
@@ -53,7 +53,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 109 用例 |
+| `npm test` | Vitest 一次跑完全部 115 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -158,7 +158,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 20 文件 · 109 用例
+npm test          # 20 文件 · 115 用例
 npm run build     # 含 TS 类型检查
 ```
 
@@ -179,7 +179,7 @@ Vitest 用 jsdom，对 `<canvas>` 2D context 在 `tests/heatmap.spec.ts` 中做�
 | 状态管理 | 直接操作 DOM + localStorage | Pinia + 自动同步 |
 | 热力图 | 内联大块 JS | 拆分 composable，可测 |
 | 类型安全 | 无 | TypeScript 全覆盖 |
-| 测试 | 几乎无 | 109 单测 + 组件测试 |
+| 测试 | 几乎无 | 115 单测 + 组件测试 |
 
 ## 常见问题
 
