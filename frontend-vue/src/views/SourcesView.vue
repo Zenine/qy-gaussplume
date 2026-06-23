@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
-import { Check, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
+import { Check, Close, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { sourcesApi } from '@/api'
 import { useRegionStore } from '@/stores/region'
 import type {
@@ -30,7 +30,8 @@ const regionStore = useRegionStore()
 const items = ref<EmissionSource[]>([])
 const loading = ref(false)
 const pollutantTypes = ref<PollutantTypeInfo[]>([])
-const filterType = ref<SourceType | ''>('')
+const draftFilterType = ref<SourceType | ''>('')
+const appliedFilterType = ref<SourceType | ''>('')
 const selected = ref<EmissionSource[]>([])
 const tableRef = ref<{ clearSelection: () => void }>()
 
@@ -278,6 +279,27 @@ async function enableAll() {
   await refresh()
 }
 
+async function disableAll() {
+  const targets = items.value.filter((row) => row.isActive)
+  if (targets.length === 0) {
+    ElMessage.success('排放源已全部停用')
+    return
+  }
+  const results = await Promise.allSettled(targets.map((row) => sourcesApi.update(row.id, { isActive: false })))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.error(`全部停用完成，${failed} 个排放源停用失败`)
+  } else {
+    ElMessage.success('排放源已全部停用')
+  }
+  await refresh()
+}
+
+function applyTypeFilter() {
+  appliedFilterType.value = draftFilterType.value
+  clearSelectedRows()
+}
+
 async function downloadTemplate() {
   try {
     const blob = await sourcesApi.downloadTemplate(importType.value)
@@ -299,8 +321,8 @@ async function importFile(file: UploadRawFile) {
 }
 
 function filteredItems() {
-  if (!filterType.value) return items.value
-  return items.value.filter((x) => x.sourceType === filterType.value)
+  if (!appliedFilterType.value) return items.value
+  return items.value.filter((x) => x.sourceType === appliedFilterType.value)
 }
 
 onMounted(() => {
@@ -308,7 +330,6 @@ onMounted(() => {
   loadMetadata()
 })
 
-watch(filterType, clearSelectedRows)
 watch(() => regionStore.currentRegionKey, () => { void refresh() })
 </script>
 
@@ -337,6 +358,7 @@ watch(() => regionStore.currentRegionKey, () => { void refresh() })
         <el-button :icon="Upload">批量导入</el-button>
       </el-upload>
       <el-button type="success" :icon="Check" @click="enableAll">全部启用</el-button>
+      <el-button type="warning" :icon="Close" @click="disableAll">全部停用</el-button>
       <el-button
         type="danger"
         :icon="Delete"
@@ -347,7 +369,12 @@ watch(() => regionStore.currentRegionKey, () => { void refresh() })
       </el-button>
       <span class="spacer" />
       <span>过滤：</span>
-      <el-select v-model="filterType" style="width: 140px" clearable>
+      <el-select
+        v-model="draftFilterType"
+        data-test="source-type-filter"
+        style="width: 140px"
+      >
+        <el-option value="" label="全部类型" />
         <el-option
           v-for="t in SOURCE_TYPES"
           :key="t.value"
@@ -355,6 +382,7 @@ watch(() => regionStore.currentRegionKey, () => { void refresh() })
           :label="t.label"
         />
       </el-select>
+      <el-button data-test="apply-source-type-filter" @click="applyTypeFilter">确定</el-button>
       <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 

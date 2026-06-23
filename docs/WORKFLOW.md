@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（164 用例，~30s）
+# 后端（171 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（115 用例）
+# 前端（119 用例）
 cd frontend-vue
 npm test
 
@@ -45,13 +45,14 @@ npm run test:watch
 1. 主控台风速、风向输入框用于本次单风向模拟的临时参数，不写回气象场管理记录。
 2. 前端运行模拟时必须随请求提交 `windSpeed` / `windDirection`；后端缺省时才回退到 `meteorologyId` 对应气象场保存值。
 3. 模拟完成后，如果用户修改气象场、风速或来风方向，当前结果只是过期展示，不能静默当作新结果；页面应提示“当前结果未更新，请点击运行模拟”。
-4. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
+4. 主控台顶部状态栏可承载原地图顶部工具条（区域、底图、边界、气象场、模拟模式、污染物、运行/清除/公式说明）；左下角模拟范围、网格分辨率和模拟高度面板保持原位。
+5. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `backend-dotnet/GnnSimulation.Tests/Api/SimulationControllerTests.cs`。
 
 ### 改数据管理页
 
 1. 排放源和受体点管理页的 Excel 导入入口统一使用“批量导入”文案。
 2. 等效面源污染物只有一个用户可见数值：前端读写 `concentration`，提交时保持 `emissionRate=0`。
-3. 排放源、受体点、气象场表格支持勾选；批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。刷新或筛选变化后应显式清空选中状态，关闭确认框不应显示失败提示。
+3. 排放源、受体点、气象场表格支持勾选；批量删除这类多请求操作要处理部分失败：等待所有请求完成，提示失败数量，并刷新列表避免界面残留旧数据。刷新或筛选确认后应显式清空选中状态，关闭确认框不应显示失败提示。排放源类型筛选必须提供“全部类型”和“确定”，选择后点击确定才改变列表。排放源和受体点都应提供“全部启用/全部停用”以批量控制参与计算的数据。
 4. 主控台固定 4 个业务区域：`nanhu` 南湖区、`xiuzhou` 秀洲区、`jiashan` 嘉善县、`tongxiang` 桐乡市。排放源、受体点、气象场通过区域关联表隔离，不在业务表中直接加区域字段。
 5. 列表、创建、批量创建和导入接口传入非法 `regionKey` 时必须返回 400，不能退化成全量列表；历史无区域归属数据默认回填到 `nanhu`，避免升级后页面看不到原有数据。
 6. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`、`backend-dotnet/GnnSimulation.Tests/Api/{SourcesControllerTests,ReceptorsControllerTests,MeteorologyControllerTests,RegionCatalogTests}.cs`。
@@ -107,7 +108,7 @@ npm run test:watch
 3. 地图热力图用于展示从污染源出发的扩散浓度场；默认“羽流突出”模式过滤近零低值并使用分段色阶，避免整张模拟网格被低浓度底色铺满；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。两种模式都只影响展示，不改变计算结果。
 4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
 5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
-6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它仍作为请求参数和结果过期判断口径，但浓度场实际边界由参与排放源和空气站点外包框有限外扩得到，原则是覆盖受体点周边少量面积，不把羽流图层无限铺满到无关区域。
+6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它同时作为请求参数、结果过期判断口径和浓度场最小边长，浓度场中心由参与排放源外包框决定，不应被远处受体点拉偏。
 7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
 8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
 9. 小于 10 MB 的模拟结果可以按区域保存到 `localStorage.gnn.simulationResult.v1.<regionKey>`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
@@ -191,11 +192,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 164
+# 预期：已通过! - 失败: 0，通过: 171
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 20 passed, Tests 115 passed
+# 预期：Test Files 20 passed, Tests 119 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

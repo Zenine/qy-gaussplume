@@ -43,6 +43,9 @@ public class ParallelSimulationTests : IDisposable
             Latitude = lat, Longitude = lon, Height = 1.5,
         })).ReadJsonAsync<ReceptorDto>();
 
+    private static double AxisCenter(IReadOnlyCollection<double> values) =>
+        (values.Min() + values.Max()) / 2;
+
     [Fact]
     public async Task 空风向列表_返回400()
     {
@@ -119,6 +122,32 @@ public class ParallelSimulationTests : IDisposable
         result.Concentrations.Should().NotBeNull();
         result.Results.Should().BeNull(); // 聚合模式下不返回明细
         result.AvailablePollutants.Should().Contain("PM2.5");
+    }
+
+    [Fact]
+    public async Task 聚合模式_网格中心与单风向一样使用参与源外包框中心()
+    {
+        var met = await CreateMet();
+        await CreatePoint(lat: 39.9, lon: 116.4);
+        await CreatePoint(lat: 39.94, lon: 116.5);
+        await CreateReceptor(39.7, 116.8);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 3.0,
+            WindDirections = new List<double> { 0, 90, 180, 270 },
+            GridResolution = 100,
+            DomainSize = 20_000,
+            ReturnAggregatedOnly = true,
+        });
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await resp.ReadJsonAsync<ParallelSimulationResultDto>();
+        result.GridLat.Should().NotBeNull();
+        result.GridLon.Should().NotBeNull();
+        AxisCenter(result.GridLat!).Should().BeApproximately((39.9 + 39.94) / 2, 1e-9);
+        AxisCenter(result.GridLon!).Should().BeApproximately((116.4 + 116.5) / 2, 1e-9);
     }
 
     [Fact]

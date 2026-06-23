@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
-import { Check, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
+import { Check, Close, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { receptorsApi } from '@/api'
 import { useRegionStore } from '@/stores/region'
 import type { Receptor, ReceptorCreate } from '@/types'
@@ -157,6 +157,22 @@ async function enableAll() {
   await refresh()
 }
 
+async function disableAll() {
+  const targets = items.value.filter((row) => row.isActive)
+  if (targets.length === 0) {
+    ElMessage.success('受体点已全部停用')
+    return
+  }
+  const results = await Promise.allSettled(targets.map((row) => receptorsApi.update(row.id, { isActive: false })))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    ElMessage.error(`全部停用完成，${failed} 个受体点停用失败`)
+  } else {
+    ElMessage.success('受体点已全部停用')
+  }
+  await refresh()
+}
+
 async function downloadTemplate() {
   try {
     const blob = await receptorsApi.downloadTemplate()
@@ -212,6 +228,7 @@ watch(() => regionStore.currentRegionKey, () => { void refresh() })
         导出已选 ({{ selected.length }})
       </el-button>
       <el-button type="success" :icon="Check" @click="enableAll">全部启用</el-button>
+      <el-button type="warning" :icon="Close" @click="disableAll">全部停用</el-button>
       <el-button
         type="danger"
         :icon="Delete"

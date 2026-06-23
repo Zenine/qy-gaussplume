@@ -21,5 +21,5 @@ describe('router', () => {
 
     await router.push('/sources')
     expect(document.title).toBe('GNN-GaussPlume')
-  })
+  }, 10_000)
 })

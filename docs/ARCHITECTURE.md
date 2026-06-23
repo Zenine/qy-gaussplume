@@ -77,7 +77,7 @@ SimulationService.RunAsync
    ├─► 加载 Meteorology (by id)
    ├─► 加载 EmissionSource 列表（null=激活数据，[]=空集合，ids=指定集合）+ Include(Pollutants)
    ├─► 加载 Receptor 列表（null=激活数据，[]=空集合，ids=指定集合）
-   ├─► GridBuilder.Build → 源/受体外包框 + 有限余量构建网格 (单轴 clamp 50-500 点)
+   ├─► GridBuilder.Build → 参与排放源外包框中心 + domainSize 最小范围构建网格 (单轴 clamp 50-500 点)
    │
    ├─► 遍历每个源：
    │     ComputeEmissionRates (合并污染物速率；等效面源: 浓度→等效速率)
@@ -128,7 +128,7 @@ ParallelSimulationService.RunAsync
 |---|---|---|
 | 并发模型 | `ProcessPoolExecutor` (进程) | `Parallel.ForEach` (线程) |
 | 数据传递 | pickle 序列化 | 零拷贝共享 |
-| 网格边界 | 多按 `domain_size` 铺满 | 源/受体外包框 + 有限余量，不强制铺满 |
+| 网格边界 | 多按 `domain_size` 铺满 | 参与排放源外包框中心 + `domainSize` 最小模拟范围 |
 | 每污染物场 | `source_conc × p_rate/total` | 每种污染物独立计算，使用各自沉降、湿清除和化学衰减参数 |
 
 ## 前端分层
@@ -172,8 +172,9 @@ src/
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
 | **P16** | 公式说明接口 + 主控台公式抽屉 | 149 | 109 |
 | **P17** | 固定区域隔离、启用状态、地图视角与演示数据清理 | 164 | 115 |
+| **P18** | 启用点位展示、污染源中心化范围、管理页批量停用与主控台工具栏整理 | 171 | 119 |
 
-**当前**：279 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：290 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 

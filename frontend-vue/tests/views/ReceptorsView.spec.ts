@@ -32,7 +32,23 @@ const sampleReceptors: Receptor[] = [
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
+  {
+    id: 3,
+    name: '社区',
+    latitude: 39.92,
+    longitude: 116.42,
+    height: 1.8,
+    markerSymbol: 'monitor',
+    markerColor: '#FF9800',
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
 ]
+
+function cloneSampleReceptors() {
+  return JSON.parse(JSON.stringify(sampleReceptors)) as Receptor[]
+}
 
 function mountView() {
   return mount(ReceptorsView, {
@@ -44,7 +60,7 @@ function mountView() {
 beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
-  vi.spyOn(receptorsApi, 'list').mockResolvedValue(sampleReceptors)
+  vi.spyOn(receptorsApi, 'list').mockImplementation(async () => cloneSampleReceptors())
 })
 
 afterEach(() => {
@@ -123,6 +139,21 @@ describe('ReceptorsView', () => {
     expect(receptorsApi.update).toHaveBeenCalledWith(2, { isActive: true })
   })
 
+  it('提供全部停用并批量停用当前启用受体点', async () => {
+    vi.spyOn(receptorsApi, 'update').mockResolvedValue(sampleReceptors[0])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const disableAllBtn = wrapper.findAll('button').find((b) => b.text().includes('全部停用'))
+    await disableAllBtn!.trigger('click')
+    await flushPromises()
+
+    expect(receptorsApi.update).toHaveBeenCalledTimes(2)
+    expect(receptorsApi.update).toHaveBeenCalledWith(1, { isActive: false })
+    expect(receptorsApi.update).toHaveBeenCalledWith(3, { isActive: false })
+    expect(receptorsApi.update).not.toHaveBeenCalledWith(2, { isActive: false })
+  })
+
   it('批量删除部分失败后仍刷新列表', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -131,6 +162,7 @@ describe('ReceptorsView', () => {
     vi.spyOn(receptorsApi, 'delete')
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('删除失败'))
+      .mockResolvedValueOnce(undefined)
 
     wrapper.findComponent({ name: 'ElTable' }).vm.$emit('selection-change', sampleReceptors)
     await flushPromises()
@@ -139,7 +171,7 @@ describe('ReceptorsView', () => {
     await deleteBtn!.trigger('click')
     await flushPromises()
 
-    expect(receptorsApi.delete).toHaveBeenCalledTimes(2)
+    expect(receptorsApi.delete).toHaveBeenCalledTimes(3)
     expect(receptorsApi.list).toHaveBeenCalledTimes(1)
   })
 })

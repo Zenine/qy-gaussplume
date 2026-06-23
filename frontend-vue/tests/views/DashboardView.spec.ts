@@ -316,6 +316,19 @@ describe('DashboardView', () => {
     )
   })
 
+
+  it('多风向模式展开后为右侧工作栏启用避让布局', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="dashboard-map"]').classes()).not.toContain('parallel-toolbar-expanded')
+
+    await wrapper.findComponent('[data-test="simulation-mode-select"]').vm.$emit('update:modelValue', 'parallel')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-test="dashboard-map"]').classes()).toContain('parallel-toolbar-expanded')
+  })
+
   it('主界面多风向模式直接运行全局模拟', async () => {
     const wrapper = mountView()
     await flushPromises()

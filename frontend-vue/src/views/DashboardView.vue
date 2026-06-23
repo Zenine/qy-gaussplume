@@ -77,6 +77,7 @@ const showFormula = ref(false)
 const showParallel = ref(false)
 const selectionEnabled = ref(false)
 const selectionBounds = ref<SelectionBounds | null>(null)
+const headerActionsReady = ref(false)
 const selectedRankingReceptor = ref('')
 const selectedRankingPollutant = ref('')
 const calculationPollutant = ref('')
@@ -222,16 +223,19 @@ const parallelWindDirections = computed(() =>
 )
 
 // ---------- 选择区域与派生状态 ----------
+const activeSources = computed(() => sources.value.filter((s) => s.isActive))
+const activeReceptors = computed(() => receptors.value.filter((r) => r.isActive))
+
 function toGcjPoint(entity: { latitude: number; longitude: number }) {
   const [latitude, longitude] = wgs84ToGcj02(entity.latitude, entity.longitude)
   return { latitude, longitude }
 }
 
 const effectiveSources = computed(() =>
-  filterEntitiesByBounds(sources.value, selectionBounds.value, toGcjPoint),
+  filterEntitiesByBounds(activeSources.value, selectionBounds.value, toGcjPoint),
 )
 const effectiveReceptors = computed(() =>
-  filterEntitiesByBounds(receptors.value, selectionBounds.value, toGcjPoint),
+  filterEntitiesByBounds(activeReceptors.value, selectionBounds.value, toGcjPoint),
 )
 
 const domainSizeKm = computed({
@@ -243,7 +247,7 @@ const domainSizeKm = computed({
 
 const sourcePollutants = computed(() => {
   const values = new Set<string>()
-  for (const s of sources.value) {
+  for (const s of activeSources.value) {
     for (const p of s.pollutants ?? []) values.add(p.pollutantType)
   }
   return [...values]
@@ -637,17 +641,18 @@ function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimu
 }
 
 onMounted(() => {
+  headerActionsReady.value = Boolean(document.getElementById('dashboard-header-actions'))
   restoreSimulationResult()
   void loadAll()
 })
 </script>
 
 <template>
-  <div class="dashboard-map">
+  <div class="dashboard-map" :class="{ 'parallel-toolbar-expanded': simulationMode === 'parallel' }" data-test="dashboard-map">
     <MapPanel
       ref="mapRef"
-      :sources="sources"
-      :receptors="receptors"
+      :sources="activeSources"
+      :receptors="activeReceptors"
       :result="displayedResult"
       :scale="scale"
       :opacity="opacity"
@@ -664,7 +669,95 @@ onMounted(() => {
       @view-change="onMapViewChange"
     />
 
-    <div class="floating-toolbar" data-test="floating-toolbar">
+    <Teleport v-if="headerActionsReady" to="#dashboard-header-actions">
+      <div class="dashboard-top-toolbar" data-test="floating-toolbar">
+      <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
+        <el-radio-button v-for="r in regionStore.regions" :key="r.key" :value="r.key">{{ r.name }}</el-radio-button>
+      </el-radio-group>
+      <el-select v-model="tileLayer" size="small" class="toolbar-select">
+        <el-option value="street" label="高德街道" />
+        <el-option value="satellite" label="高德卫星" />
+        <el-option value="hybrid" label="高德混合" />
+      </el-select>
+      <el-switch
+        v-model="boundaryEnabled"
+        data-test="boundary-layer-switch"
+        size="small"
+        active-text="行政边界"
+        :loading="boundaryLoading"
+      />
+      <el-select v-model="selectedMeteorologyId" size="small" class="toolbar-wind">
+        <el-option
+          v-for="m in meteorologies"
+          :key="m.id"
+          :value="m.id"
+          :label="`${m.name} - 风速:${m.windSpeed} 风向:${m.windDirection}°`"
+        />
+      </el-select>
+      <el-radio-group
+        v-model="simulationMode"
+        data-test="simulation-mode-select"
+        size="small"
+        class="toolbar-mode"
+      >
+        <el-radio-button value="single">单风向</el-radio-button>
+        <el-radio-button value="parallel">多风向</el-radio-button>
+      </el-radio-group>
+      <template v-if="simulationMode === 'parallel'">
+        <span class="parallel-note" data-test="parallel-mode-note">
+          多风向表示按多个来风方向等权聚合，不是污染源方向。
+        </span>
+        <el-select
+          v-model="parallelDirectionCount"
+          data-test="parallel-direction-count"
+          size="small"
+          class="toolbar-compact"
+        >
+          <el-option v-for="n in [8, 16, 32, 64, 72]" :key="n" :value="n" :label="`${n} 风向`" />
+        </el-select>
+        <el-input-number
+          v-model="parallelWindSpeed"
+          data-test="parallel-wind-speed"
+          size="small"
+          class="toolbar-speed"
+          :min="0.1"
+          :max="20"
+          :step="0.1"
+          controls-position="right"
+        />
+      </template>
+      <el-select
+        v-model="calculationPollutant"
+        size="small"
+        clearable
+        placeholder="计算全部污染物"
+        class="toolbar-select"
+        data-test="calculation-pollutant-select"
+      >
+        <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
+      </el-select>
+      <el-button
+        data-test="run-simulation"
+        type="primary"
+        size="small"
+        :icon="VideoPlay"
+        :loading="running"
+        :disabled="running || !selectedMeteorologyId"
+        :class="{ 'run-attention': resultParametersOutdated }"
+        @click="runCurrentSimulation"
+      >
+        {{ simulationMode === 'parallel' ? '运行全局模拟' : '运行模拟' }}
+      </el-button>
+      <el-button data-test="clear-result" size="small" :icon="Delete" @click="clearResult">
+        清除结果
+      </el-button>
+      <el-button data-test="formula-info" size="small" :icon="Document" @click="showFormula = true">
+        公式说明
+      </el-button>
+      </div>
+    </Teleport>
+
+    <div v-else class="floating-toolbar" data-test="floating-toolbar">
       <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
         <el-radio-button v-for="r in regionStore.regions" :key="r.key" :value="r.key">{{ r.name }}</el-radio-button>
       </el-radio-group>
@@ -1071,7 +1164,7 @@ onMounted(() => {
   position: absolute;
   top: 14px;
   left: 76px;
-  right: 14px;
+  right: 328px;
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -1083,6 +1176,16 @@ onMounted(() => {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 28px rgba(15, 46, 60, 0.14);
+}
+
+.dashboard-top-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .toolbar-region {
@@ -1155,6 +1258,10 @@ onMounted(() => {
   gap: 10px;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+.parallel-toolbar-expanded .right-stack {
+  top: 128px;
 }
 
 .right-stack .floating-card {
@@ -1484,12 +1591,16 @@ onMounted(() => {
   .floating-toolbar {
     left: 14px;
     top: 76px;
-    justify-content: flex-start;
   }
+
 
   .right-stack {
     top: 220px;
     width: min(300px, calc(100% - 28px));
   }
+  .parallel-toolbar-expanded .right-stack {
+    top: 300px;
+  }
+
 }
 </style>

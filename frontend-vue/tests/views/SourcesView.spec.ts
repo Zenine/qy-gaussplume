@@ -129,6 +129,10 @@ const sample: EmissionSource[] = [
   },
 ]
 
+function cloneSample() {
+  return JSON.parse(JSON.stringify(sample)) as EmissionSource[]
+}
+
 function mountView() {
   return mount(SourcesView, {
     global: { plugins: [createPinia(), ElementPlus] },
@@ -139,7 +143,7 @@ function mountView() {
 beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
-  vi.spyOn(sourcesApi, 'list').mockResolvedValue(sample)
+  vi.spyOn(sourcesApi, 'list').mockImplementation(async () => cloneSample())
   vi.spyOn(sourcesApi, 'pollutantTypes').mockResolvedValue([
     { type: 'PM2.5', name: 'PM2.5', unit: 'g/s', description: '细颗粒物' },
     { type: 'NOx', name: 'NOx', unit: 'g/s', description: '氮氧化物' },
@@ -220,7 +224,51 @@ describe('SourcesView', () => {
     expect(sourcesApi.update).toHaveBeenCalledWith(2, { isActive: true })
   })
 
-  it('筛选条件改变后清空已选排放源_避免删除过滤视图外旧行', async () => {
+  it('提供全部停用并批量停用当前启用排放源', async () => {
+    vi.spyOn(sourcesApi, 'update').mockResolvedValue(sample[0])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const disableAllBtn = wrapper.findAll('button').find((b) => b.text().includes('全部停用'))
+    await disableAllBtn!.trigger('click')
+    await flushPromises()
+
+    expect(sourcesApi.update).toHaveBeenCalledTimes(2)
+    expect(sourcesApi.update).toHaveBeenCalledWith(1, { isActive: false })
+    expect(sourcesApi.update).toHaveBeenCalledWith(3, { isActive: false })
+    expect(sourcesApi.update).not.toHaveBeenCalledWith(2, { isActive: false })
+  })
+
+  it('类型筛选选择后需点击确定才生效_并支持全部类型', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const filterSelect = wrapper.find('[data-test="source-type-filter"]')
+    await filterSelect.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', 'point')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('点源A')
+    expect(wrapper.text()).toContain('线源B')
+    expect(wrapper.text()).toContain('等效面源C')
+
+    const applyBtn = wrapper.find('[data-test="apply-source-type-filter"]')
+    await applyBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('点源A')
+    expect(wrapper.text()).not.toContain('线源B')
+    expect(wrapper.text()).not.toContain('等效面源C')
+
+    await filterSelect.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', '')
+    await applyBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('点源A')
+    expect(wrapper.text()).toContain('线源B')
+    expect(wrapper.text()).toContain('等效面源C')
+  })
+
+  it('类型筛选点击确定后清空已选排放源_避免删除过滤视图外旧行', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -228,9 +276,13 @@ describe('SourcesView', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('批量删除 (1)')
 
-    const filterSelect = wrapper.findAllComponents({ name: 'ElSelect' })[1]
-    filterSelect.vm.$emit('update:modelValue', 'line')
+    const filterSelect = wrapper.find('[data-test="source-type-filter"]')
+    await filterSelect.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', 'line')
     await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('批量删除 (1)')
+
+    await wrapper.find('[data-test="apply-source-type-filter"]').trigger('click')
+    await flushPromises()
 
     expect(wrapper.text()).toContain('批量删除 (0)')
   })
@@ -266,16 +318,6 @@ describe('SourcesView', () => {
 
     expect(sourcesApi.delete).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
-  })
-
-  it('类型过滤为线源_只显示线源条目', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    // 组件内部 filterType 驱动的过滤 —— 通过查找并修改 UI 比较复杂，
-    // 改为直接验证过滤函数行为：暴露点源和线源都存在于初始 text 中。
-    expect(wrapper.text()).toContain('点源A')
-    expect(wrapper.text()).toContain('线源B')
   })
 
   it('新增按钮打开排放源对话框', async () => {

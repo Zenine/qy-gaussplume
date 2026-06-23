@@ -33,8 +33,8 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
       <div class="brand" :class="{ collapsed: app.sidebarCollapsed }">
         <div class="brand-mark">GNN</div>
         <div v-if="!app.sidebarCollapsed" class="brand-copy">
-          <strong>GNN-GaussPlume</strong>
-          <span>GNN 扩散模拟</span>
+          <strong>长三院源贡献计算模拟平台</strong>
+          <span>源贡献计算模拟</span>
         </div>
       </div>
       <el-menu
@@ -68,9 +68,10 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
           <el-icon><component :is="sidebarToggleIcon" /></el-icon>
         </el-button>
         <div class="page-heading">
-          <span class="workspace-kicker">GNN 扩散模拟平台</span>
+          <span class="workspace-kicker">长三院源贡献计算模拟平台</span>
           <span class="title">{{ routeTitle }}</span>
         </div>
+        <div id="dashboard-header-actions" class="header-actions" />
         <span class="spacer" />
         <div class="header-badge">
           <span class="status-dot" />
@@ -182,7 +183,7 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 64px;
+  min-height: 72px;
   border-bottom: 1px solid #dfe7ee;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
@@ -192,8 +193,17 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
 }
 .page-heading {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 2px;
+}
+.header-actions {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.header-actions:empty {
+  display: none;
 }
 .workspace-kicker {
   color: #64748b;
