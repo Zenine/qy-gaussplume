@@ -135,8 +135,12 @@ function mountView() {
   })
 }
 
+function cloneSample() {
+  return JSON.parse(JSON.stringify(sample)) as EmissionSource[]
+}
+
 beforeEach(() => {
-  vi.spyOn(sourcesApi, 'list').mockResolvedValue(sample)
+  vi.spyOn(sourcesApi, 'list').mockImplementation(async () => cloneSample())
   vi.spyOn(sourcesApi, 'pollutantTypes').mockResolvedValue([
     { type: 'PM2.5', name: 'PM2.5', unit: 'g/s', description: '细颗粒物' },
     { type: 'NOx', name: 'NOx', unit: 'g/s', description: '氮氧化物' },
@@ -199,7 +203,7 @@ describe('SourcesView', () => {
     expect(sourcesApi.list).toHaveBeenCalledTimes(1)
   })
 
-  it('筛选条件改变后清空已选排放源_避免删除过滤视图外旧行', async () => {
+  it('应用筛选条件后清空已选排放源_避免删除过滤视图外旧行', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -207,11 +211,16 @@ describe('SourcesView', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('批量删除 (1)')
 
-    const filterSelect = wrapper.findAllComponents({ name: 'ElSelect' })[1]
+    const filterSelect = wrapper.findComponent('[data-test="source-type-filter"]')
     filterSelect.vm.$emit('update:modelValue', 'line')
     await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('批量删除 (1)')
 
+    await wrapper.find('[data-test="apply-source-type-filter"]').trigger('click')
+    await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('批量删除 (0)')
+    expect(wrapper.text()).not.toContain('点源A')
+    expect(wrapper.text()).toContain('线源B')
   })
 
   it('刷新排放源列表后清空已选排放源_避免批量删除旧行', async () => {
@@ -247,14 +256,33 @@ describe('SourcesView', () => {
     expect(error).not.toHaveBeenCalled()
   })
 
-  it('类型过滤为线源_只显示线源条目', async () => {
+  it('点击全部停用会把启用排放源更新为停用并刷新', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
+    vi.spyOn(sourcesApi, 'update').mockResolvedValue(sample[0])
     const wrapper = mountView()
     await flushPromises()
 
-    // 组件内部 filterType 驱动的过滤 —— 通过查找并修改 UI 比较复杂，
-    // 改为直接验证过滤函数行为：暴露点源和线源都存在于初始 text 中。
-    expect(wrapper.text()).toContain('点源A')
-    expect(wrapper.text()).toContain('线源B')
+    const disableBtn = wrapper.findAll('button').find((b) => b.text().includes('全部停用'))
+    await disableBtn!.trigger('click')
+    await flushPromises()
+
+    expect(sourcesApi.update).toHaveBeenCalledTimes(3)
+    expect(sourcesApi.update).toHaveBeenNthCalledWith(
+      1,
+      1,
+      expect.objectContaining({ name: '点源A', isActive: false }),
+    )
+    expect(sourcesApi.update).toHaveBeenNthCalledWith(
+      2,
+      2,
+      expect.objectContaining({ name: '线源B', isActive: false }),
+    )
+    expect(sourcesApi.update).toHaveBeenNthCalledWith(
+      3,
+      3,
+      expect.objectContaining({ name: '等效面源C', isActive: false }),
+    )
+    expect(sourcesApi.list).toHaveBeenCalledTimes(2)
   })
 
   it('新增按钮打开排放源对话框', async () => {

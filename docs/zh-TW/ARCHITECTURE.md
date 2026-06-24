@@ -29,7 +29,7 @@ API 層處理 HTTP 和 DTO，服務層編排資料與演算法，Core 層承載�
 
 前端分離 API client、型別、Pinia store、路由 view、地圖 component、composable，以及色階、座標、選擇、下載和錯誤處理 utility。
 
-## 11 階段演進史
+## 17 階段演進史
 
 專案從 Python/FastAPI 逐步遷移到 ASP.NET Core 9 與 Vue 3，涵蓋後端、Core 演算法、前端、地圖、主控台和管理頁改善。
 

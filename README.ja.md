@@ -88,7 +88,7 @@ backend-dotnet (ASP.NET Core 9)
 
 ## Verification
 
-現在の検証スイートは、バックエンド xUnit 147 件、フロントエンド Vitest 83 件、型チェック付き本番ビルドで構成されています。
+現在の検証スイートは、バックエンド xUnit 155 件、フロントエンド Vitest 111 件、型チェック付き本番ビルドで構成されています。
 
 ```bash
 ./scripts/verify.sh

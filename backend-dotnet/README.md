@@ -34,7 +34,7 @@ backend-dotnet/
 │   ├── GnnDbContext.cs             # Fluent snake_case 映射 + 自动时间戳 + 级联删除
 │   ├── Migrations/                 # 初始 Migration（新库用）
 │   └── Design/DesignTimeDbContextFactory.cs
-└── GnnSimulation.Tests/            # xUnit 测试（149 用例）
+└── GnnSimulation.Tests/            # xUnit 测试（155 用例）
     ├── Core/                       # 算法单测 + 黄金值对齐
     ├── Data/                       # 实体 + DbContext
     ├── Api/                        # WebApplicationFactory 集成测试
@@ -54,7 +54,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 149 个测试
+dotnet test                                      # 跑全部 155 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -85,8 +85,8 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 28 |
 | **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 47 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 74 |
-| **合计** | | **149** |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 80 |
+| **合计** | | **155** |
 
 ## 黄金值对齐
 

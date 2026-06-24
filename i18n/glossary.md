@@ -49,6 +49,7 @@
 | 数据流：多风向并行 | Data Flow: Multi-Wind Parallel | データフロー：多風向並列 | 資料流：多風向並行 |
 | 前端分层 | Frontend Layers | フロントエンド分層 | 前端分層 |
 | 11 阶段演进史 | 11-Stage Evolution History | 11 段階の進化履歴 | 11 階段演進史 |
+| 17 阶段演进史 | 17-Stage Evolution History | 17 段階の進化履歴 | 17 階段演進史 |
 | 关键权衡 | Key Tradeoffs | 主要なトレードオフ | 關鍵權衡 |
 | 起停 | Start And Stop | 起動と停止 | 起停 |
 | 跑测试 | Run Tests | テスト実行 | 跑測試 |

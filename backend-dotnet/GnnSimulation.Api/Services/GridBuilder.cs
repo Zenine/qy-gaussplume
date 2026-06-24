@@ -10,9 +10,8 @@ internal static class GridBuilder
 
     public record Grid(double[] Lat, double[] Lon);
 
-    // 基于源/受体的外包框 + 有限余量构建网格。
-    // domain_size 保留为请求参数和结果过期判断口径，但不强制铺满；
-    // 点位很近时只多覆盖受体点周边一些面积，点位更远时优先覆盖全部点位。
+    // 基于参与排放源的空间足迹构建网格。
+    // 受体点只在没有源的兜底场景参与定位，避免远受体把污染云图拉离污染源中心。
     // 这里保留 50-500 的单轴网格点夹紧，避免极小分辨率导致响应过大。
     public static Grid Build(
         IReadOnlyList<EmissionSource> sources,
@@ -22,8 +21,21 @@ internal static class GridBuilder
     {
         var lats = new List<double>();
         var lons = new List<double>();
-        foreach (var s in sources) { lats.Add(s.Latitude); lons.Add(s.Longitude); }
-        foreach (var r in receptors) { lats.Add(r.Latitude); lons.Add(r.Longitude); }
+        if (sources.Count > 0)
+        {
+            foreach (var source in sources)
+            {
+                AddSourceFootprint(source, lats, lons);
+            }
+        }
+        else
+        {
+            foreach (var receptor in receptors)
+            {
+                lats.Add(receptor.Latitude);
+                lons.Add(receptor.Longitude);
+            }
+        }
         if (lats.Count == 0)
             throw new ArgumentException("没有有效的坐标数据");
 
@@ -31,24 +43,69 @@ internal static class GridBuilder
         var minLon = lons.Min(); var maxLon = lons.Max();
         var centerLat = (minLat + maxLat) / 2;
         var centerLon = (minLon + maxLon) / 2;
-        var lonMeter = MetersPerDegree * Math.Cos(centerLat * Math.PI / 180.0);
+        var lonMeter = LonMetersPerDegree(centerLat);
         var latSpanMeters = Math.Max(0, (maxLat - minLat) * MetersPerDegree);
         var lonSpanMeters = Math.Max(0, (maxLon - minLon) * lonMeter);
         var maxSpanMeters = Math.Max(latSpanMeters, lonSpanMeters);
         var paddingMeters = Math.Max(
             MinimumPaddingMeters,
             Math.Max(gridResolution * 5, maxSpanMeters * 0.2));
-        var desiredLatRangeMeters = Math.Max(MinimumRangeMeters, latSpanMeters + paddingMeters * 2);
-        var desiredLonRangeMeters = Math.Max(MinimumRangeMeters, lonSpanMeters + paddingMeters * 2);
-        var requiredLatRange = desiredLatRangeMeters / MetersPerDegree;
-        var requiredLonRange = desiredLonRangeMeters / lonMeter;
+        var requestedRangeMeters = double.IsFinite(domainSize) && domainSize > 0 ? domainSize : 0;
+        var desiredRangeMeters = Math.Max(
+            Math.Max(MinimumRangeMeters, requestedRangeMeters),
+            maxSpanMeters + paddingMeters * 2);
+        var requiredLatRange = desiredRangeMeters / MetersPerDegree;
+        var requiredLonRange = desiredRangeMeters / lonMeter;
 
-        var latPoints = Math.Clamp((int)(desiredLatRangeMeters / gridResolution) + 1, 50, 500);
-        var lonPoints = Math.Clamp((int)(desiredLonRangeMeters / gridResolution) + 1, 50, 500);
+        var points = Math.Clamp((int)(desiredRangeMeters / gridResolution) + 1, 50, 500);
 
         return new Grid(
-            Linspace(centerLat - requiredLatRange / 2, centerLat + requiredLatRange / 2, latPoints),
-            Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, lonPoints));
+            Linspace(centerLat - requiredLatRange / 2, centerLat + requiredLatRange / 2, points),
+            Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, points));
+    }
+
+    private static void AddSourceFootprint(EmissionSource source, List<double> lats, List<double> lons)
+    {
+        if ((source.SourceType == "area" || source.SourceType == "equivalent_area")
+            && Positive(source.AreaLength)
+            && Positive(source.AreaWidth))
+        {
+            var centerLat = source.Latitude;
+            var centerLon = source.Longitude;
+            var halfLat = source.AreaLength!.Value / 2 / MetersPerDegree;
+            var halfLon = source.AreaWidth!.Value / 2 / LonMetersPerDegree(centerLat);
+            lats.Add(centerLat - halfLat);
+            lats.Add(centerLat + halfLat);
+            lons.Add(centerLon - halfLon);
+            lons.Add(centerLon + halfLon);
+            return;
+        }
+
+        if (source.SourceType == "line"
+            && Number(source.StartLat)
+            && Number(source.StartLon)
+            && Number(source.EndLat)
+            && Number(source.EndLon))
+        {
+            lats.Add(source.StartLat!.Value);
+            lats.Add(source.EndLat!.Value);
+            lons.Add(source.StartLon!.Value);
+            lons.Add(source.EndLon!.Value);
+            return;
+        }
+
+        lats.Add(source.Latitude);
+        lons.Add(source.Longitude);
+    }
+
+    private static bool Positive(double? value) => value is > 0 && double.IsFinite(value.Value);
+
+    private static bool Number(double? value) => value is not null && double.IsFinite(value.Value);
+
+    private static double LonMetersPerDegree(double latitude)
+    {
+        var cosine = Math.Abs(Math.Cos(latitude * Math.PI / 180.0));
+        return MetersPerDegree * Math.Max(0.01, cosine);
     }
 
     // np.linspace 等价实现（包含两端点）。多风向并行和单风向网格都复用它，

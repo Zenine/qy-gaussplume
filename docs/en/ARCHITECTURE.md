@@ -29,7 +29,7 @@ The API layer handles HTTP and DTOs, services orchestrate data and algorithms, C
 
 The frontend separates API clients, shared types, Pinia stores, routed views, map components, composables, and pure utilities for color scales, coordinates, selection, download, and error handling.
 
-## 11-Stage Evolution History
+## 17-Stage Evolution History
 
 The project moved from Python/FastAPI to ASP.NET Core 9 and Vue 3 through staged backend, core algorithm, frontend, map, dashboard, and management-page improvements.
 

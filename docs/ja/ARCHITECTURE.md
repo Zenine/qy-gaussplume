@@ -29,7 +29,7 @@ API 層は HTTP と DTO、サービス層はデータとアルゴリズムの編
 
 フロントエンドは API クライアント、型、Pinia store、ルーティング view、地図 component、composable、色階・座標・選択・ダウンロード・エラー処理 utility に分かれています。
 
-## 11 段階の進化履歴
+## 17 段階の進化履歴
 
 プロジェクトは Python/FastAPI から ASP.NET Core 9 と Vue 3 へ、バックエンド、Core アルゴリズム、フロントエンド、地図、ダッシュボード、管理ページを段階的に移行しました。
 

@@ -201,11 +201,14 @@ function toGcjPoint(entity: { latitude: number; longitude: number }) {
   return { latitude, longitude }
 }
 
+const activeSources = computed(() => sources.value.filter((source) => source.isActive))
+const activeReceptors = computed(() => receptors.value.filter((receptor) => receptor.isActive))
+
 const effectiveSources = computed(() =>
-  filterEntitiesByBounds(sources.value, selectionBounds.value, toGcjPoint),
+  filterEntitiesByBounds(activeSources.value, selectionBounds.value, toGcjPoint),
 )
 const effectiveReceptors = computed(() =>
-  filterEntitiesByBounds(receptors.value, selectionBounds.value, toGcjPoint),
+  filterEntitiesByBounds(activeReceptors.value, selectionBounds.value, toGcjPoint),
 )
 
 const domainSizeKm = computed({
@@ -217,7 +220,7 @@ const domainSizeKm = computed({
 
 const sourcePollutants = computed(() => {
   const values = new Set<string>()
-  for (const s of sources.value) {
+  for (const s of activeSources.value) {
     for (const p of s.pollutants ?? []) values.add(p.pollutantType)
   }
   return [...values]
@@ -596,8 +599,8 @@ onMounted(() => {
   <div class="dashboard-map">
     <MapPanel
       ref="mapRef"
-      :sources="sources"
-      :receptors="receptors"
+      :sources="activeSources"
+      :receptors="activeReceptors"
       :result="displayedResult"
       :scale="scale"
       :opacity="opacity"

@@ -41,7 +41,9 @@ function mountView() {
 }
 
 beforeEach(() => {
-  vi.spyOn(receptorsApi, 'list').mockResolvedValue(sampleReceptors)
+  vi.spyOn(receptorsApi, 'list').mockImplementation(async () =>
+    JSON.parse(JSON.stringify(sampleReceptors)) as Receptor[],
+  )
 })
 
 afterEach(() => {
@@ -119,6 +121,25 @@ describe('ReceptorsView', () => {
     await flushPromises()
 
     expect(receptorsApi.delete).toHaveBeenCalledTimes(2)
+    expect(receptorsApi.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('点击全部停用只更新启用受体点并刷新', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    vi.mocked(receptorsApi.list).mockClear()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm')
+    vi.spyOn(receptorsApi, 'update').mockResolvedValue(sampleReceptors[0])
+
+    const disableBtn = wrapper.findAll('button').find((b) => b.text().includes('全部停用'))
+    await disableBtn!.trigger('click')
+    await flushPromises()
+
+    expect(receptorsApi.update).toHaveBeenCalledTimes(1)
+    expect(receptorsApi.update).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ name: '学校', isActive: false }),
+    )
     expect(receptorsApi.list).toHaveBeenCalledTimes(1)
   })
 })

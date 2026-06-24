@@ -41,7 +41,7 @@ const mapStub = {
   template: '<div class="map-panel-stub"><slot /></div>',
 }
 
-function source(id: number, latitude: number, longitude: number) {
+function source(id: number, latitude: number, longitude: number, isActive = true) {
   return {
     id,
     name: `源${id}`,
@@ -70,14 +70,14 @@ function source(id: number, latitude: number, longitude: number) {
     lineSegmentLength: null,
     markerSymbol: 'circle',
     markerColor: '#f00',
-    isActive: true,
+    isActive,
     pollutants: [],
     createdAt: '',
     updatedAt: '',
   }
 }
 
-function receptor(id: number, latitude: number, longitude: number) {
+function receptor(id: number, latitude: number, longitude: number, isActive = true) {
   return {
     id,
     name: `点${id}`,
@@ -86,7 +86,7 @@ function receptor(id: number, latitude: number, longitude: number) {
     height: 1.5,
     markerSymbol: 'square',
     markerColor: '#00f',
-    isActive: true,
+    isActive,
     createdAt: '',
     updatedAt: '',
   }
@@ -114,10 +114,12 @@ describe('DashboardView', () => {
     vi.mocked(sourcesApi.list).mockResolvedValue([
       source(1, 40.0, 116.4),
       source(2, 39.7, 116.4),
+      source(3, 40.0, 116.4, false),
     ])
     vi.mocked(receptorsApi.list).mockResolvedValue([
       receptor(11, 40.0, 116.4),
       receptor(12, 39.7, 116.4),
+      receptor(13, 40.0, 116.4, false),
     ])
     vi.mocked(meteorologyApi.list).mockResolvedValue([
       {
@@ -184,6 +186,31 @@ describe('DashboardView', () => {
     expect(simulationApi.run).toHaveBeenCalledWith(
       expect.objectContaining({
         meteorologyId: 7,
+        sourceIds: [1],
+        receptorIds: [11],
+      }),
+    )
+  }, 10_000)
+
+  it('选择区域和地图展示会排除停用点位', async () => {
+    const wrapper = await mountDashboard()
+    const bounds: SelectionBounds = {
+      north: 40.1,
+      south: 39.9,
+      east: 116.5,
+      west: 116.3,
+    }
+
+    const mapPanel = wrapper.findComponent(mapStub)
+    expect(mapPanel.props('sources').map((item: { id: number }) => item.id)).toEqual([1, 2])
+    expect(mapPanel.props('receptors').map((item: { id: number }) => item.id)).toEqual([11, 12])
+
+    await mapPanel.vm.$emit('selection-change', bounds)
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    expect(simulationApi.run).toHaveBeenCalledWith(
+      expect.objectContaining({
         sourceIds: [1],
         receptorIds: [11],
       }),

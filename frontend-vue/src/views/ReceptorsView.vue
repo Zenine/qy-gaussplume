@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type UploadRawFile } from 'element-plus'
-import { Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
+import { Close, Delete, Download, Edit, Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import { receptorsApi } from '@/api'
 import type { Receptor, ReceptorCreate } from '@/types'
 import { downloadBlob } from '@/utils/download'
@@ -125,6 +125,43 @@ async function removeSelected() {
   }
 }
 
+async function disableAll() {
+  const activeRows = items.value.filter((row) => row.isActive)
+  if (activeRows.length === 0) {
+    ElMessage.info('当前没有启用的受体点')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定停用全部 ${activeRows.length} 个受体点？`, '全部停用确认', {
+      type: 'warning',
+    })
+    const results = await Promise.allSettled(
+      activeRows.map((row) =>
+        receptorsApi.update(row.id, {
+          name: row.name,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          height: row.height,
+          markerSymbol: row.markerSymbol,
+          markerColor: row.markerColor,
+          isActive: false,
+        }),
+      ),
+    )
+    const failed = results.filter((result) => result.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.error(`全部停用完成，${failed} 个受体点停用失败`)
+    } else {
+      ElMessage.success('已停用全部受体点')
+    }
+    selected.value = []
+    await refresh()
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return
+    ElMessage.error(errorMessage(e, '全部停用失败'))
+  }
+}
+
 async function downloadTemplate() {
   try {
     const blob = await receptorsApi.downloadTemplate()
@@ -185,6 +222,7 @@ onMounted(refresh)
       >
         批量删除 ({{ selected.length }})
       </el-button>
+      <el-button type="warning" plain :icon="Close" @click="disableAll">全部停用</el-button>
       <span class="spacer" />
       <el-button link :icon="Refresh" @click="refresh">刷新</el-button>
     </div>

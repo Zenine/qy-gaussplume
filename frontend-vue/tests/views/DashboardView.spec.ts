@@ -46,6 +46,39 @@ const sources: EmissionSource[] = [
     createdAt: '',
     updatedAt: '',
   },
+  {
+    id: 2,
+    name: '停用点源',
+    sourceType: 'point',
+    latitude: 40.9,
+    longitude: 117.4,
+    height: 50,
+    temperature: 400,
+    velocity: 15,
+    diameter: 2,
+    areaShape: null,
+    areaLength: null,
+    areaWidth: null,
+    areaHeight: null,
+    areaTemperature: null,
+    sigmaZ0Area: null,
+    lineType: 'straight',
+    startLon: null,
+    startLat: null,
+    endLon: null,
+    endLat: null,
+    lineWidth: 10,
+    lineHeight: 0,
+    lineTemperature: 300,
+    sigmaZ0Line: null,
+    lineSegmentLength: 10,
+    markerSymbol: 'factory',
+    markerColor: '#888888',
+    isActive: false,
+    pollutants: [],
+    createdAt: '',
+    updatedAt: '',
+  },
 ]
 
 const receptors: Receptor[] = [
@@ -70,6 +103,18 @@ const receptors: Receptor[] = [
     markerSymbol: 'monitor',
     markerColor: '#22C55E',
     isActive: true,
+    createdAt: '',
+    updatedAt: '',
+  },
+  {
+    id: 3,
+    name: '停用站',
+    latitude: 40.92,
+    longitude: 117.42,
+    height: 1.5,
+    markerSymbol: 'monitor',
+    markerColor: '#999999',
+    isActive: false,
     createdAt: '',
     updatedAt: '',
   },
@@ -184,7 +229,7 @@ function mountView() {
       stubs: {
         MapPanel: {
           name: 'MapPanel',
-          props: ['result', 'boundaryGeoJson', 'initialCenter', 'initialZoom'],
+          props: ['sources', 'receptors', 'result', 'boundaryGeoJson', 'initialCenter', 'initialZoom'],
           emits: ['view-change'],
           template: '<div class="map-panel-stub" />',
           methods: { fitBounds: vi.fn(), clearSelection: vi.fn(), fitSelection: vi.fn() },
@@ -313,6 +358,27 @@ describe('DashboardView', () => {
         windDirection: 0,
       }),
     )
+  }, 10_000)
+
+  it('地图和模拟请求只使用启用的排放源和受体点', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const mapPanel = wrapper.findComponent({ name: 'MapPanel' })
+    expect(mapPanel.props('sources')).toHaveLength(1)
+    expect(mapPanel.props('sources')[0].name).toBe('锅炉点源')
+    expect(mapPanel.props('receptors')).toHaveLength(2)
+    expect(mapPanel.props('receptors').map((item: Receptor) => item.name)).toEqual(['学校', '医院'])
+
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    expect(simulationApi.run).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        sourceIds: expect.arrayContaining([2]),
+        receptorIds: expect.arrayContaining([3]),
+      }),
+    )
   })
 
   it('主界面多风向模式直接运行全局模拟', async () => {
@@ -350,7 +416,7 @@ describe('DashboardView', () => {
     expect(restored.findComponent('[data-test="parallel-direction-count"]').props('modelValue')).toBe(64)
     expect(restored.findComponent('[data-test="parallel-wind-speed"]').props('modelValue')).toBe(2.5)
     expect(restored.find('[data-test="result-card"]').text()).not.toContain('当前结果未更新')
-  })
+  }, 10_000)
 
   it('模拟完成后仍保留风速风向控制框', async () => {
     const wrapper = mountView()

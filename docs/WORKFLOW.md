@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（149 用例，~30s）
+# 后端（155 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（108 用例）
+# 前端（111 用例）
 cd frontend-vue
 npm test
 
@@ -105,7 +105,7 @@ npm run test:watch
 3. 地图热力图用于展示从污染源出发的扩散浓度场；默认“羽流突出”模式过滤近零低值并使用分段色阶，避免整张模拟网格被低浓度底色铺满；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。两种模式都只影响展示，不改变计算结果。
 4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
 5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
-6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它仍作为请求参数和结果过期判断口径，但浓度场实际边界由参与排放源和空气站点外包框有限外扩得到，原则是覆盖受体点周边少量面积，不把羽流图层无限铺满到无关区域。
+6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它仍作为请求参数和结果过期判断口径，但浓度场实际边界由参与排放源为中心截断得到，原则是以参与排放源的几何外包框中心截断范围，单风向和多风向一致，远受体点不再拉偏云图。
 7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
 8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
 9. 小于 10 MB 的模拟结果可以保存到 `localStorage.gnn.simulationResult.v1`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
@@ -189,11 +189,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 149
+# 预期：已通过! - 失败: 0，通过: 155
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 20 passed, Tests 108 passed
+# 预期：Test Files 20 passed, Tests 111 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

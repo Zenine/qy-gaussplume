@@ -89,7 +89,7 @@ The repository includes `backend/air_pollution.db` as anonymized demo data for l
 
 ## Verification
 
-The current verification suite contains 147 backend xUnit tests, 83 frontend Vitest tests, and a production frontend build with type checking.
+The current verification suite contains 155 backend xUnit tests, 111 frontend Vitest tests, and a production frontend build with type checking.
 
 ```bash
 ./scripts/verify.sh
