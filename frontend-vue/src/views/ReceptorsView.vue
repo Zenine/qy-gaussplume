@@ -158,6 +158,7 @@ async function enableAll() {
 }
 
 async function disableAll() {
+  // 只停用当前启用的受体点；已停用的受体点不重复提交，减少无效 API 调用。
   const targets = items.value.filter((row) => row.isActive)
   if (targets.length === 0) {
     ElMessage.success('受体点已全部停用')

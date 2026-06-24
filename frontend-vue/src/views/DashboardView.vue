@@ -77,6 +77,8 @@ const showFormula = ref(false)
 const showParallel = ref(false)
 const selectionEnabled = ref(false)
 const selectionBounds = ref<SelectionBounds | null>(null)
+// App.vue 顶部状态栏中的挂载点是否存在。存在时把地图顶部工具条迁到状态栏；
+// 单独挂载 DashboardView 测试或嵌入其它宿主页面时不存在，则使用地图内 fallback。
 const headerActionsReady = ref(false)
 const selectedRankingReceptor = ref('')
 const selectedRankingPollutant = ref('')
@@ -223,6 +225,8 @@ const parallelWindDirections = computed(() =>
 )
 
 // ---------- 选择区域与派生状态 ----------
+// 主控台地图、统计和模拟请求都只使用“启用”的排放源/受体点。
+// 管理页里关闭启用后，这里不会再显示，也不会参与框选和模拟。
 const activeSources = computed(() => sources.value.filter((s) => s.isActive))
 const activeReceptors = computed(() => receptors.value.filter((r) => r.isActive))
 
@@ -641,6 +645,7 @@ function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimu
 }
 
 onMounted(() => {
+  // 顶部状态栏由 App.vue 提供；如果后续嵌入到其它平台，只要提供同 id 容器即可复用这套布局。
   headerActionsReady.value = Boolean(document.getElementById('dashboard-header-actions'))
   restoreSimulationResult()
   void loadAll()
@@ -669,6 +674,10 @@ onMounted(() => {
       @view-change="onMapViewChange"
     />
 
+    <!--
+      状态栏版工具条：原地图顶部工具条迁移到 App 顶部状态栏。
+      左下角“模拟范围/网格/高度”和右侧“绘制选择区域”保持原位，避免混淆职责。
+    -->
     <Teleport v-if="headerActionsReady" to="#dashboard-header-actions">
       <div class="dashboard-top-toolbar" data-test="floating-toolbar">
       <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
@@ -757,6 +766,7 @@ onMounted(() => {
       </div>
     </Teleport>
 
+    <!-- DashboardView 单独挂载时没有 App 状态栏，保留 fallback 方便测试和独立预览。 -->
     <div v-else class="floating-toolbar" data-test="floating-toolbar">
       <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
         <el-radio-button v-for="r in regionStore.regions" :key="r.key" :value="r.key">{{ r.name }}</el-radio-button>

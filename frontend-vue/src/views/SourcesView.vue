@@ -30,6 +30,8 @@ const regionStore = useRegionStore()
 const items = ref<EmissionSource[]>([])
 const loading = ref(false)
 const pollutantTypes = ref<PollutantTypeInfo[]>([])
+// 类型筛选分为“草稿值”和“已应用值”：
+// 用户选择类型后不会立即过滤，必须点击“确定”才改变列表，避免误触导致表格和已选行突然变化。
 const draftFilterType = ref<SourceType | ''>('')
 const appliedFilterType = ref<SourceType | ''>('')
 const selected = ref<EmissionSource[]>([])
@@ -280,6 +282,7 @@ async function enableAll() {
 }
 
 async function disableAll() {
+  // 只对当前仍启用的排放源发请求，避免重复更新已停用数据，也便于后端审计变更记录。
   const targets = items.value.filter((row) => row.isActive)
   if (targets.length === 0) {
     ElMessage.success('排放源已全部停用')
@@ -296,6 +299,7 @@ async function disableAll() {
 }
 
 function applyTypeFilter() {
+  // 筛选确认后清空旧勾选，避免用户在过滤视图中误删过滤外的旧行。
   appliedFilterType.value = draftFilterType.value
   clearSelectedRows()
 }

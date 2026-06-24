@@ -71,6 +71,10 @@ const sidebarToggleIcon = computed(() => (app.sidebarCollapsed ? Expand : Fold))
           <span class="workspace-kicker">长三院源贡献计算模拟平台</span>
           <span class="title">{{ routeTitle }}</span>
         </div>
+        <!--
+          主控台会把地图顶部工具条 Teleport 到这个容器中，避免地图内部顶部再叠一层工具栏。
+          其它页面不使用该容器；为空时 CSS 会自动隐藏。
+        -->
         <div id="dashboard-header-actions" class="header-actions" />
         <span class="spacer" />
         <div class="header-badge">
