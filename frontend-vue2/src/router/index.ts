@@ -8,7 +8,7 @@ import MeteorologyView from '@/views/MeteorologyView.vue'
 Vue.use(Router)
 
 const router = new Router({
-  mode: 'history',
+  mode: import.meta.env.VITE_ROUTER_MODE as 'hash' | 'history' | 'abstract' || 'history',
   routes: [
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: DashboardView, meta: { title: '主控台' } },

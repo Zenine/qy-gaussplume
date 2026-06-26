@@ -83,6 +83,7 @@ const headerActionsReady = ref(false)
 const selectedRankingReceptor = ref('')
 const selectedRankingPollutant = ref('')
 const calculationPollutant = ref('')
+const defaultCalculationPollutants = ['PM2.5', 'PM10', 'TSP', 'VOCs', 'NOx', 'O3']
 const boundaryEnabled = ref(false)
 const boundaryLoading = ref(false)
 const boundaryGeoJson = shallowRef<unknown | null>(null)
@@ -258,7 +259,8 @@ const sourcePollutants = computed(() => {
 })
 
 const pollutantOptions = computed(() => {
-  const values = new Set<string>(result.value?.availablePollutants ?? [])
+  const values = new Set<string>(defaultCalculationPollutants)
+  for (const p of result.value?.availablePollutants ?? []) values.add(p)
   for (const p of sourcePollutants.value) values.add(p)
   return [...values]
 })

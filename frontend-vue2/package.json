@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:static": "node scripts/check-dashboard-regression.cjs && node scripts/check-management-parity.cjs"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.12",

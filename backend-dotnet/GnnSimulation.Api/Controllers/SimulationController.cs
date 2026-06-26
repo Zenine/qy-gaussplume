@@ -57,9 +57,9 @@ public class SimulationController : ControllerBase
 
         return new SimulationFormulaInfoDto
         {
-            GaussianPlumeFormula = "C = Q / (2πuσyσz) · exp(-y²/(2σy²)) · [exp(-(z-H)²/(2σz²)) + exp(-(z+H)²/(2σz²))]",
-            DecayFormula = "C_final = C_plume · exp(-v_d·x/u) · exp(-Λ·x/u) · exp(-k·x/u)，其中 Λ = a·P^b + background_scavenging",
-            WindAggregationFormula = "C_aggregate = Σ(C_direction_i × normalized_weight_i)。失败风向剔除后，只对成功风向的原始权重重新归一化。",
+            GaussianPlumeFormula = "C = Q / (2πuσyσz) · exp(-y²/(2σy²)) · [exp(-(z-H)²/(2σz²)) + exp(-(z+H)²/(2σz²))]；Q(g/s) 在计算中换算为 μg/s，H 为 Briggs 抬升后的有效源高。",
+            DecayFormula = "沉降衰减 D_dep = exp(-((v_d/BLH)+Λ)·x/u)，v_d = v_g + 1/(R_a+R_b+R_c)，Λ = (a·P^b + background_scavenging) × cloud_factor；化学衰减 D_chem = exp(-k_eff·x/u)。受体贡献、面源、线源和等效面源使用 C_final = C_plume × D_dep × D_chem；点源网格场为保持历史批量场口径仅使用 D_dep。",
+            WindAggregationFormula = "C_aggregate = Σ(C_direction_i × normalized_weight_i)。失败风向剔除后，只对成功风向的原始权重重新归一化；各污染物分场和受体贡献按同一归一化权重分别聚合。",
             Pollutants = pollutants,
             SourceTypes = new List<SourceFormulaInfoDto>
             {
@@ -67,29 +67,29 @@ public class SimulationController : ControllerBase
                 {
                     Type = "point",
                     Name = "点源",
-                    Formula = "Gaussian plume with Briggs plume rise",
-                    Notes = "使用烟囱高度、烟气温度、出口速度和直径计算有效源高，再进入高斯烟羽公式。",
+                    Formula = "C_point = C_gaussian(Q, H_eff, σy(x), σz(x))；H_eff = stack_height + max(浮力抬升, 动量抬升)",
+                    Notes = "点源受体贡献使用完整沉降+化学衰减；点源网格浓度场沿用历史批量场口径，只叠加沉降/湿清除衰减。",
                 },
                 new()
                 {
                     Type = "area",
                     Name = "面源",
-                    Formula = "Area source integration over equivalent sub-sources",
-                    Notes = "按面源长度、宽度、高度和 sigmaZ0Area 计算受体或网格浓度。",
+                    Formula = "虚拟点源法：σ_eff = sqrt(σ² + σ0²)，σy0 = areaWidth/4.3，σz0 = sigmaZ0Area 或 areaHeight/2.15",
+                    Notes = "按面源中心、长度、宽度、高度和初始垂直扩散参数计算；面源网格和受体路径均使用完整沉降+化学衰减。",
                 },
                 new()
                 {
                     Type = "line",
                     Name = "线源",
-                    Formula = "Line source segmented into finite source elements",
-                    Notes = "按起终点、线宽、线高、分段长度和 sigmaZ0Line 拆分计算后累加。",
+                    Formula = "C_line = Σ C_area(segment_i)，segmentEmission = Q_total / numSegments",
+                    Notes = "按起终点、lineWidth、lineHeight、segmentLength 和 sigmaZ0Line 拆成若干短面源 segment 后累加。",
                 },
                 new()
                 {
                     Type = "equivalent_area",
                     Name = "等效面源",
-                    Formula = "Q_equiv = f(concentration, areaLength, areaWidth, areaHeight)",
-                    Notes = "由实测 concentration 反算等效排放速率，并使用实测浓度作为源区最大浓度约束。",
+                    Formula = "Q_equiv = concentration/1e6 × windSpeed × areaHeight × sqrt(areaLength × areaWidth)",
+                    Notes = "concentration 单位为 μg/m³，反算得到 g/s；计算浓度时复用面源虚拟点源公式，并在源区内部以实测浓度作为最大值约束。",
                 },
             },
         };

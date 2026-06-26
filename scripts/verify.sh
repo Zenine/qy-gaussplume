@@ -17,6 +17,9 @@ echo "==> Vue3 前端测试"
 echo "==> Vue3 前端构建"
 (cd "$ROOT/frontend-vue" && npm run build)
 
+echo "==> Vue2 前端静态回归检查"
+(cd "$ROOT/frontend-vue2" && npm run test:static)
+
 echo "==> Vue2 前端构建"
 (cd "$ROOT/frontend-vue2" && npm run build)
 

@@ -34,3 +34,7 @@ pnpm-debug.log*
 # Vue2 migration frontend
 frontend-vue2/node_modules/
 frontend-vue2/dist/
+# 本地/同事调试包，可能包含 .env、node_modules 或临时 API Key，不入库
+*.rar
+*.zip
+*.7z

@@ -95,9 +95,13 @@ public class SimulationControllerTests : IDisposable
 
         var dto = await resp.ReadJsonAsync<SimulationFormulaInfoDto>();
         dto.GaussianPlumeFormula.Should().Contain("exp");
+        dto.DecayFormula.Should().Contain("BLH");
+        dto.DecayFormula.Should().Contain("cloud_factor");
         dto.WindAggregationFormula.Should().Contain("权重");
         dto.Pollutants.Should().Contain(p => p.Type == "PM2.5" && p.GravitationalSettlingVelocity > 0);
         dto.Pollutants.Should().Contain(p => p.Type == "NOx" && p.ChemicalEnhanced);
+        dto.SourceTypes.Should().Contain(s => s.Type == "area" && s.Formula.Contains("σ_eff"));
+        dto.SourceTypes.Should().Contain(s => s.Type == "line" && s.Formula.Contains("segment"));
         dto.SourceTypes.Should().Contain(s => s.Type == "equivalent_area" && s.Formula.Contains("concentration"));
     }
 

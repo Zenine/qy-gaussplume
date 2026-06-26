@@ -26,6 +26,8 @@ export default Vue.extend({
     min: { type: Number, default: 0 },
     max: { type: Number, default: 0 },
     renderScale: { type: Number, default: 4 },
+    heatmapDisplayMode: { type: String, default: 'plume' },
+    boundaryGeoJson: { type: Object, default: null },
     tileLayer: { type: String, default: 'street' },
     selectionEnabled: { type: Boolean, default: false },
     initialCenter: { type: Array, default: () => [30.75, 120.75] },
@@ -38,6 +40,7 @@ export default Vue.extend({
       entityLayers: [] as L.Layer[],
       heatmapOverlay: null as L.ImageOverlay | null,
       selectionOverlay: null as L.Rectangle | null,
+      boundaryLayer: null as L.GeoJSON | null,
       selectionStart: null as L.LatLng | null,
     }
   },
@@ -50,6 +53,7 @@ export default Vue.extend({
     this.map.on('mouseup', this.finishSelection)
     this.renderMarkers()
     this.renderHeatmap()
+    this.renderBoundaryLayer()
     setTimeout(() => this.map && this.map.invalidateSize(), 0)
   },
   beforeDestroy() {
@@ -59,6 +63,13 @@ export default Vue.extend({
     sources: 'renderMarkers',
     receptors: 'renderMarkers',
     result: 'renderHeatmap',
+    min: 'renderHeatmap',
+    max: 'renderHeatmap',
+    scale: 'renderHeatmap',
+    opacity: 'renderHeatmap',
+    renderScale: 'renderHeatmap',
+    heatmapDisplayMode: 'renderHeatmap',
+    boundaryGeoJson: 'renderBoundaryLayer',
     tileLayer(value: string) { this.setTileLayer(value) },
   },
   methods: {
@@ -104,8 +115,17 @@ export default Vue.extend({
       if (!result || !result.concentrations?.length) return
       const max = this.max || Math.max(...result.concentrations.flat())
       if (max <= 0) return
-      const canvas = renderHeatmapToCanvas({ concentrations: result.concentrations, gridLat: result.gridLat, gridLon: result.gridLon, min: this.min || 0, max, scale: this.scale as any, opacity: this.opacity, displayMode: 'plume', renderScale: this.renderScale, useGcj02: true })
+      const canvas = renderHeatmapToCanvas({ concentrations: result.concentrations, gridLat: result.gridLat, gridLon: result.gridLon, min: this.min || 0, max, scale: this.scale as any, opacity: this.opacity, displayMode: this.heatmapDisplayMode as any, renderScale: this.renderScale, useGcj02: true })
       this.heatmapOverlay = L.imageOverlay(canvas.toDataURL('image/png'), computeBounds(result.gridLat, result.gridLon, true), { opacity: 1, interactive: false }).addTo(this.map)
+    },
+    clearBoundaryLayer() { if (this.boundaryLayer) { this.boundaryLayer.remove(); this.boundaryLayer = null } },
+    renderBoundaryLayer() {
+      if (!this.map) return
+      this.clearBoundaryLayer()
+      if (!this.boundaryGeoJson) return
+      this.boundaryLayer = L.geoJSON(this.boundaryGeoJson as any, {
+        style: { color: '#0f766e', weight: 2, fillOpacity: 0.04, dashArray: '6 4' },
+      }).addTo(this.map)
     },
     clearSelection() { if (this.selectionOverlay) this.selectionOverlay.remove(); this.selectionOverlay = null; this.selectionStart = null; this.$emit('selection-change', null) },
     fitBounds() {
