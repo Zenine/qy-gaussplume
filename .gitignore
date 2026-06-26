@@ -1,0 +1,36 @@
+# Local runtime state
+.run/
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Node dependencies and frontend build output
+node_modules/
+frontend-vue/node_modules/
+frontend-vue/dist/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Vue2 migration frontend
+frontend-vue2/node_modules/
+frontend-vue2/dist/

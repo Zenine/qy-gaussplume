@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="QY-GaussPlume">
+  <rect width="64" height="64" rx="14" fill="#0f766e"/>
+  <path d="M12 42c11-15 29-15 40 0" fill="none" stroke="#ccfbf1" stroke-width="5" stroke-linecap="round"/>
+  <path d="M18 31c8-9 20-9 28 0" fill="none" stroke="#67e8f9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 22c5-4 11-4 16 0" fill="none" stroke="#fef3c7" stroke-width="3" stroke-linecap="round"/>
+  <text x="32" y="53" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff">QY</text>
+</svg>

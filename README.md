@@ -2,7 +2,7 @@
 
 面向科研与工程评估场景的大气污染物扩散模拟平台。系统基于高斯烟羽模型，支持点源、面源、线源、等效面源，以及单风向和多风向加权并行模拟。
 
-本项目用于清华长三角研究院等团队开展大气污染扩散、受体贡献分析和工程方案快速评估。当前运行实现为 **ASP.NET Core 9 + Vue 3**。
+本项目用于清华长三角研究院等团队开展大气污染扩散、受体贡献分析和工程方案快速评估。当前主运行实现为 **ASP.NET Core 9 + Vue 3**；另提供 `frontend-vue2/` 作为 Vue2 平台集成迁移版本。
 
 ## 当前版本
 
@@ -132,7 +132,9 @@ cd frontend-vue && npm run dev
 
 - 后端 xUnit 测试：`dotnet test`
 - 前端 Vitest 测试：`npm test`
-- 前端生产构建与类型检查：`npm run build`
+- Vue3 前端生产构建与类型检查：`cd frontend-vue && npm run build
+cd frontend-vue2 && npm run build`
+- Vue2 迁移前端生产构建：`cd frontend-vue2 && npm run build`
 
 也可以单独运行：
 
@@ -140,6 +142,7 @@ cd frontend-vue && npm run dev
 cd backend-dotnet && dotnet test --nologo
 cd frontend-vue && npm test
 cd frontend-vue && npm run build
+cd frontend-vue2 && npm run build
 ```
 
 当前测试规模：后端 171 个用例，前端 119 个用例，合计 290 个自动化测试。
@@ -157,6 +160,7 @@ qy-gaussplume/
 ├── frontend-vue/               # Vue 3 前端
 │   ├── src/
 │   └── tests/
+├── frontend-vue2/              # Vue 2 / Element UI 迁移前端
 ├── backend/                    # 匿名演示 SQLite 数据库
 ├── shp/                        # 县级边界 Shapefile
 ├── docs/                       # 架构、API、开发工作流
@@ -176,7 +180,8 @@ qy-gaussplume/
 | 文档 | 说明 |
 |---|---|
 | [backend-dotnet/README.md](backend-dotnet/README.md) | 后端结构、配置、测试与技术决策 |
-| [frontend-vue/README.md](frontend-vue/README.md) | 前端结构、状态管理、坐标与测试 |
+| [frontend-vue/README.md](frontend-vue/README.md) | Vue3 前端结构、状态管理、坐标与测试 |
+| [frontend-vue2/README.md](frontend-vue2/README.md) | Vue2 / Element UI 迁移前端说明 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、数据流、演进说明 |
 | [docs/API.md](docs/API.md) | API 端点参考 |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | 日常开发、验证、常见陷阱 |
