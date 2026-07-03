@@ -282,6 +282,28 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task 面源_长宽方向与主线保持一致()
+    {
+        var met = await CreateMet(ws: 3.0, wd: 0.0);
+        await CreateAreaSource(lat: 39.9, lon: 116.4, length: 6000, width: 1000);
+        await CreatePointSource(lat: 39.96, lon: 116.4);
+        await CreateReceptor(lat: 39.7, lon: 116.8);
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            GridResolution = 100,
+            DomainSize = 1_000,
+        });
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await resp.ReadJsonAsync<SimulationResultDto>();
+        var expectedAreaSouthEdge = 39.9 - 3_000.0 / 111_000.0;
+        var expectedCenterLat = (expectedAreaSouthEdge + 39.96) / 2;
+        AxisCenter(result.GridLat).Should().BeApproximately(expectedCenterLat, 1e-8);
+    }
+
+    [Fact]
     public async Task 线源_网格中心使用起终点外包框中心()
     {
         var met = await CreateMet(ws: 3.0, wd: 0.0);

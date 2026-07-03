@@ -65,8 +65,8 @@ internal static class GridBuilder
             && Positive(source.AreaLength)
             && Positive(source.AreaWidth))
         {
-            var halfLat = source.AreaWidth!.Value / 2 / MetersPerDegree;
-            var halfLon = source.AreaLength!.Value / 2 / LonMetersPerDegree(source.Latitude);
+            var halfLat = source.AreaLength!.Value / 2 / MetersPerDegree;
+            var halfLon = source.AreaWidth!.Value / 2 / LonMetersPerDegree(source.Latitude);
             lats.Add(source.Latitude - halfLat);
             lats.Add(source.Latitude + halfLat);
             lons.Add(source.Longitude - halfLon);

@@ -109,11 +109,12 @@ npm run test:watch
 4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
 5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
 6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它同时作为请求参数、结果过期判断口径和浓度场最小边长，浓度场中心由参与排放源外包框决定，不应被远处受体点拉偏。
-7. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
-8. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
-9. 小于 10 MB 的模拟结果可以按区域保存到 `localStorage.gnn.simulationResult.v1.<regionKey>`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
-10. 地图中心和缩放级别属于 UI 偏好，写入 `localStorage.gnn.prefs.v1` 的 `mapCenter/mapZoom`，恢复视角时不要再强制初始 `fitBounds` 覆盖用户视角。
-11. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
+7. 面源和等效面源的 `AreaLength` / `AreaWidth` 必须与 QY 主线保持同一口径：`AreaLength` 控制纬向跨度，`AreaWidth` 控制经向跨度；改动时同步覆盖网格中心和外包框回归测试。
+8. 主控台行政边界图层必须是显式开关，避免默认加载大型 Shapefile/GeoJSON 响应；加载后用 WGS84 → GCJ02 转换再叠加到高德瓦片。
+9. 色阶选项需要兼容旧 Python 页面命名：`blue/red/green/purple/thermal/rainbow/turbo/spectral_r/jet`，新增色阶时同步更新图例和回归测试。
+10. 小于 10 MB 的模拟结果可以按区域保存到 `localStorage.gnn.simulationResult.v1.<regionKey>`，用于刷新后恢复图层、污染物分场和贡献排名；超限或配额异常时应静默跳过，不影响当前结果。
+11. 地图中心和缩放级别属于 UI 偏好，写入 `localStorage.gnn.prefs.v1` 的 `mapCenter/mapZoom`，恢复视角时不要再强制初始 `fitBounds` 覆盖用户视角。
+12. 如果改 `backend/air_pollution.db`，至少检查 `/api/sources`、`/api/map/bounds` 和一次主控台模拟入口，确认前端仍可加载并运行。
 
 ### 改空气站点贡献排名
 
