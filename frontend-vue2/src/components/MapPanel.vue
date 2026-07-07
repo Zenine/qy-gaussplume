@@ -7,7 +7,7 @@ import type { EmissionSource, Receptor, SimulationResult } from '@/types'
 import { wgs84ToGcj02 } from '@/utils/coords'
 import { escapeHtml, safeCssColor } from '@/utils/html'
 import { sourceFitPoints, sourceMapGeometry, type LatLngTuple } from '@/utils/sourceGeometry'
-import { computeBounds, renderHeatmapToCanvas } from '@/composables/useHeatmapRenderer'
+import { computeAnchoredBounds, renderHeatmapToCanvas } from '@/composables/useHeatmapRenderer'
 
 const TILE_URLS: Record<string, string> = {
   street: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
@@ -19,6 +19,7 @@ export default Vue.extend({
   name: 'MapPanel',
   props: {
     sources: { type: Array, default: () => [] },
+    heatmapSources: { type: Array, default: () => [] },
     receptors: { type: Array, default: () => [] },
     result: { type: Object, default: null },
     scale: { type: String, default: 'jet' },
@@ -85,6 +86,19 @@ export default Vue.extend({
       const icon = L.divIcon({ className: 'gnn-marker', html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${safeCssColor(s.markerColor)};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.4);"></div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
       return L.marker(this.toGcj(point), { icon }).bindPopup(this.sourcePopup(s))
     },
+    resultAnchorPoint(): LatLngTuple | null {
+      const anchorSources = (this.heatmapSources as EmissionSource[]).length
+        ? this.heatmapSources as EmissionSource[]
+        : this.sources as EmissionSource[]
+      const points = anchorSources.flatMap((source) => sourceFitPoints(source))
+      if (points.length === 0) return null
+      const lats = points.map(([lat]) => lat)
+      const lons = points.map(([, lon]) => lon)
+      return [
+        (Math.min(...lats) + Math.max(...lats)) / 2,
+        (Math.min(...lons) + Math.max(...lons)) / 2,
+      ]
+    },
     renderMarkers() {
       if (!this.map) return
       this.clearEntityLayers()
@@ -113,10 +127,17 @@ export default Vue.extend({
       if (this.heatmapOverlay) { this.heatmapOverlay.remove(); this.heatmapOverlay = null }
       const result = this.result as SimulationResult | null
       if (!result || !result.concentrations?.length) return
-      const max = this.max || Math.max(...result.concentrations.flat())
+      let max = this.max || 0
+      if (!max) {
+        for (const row of result.concentrations) {
+          for (const value of row) {
+            if (Number.isFinite(value) && value > max) max = value
+          }
+        }
+      }
       if (max <= 0) return
       const canvas = renderHeatmapToCanvas({ concentrations: result.concentrations, gridLat: result.gridLat, gridLon: result.gridLon, min: this.min || 0, max, scale: this.scale as any, opacity: this.opacity, displayMode: this.heatmapDisplayMode as any, renderScale: this.renderScale, useGcj02: true })
-      this.heatmapOverlay = L.imageOverlay(canvas.toDataURL('image/png'), computeBounds(result.gridLat, result.gridLon, true), { opacity: 1, interactive: false }).addTo(this.map)
+      this.heatmapOverlay = L.imageOverlay(canvas.toDataURL('image/png'), computeAnchoredBounds(result.gridLat, result.gridLon, this.resultAnchorPoint(), true), { opacity: 1, interactive: false }).addTo(this.map)
     },
     clearBoundaryLayer() { if (this.boundaryLayer) { this.boundaryLayer.remove(); this.boundaryLayer = null } },
     renderBoundaryLayer() {
@@ -125,6 +146,10 @@ export default Vue.extend({
       if (!this.boundaryGeoJson) return
       this.boundaryLayer = L.geoJSON(this.boundaryGeoJson as any, {
         style: { color: '#0f766e', weight: 2, fillOpacity: 0.04, dashArray: '6 4' },
+        coordsToLatLng: (coords: any) => {
+          const [lat, lon] = wgs84ToGcj02(coords[1], coords[0])
+          return L.latLng(lat, lon, coords[2])
+        },
       }).addTo(this.map)
     },
     clearSelection() { if (this.selectionOverlay) this.selectionOverlay.remove(); this.selectionOverlay = null; this.selectionStart = null; this.$emit('selection-change', null) },
@@ -134,6 +159,16 @@ export default Vue.extend({
       ;(this.sources as EmissionSource[]).forEach((s) => sourceFitPoints(s).forEach((p) => points.push(this.toGcj(p))))
       ;(this.receptors as Receptor[]).forEach((r) => points.push(wgs84ToGcj02(r.latitude, r.longitude)))
       if (points.length) this.map.fitBounds(L.latLngBounds(points).pad(0.15), { animate: true })
+    },
+    fitResultBounds() {
+      if (!this.map) return
+      const result = this.result as SimulationResult | null
+      if (!result?.gridLat?.length || !result?.gridLon?.length) {
+        this.fitBounds()
+        return
+      }
+      const bounds = computeAnchoredBounds(result.gridLat, result.gridLon, this.resultAnchorPoint(), true) as [L.LatLngTuple, L.LatLngTuple]
+      this.map.fitBounds(L.latLngBounds(bounds[0], bounds[1]).pad(0.08), { animate: true })
     },
     emitViewChange() { if (!this.map) return; const c = this.map.getCenter(); this.$emit('view-change', { center: [c.lat, c.lng], zoom: this.map.getZoom() }) },
     startSelection(e: L.LeafletMouseEvent) { if (!this.selectionEnabled || !this.map) return; this.selectionStart = e.latlng; if (this.selectionOverlay) this.selectionOverlay.remove(); this.selectionOverlay = L.rectangle(L.latLngBounds(e.latlng, e.latlng), { color: '#2563eb', weight: 2, dashArray: '6 4', fillOpacity: 0.16 }).addTo(this.map); this.map.dragging.disable() },

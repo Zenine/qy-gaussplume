@@ -188,7 +188,7 @@ function mountView() {
           props: ['result', 'boundaryGeoJson', 'initialCenter', 'initialZoom', 'min', 'max'],
           emits: ['view-change'],
           template: '<div class="map-panel-stub" />',
-          methods: { fitBounds: vi.fn(), clearSelection: vi.fn(), fitSelection: vi.fn() },
+          methods: { fitBounds: vi.fn(), fitResultBounds: vi.fn(), clearSelection: vi.fn(), fitSelection: vi.fn() },
         },
         ColorLegend: true,
         ContributionPanel: true,

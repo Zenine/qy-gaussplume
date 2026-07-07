@@ -18,8 +18,13 @@ export interface HeatmapOptions {
   visibleThreshold?: number
 }
 
-const PLUME_VISIBLE_THRESHOLD = 0.03
+const PLUME_VISIBLE_THRESHOLD = 0.08
 const PLUME_COLOR_STEPS = 7
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
 
 // 把浓度场绘制到 Canvas，然后作为 L.ImageOverlay 贴到地图的 lat/lon 边界框。
 // 通过 renderScale 提升像素密度（避免马赛克），同时克制峰值以保护浏览器内存。
@@ -87,7 +92,8 @@ export function renderHeatmapToCanvas(opts: HeatmapOptions): HTMLCanvasElement {
         }
         const [r, g, b] = steppedGradientColor(t, scale, PLUME_COLOR_STEPS)
         const plumeStrength = (t - visibleThreshold) / (1 - visibleThreshold)
-        const alpha = opacity * (0.45 + 0.75 * plumeStrength)
+        const feather = smoothstep(visibleThreshold, Math.min(1, visibleThreshold + 0.16), t)
+        const alpha = opacity * feather * (0.18 + 0.82 * Math.pow(plumeStrength, 0.85))
         img.data[idx] = r
         img.data[idx + 1] = g
         img.data[idx + 2] = b
@@ -130,5 +136,40 @@ export function computeBounds(
   return [
     [Math.min(...lats), Math.min(...lons)],
     [Math.max(...lats), Math.max(...lons)],
+  ]
+}
+
+export function computeAnchoredBounds(
+  gridLat: number[],
+  gridLon: number[],
+  anchor: [number, number] | null | undefined,
+  useGcj02: boolean,
+): L.LatLngBoundsExpression {
+  if (!anchor || !useGcj02) return computeBounds(gridLat, gridLon, useGcj02)
+
+  const south = Math.min(...gridLat)
+  const north = Math.max(...gridLat)
+  const west = Math.min(...gridLon)
+  const east = Math.max(...gridLon)
+  const latSpan = north - south
+  const lonSpan = east - west
+  if (latSpan <= 0 || lonSpan <= 0) return computeBounds(gridLat, gridLon, true)
+
+  const latRatio = (anchor[0] - south) / latSpan
+  const lonRatio = (anchor[1] - west) / lonSpan
+  if (latRatio < 0 || latRatio > 1 || lonRatio < 0 || lonRatio > 1) {
+    return computeBounds(gridLat, gridLon, true)
+  }
+
+  const base = computeBounds(gridLat, gridLon, true) as [[number, number], [number, number]]
+  const baseLatSpan = base[1][0] - base[0][0]
+  const baseLonSpan = base[1][1] - base[0][1]
+  const [anchorLat, anchorLon] = wgs84ToGcj02(anchor[0], anchor[1])
+  const anchoredSouth = anchorLat - latRatio * baseLatSpan
+  const anchoredWest = anchorLon - lonRatio * baseLonSpan
+
+  return [
+    [anchoredSouth, anchoredWest],
+    [anchoredSouth + baseLatSpan, anchoredWest + baseLonSpan],
   ]
 }

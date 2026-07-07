@@ -7,6 +7,7 @@ internal static class GridBuilder
     private const double MetersPerDegree = 111_000.0;
     private const double MinimumPaddingMeters = 500.0;
     private const double MinimumRangeMeters = 1_000.0;
+    private const double DownwindBiasRatio = 0.3;
 
     public record Grid(double[] Lat, double[] Lon);
 
@@ -17,7 +18,8 @@ internal static class GridBuilder
         IReadOnlyList<EmissionSource> sources,
         IReadOnlyList<Receptor> receptors,
         double gridResolution,
-        double domainSize)
+        double domainSize,
+        double? windDirection = null)
     {
         var lats = new List<double>();
         var lons = new List<double>();
@@ -54,9 +56,49 @@ internal static class GridBuilder
 
         var points = Math.Clamp((int)(desiredRangeMeters / gridResolution) + 1, 50, 500);
 
+        if (windDirection is { } direction)
+        {
+            var downwindAngle = (270 - direction) * Math.PI / 180.0;
+            var downwindEast = Math.Cos(downwindAngle);
+            var downwindNorth = Math.Sin(downwindAngle);
+            var downwindShiftMeters = SafeDownwindShift(
+                desiredRangeMeters,
+                latSpanMeters,
+                lonSpanMeters,
+                Math.Abs(downwindNorth),
+                Math.Abs(downwindEast));
+            centerLat += downwindNorth * downwindShiftMeters / MetersPerDegree;
+            centerLon += downwindEast * downwindShiftMeters / lonMeter;
+        }
+
         return new Grid(
             Linspace(centerLat - requiredLatRange / 2, centerLat + requiredLatRange / 2, points),
             Linspace(centerLon - requiredLonRange / 2, centerLon + requiredLonRange / 2, points));
+    }
+
+    private static double SafeDownwindShift(
+        double rangeMeters,
+        double latSpanMeters,
+        double lonSpanMeters,
+        double northComponent,
+        double eastComponent)
+    {
+        var desiredShift = rangeMeters * DownwindBiasRatio;
+        var maxShift = desiredShift;
+
+        if (northComponent > 1e-9)
+        {
+            var safeLatShift = (rangeMeters / 2 - latSpanMeters / 2 - MinimumPaddingMeters) / northComponent;
+            maxShift = Math.Min(maxShift, safeLatShift);
+        }
+
+        if (eastComponent > 1e-9)
+        {
+            var safeLonShift = (rangeMeters / 2 - lonSpanMeters / 2 - MinimumPaddingMeters) / eastComponent;
+            maxShift = Math.Min(maxShift, safeLonShift);
+        }
+
+        return Math.Max(0, maxShift);
     }
 
     private static void AddSourceFootprint(EmissionSource source, List<double> lats, List<double> lons)

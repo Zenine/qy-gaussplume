@@ -11,7 +11,15 @@ builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("GnnCors", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:4173")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:4173",
+                "http://localhost:5174",
+                "http://localhost:4174",
+                "http://localhost:5207",
+                "http://127.0.0.1:5174",
+                "http://127.0.0.1:4174",
+                "http://127.0.0.1:5207")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials());
@@ -40,14 +48,12 @@ if (!app.Environment.IsEnvironment("Testing"))
     var db = scope.ServiceProvider.GetRequiredService<GnnDbContext>();
     try
     {
-        try
-        {
+        var meteorologyHasIsActive = db.Database
+            .SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('meteorology') WHERE name = 'is_active'")
+            .Any();
+        if (!meteorologyHasIsActive)
             db.Database.ExecuteSqlRaw("ALTER TABLE meteorology ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1");
-        }
-        catch
-        {
-            // 列已存在时忽略；后续 UPDATE 仍需执行。
-        }
+
         db.Database.ExecuteSqlRaw("UPDATE receptors SET is_active = 1 WHERE is_active IS NULL");
         db.Database.ExecuteSqlRaw("UPDATE emission_sources SET is_active = 1 WHERE is_active IS NULL");
         db.Database.ExecuteSqlRaw("UPDATE meteorology SET is_active = 1 WHERE is_active IS NULL");
@@ -79,8 +85,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("GnnCors");
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

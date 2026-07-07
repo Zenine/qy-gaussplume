@@ -57,6 +57,7 @@
     <MapPanel
       ref="map"
       :sources="activeSources"
+      :heatmap-sources="result ? resultSources : activeSources"
       :receptors="activeReceptors"
       :result="displayedResult"
       :scale="scale"
@@ -298,6 +299,7 @@ export default Vue.extend({
   components: { MapPanel, ColorLegend, ContributionPanel, FormulaDrawer },
   data: () => ({
     sources: [] as EmissionSource[],
+    resultSources: [] as EmissionSource[],
     receptors: [] as Receptor[],
     meteorologies: [] as Meteorology[],
     selectedMeteorologyId: null as number | null,
@@ -398,9 +400,18 @@ export default Vue.extend({
       return { ...this.result, concentrations: this.result.pollutantConcentrations[this.selectedPollutant] }
     },
     autoRange(): { min: number; max: number } {
-      const values = ((this.displayedResult?.concentrations || []) as number[][]).flat().filter((v) => Number.isFinite(v))
-      if (!values.length) return { min: 0, max: 0 }
-      return { min: Math.min(...values), max: Math.max(...values) }
+      const concentrations = (this.displayedResult?.concentrations || []) as number[][]
+      let min = Number.POSITIVE_INFINITY
+      let max = Number.NEGATIVE_INFINITY
+      for (const row of concentrations) {
+        for (const value of row) {
+          if (!Number.isFinite(value)) continue
+          if (value < min) min = value
+          if (value > max) max = value
+        }
+      }
+      if (min === Number.POSITIVE_INFINITY) return { min: 0, max: 0 }
+      return { min, max }
     },
     effectiveMin(): number { return this.customMin ?? this.autoRange.min },
     effectiveMax(): number { return this.customMax ?? this.autoRange.max },
@@ -436,6 +447,17 @@ export default Vue.extend({
   },
   watch: {
     selectedMeteorologyId() { this.syncMeteorology() },
+    result(value: SimulationResult | null) {
+      if (!value) {
+        this.selectedRankingPollutant = ''
+        return
+      }
+      this.syncRankingPollutant()
+    },
+    selectedPollutant() { this.syncRankingPollutant() },
+    selectedRankingPollutant(pollutant: string) {
+      if (this.selectedPollutant !== pollutant) this.selectedPollutant = pollutant
+    },
   },
   mounted() {
     this.mountToolbar()
@@ -486,7 +508,7 @@ export default Vue.extend({
     },
     resetColorRange() { this.customMin = null; this.customMax = null },
     async onBoundaryEnabledChange() {
-      if (!this.boundaryEnabled) { this.boundaryGeoJson = null; return }
+      if (!this.boundaryEnabled) return
       if (this.boundaryGeoJson) return
       this.boundaryLoading = true
       try { this.boundaryGeoJson = await mapApi.getGeoJson(true) }
@@ -495,6 +517,21 @@ export default Vue.extend({
     },
     sortedPositiveContributions(rows: ReceptorContributionEntry[]) {
       return rows.filter((row) => row.concentration > 0).sort((a, b) => b.concentration - a.concentration).map((row) => ({ ...row, percentage: 0 }))
+    },
+    chooseDisplayPollutant(available: string[] | null | undefined, requested?: string) {
+      if (!available?.length) return
+      this.selectedPollutant = requested && available.includes(requested)
+        ? requested
+        : this.selectedPollutant && available.includes(this.selectedPollutant)
+          ? this.selectedPollutant
+          : available[0]
+    },
+    syncRankingPollutant() {
+      if (!this.result || !this.selectedPollutant) {
+        this.selectedRankingPollutant = ''
+        return
+      }
+      this.selectedRankingPollutant = this.rankingPollutants.includes(this.selectedPollutant) ? this.selectedPollutant : ''
     },
     updateWindFromDial(event: MouseEvent) {
       const target = event.currentTarget as SVGElement | null
@@ -518,9 +555,10 @@ export default Vue.extend({
       if (!this.selectedMeteorologyId || !this.effectiveSources.length) return
       this.running = true
       try {
+        const simulationSources = [...this.effectiveSources]
         const request = {
           meteorologyId: this.selectedMeteorologyId,
-          sourceIds: this.selectionBounds ? this.effectiveSources.map((s) => s.id) : undefined,
+          sourceIds: this.selectionBounds ? simulationSources.map((s) => s.id) : undefined,
           receptorIds: this.selectionBounds ? this.effectiveReceptors.map((r) => r.id) : undefined,
           pollutantType: this.calculationPollutant || undefined,
           windSpeed: this.draftWindSpeed,
@@ -531,6 +569,7 @@ export default Vue.extend({
         }
         const r = await simulationApi.run(request)
         this.result = r
+        this.resultSources = simulationSources
         this.lastSimulationInputs = {
           mode: 'single',
           meteorologyId: request.meteorologyId,
@@ -541,8 +580,8 @@ export default Vue.extend({
           receptorHeight: request.receptorHeight,
           calculationPollutant: this.calculationPollutant,
         }
-        this.selectedPollutant = r.availablePollutants?.[0] || this.selectedPollutant
-        this.$nextTick(() => this.fitBounds())
+        this.chooseDisplayPollutant(r.availablePollutants, this.calculationPollutant)
+        this.$nextTick(() => this.fitResultBounds())
       } finally {
         this.running = false
       }
@@ -551,9 +590,10 @@ export default Vue.extend({
       if (!this.selectedMeteorologyId || !this.effectiveSources.length) return
       this.running = true
       try {
+        const simulationSources = [...this.effectiveSources]
         const request = {
           meteorologyId: this.selectedMeteorologyId,
-          sourceIds: this.selectionBounds ? this.effectiveSources.map((s) => s.id) : undefined,
+          sourceIds: this.selectionBounds ? simulationSources.map((s) => s.id) : undefined,
           receptorIds: this.selectionBounds ? this.effectiveReceptors.map((r) => r.id) : undefined,
           pollutantType: this.calculationPollutant || undefined,
           windSpeed: this.parallelWindSpeed,
@@ -572,6 +612,8 @@ export default Vue.extend({
           pollutantConcentrations: r.pollutantConcentrations || null,
           availablePollutants: r.availablePollutants || null,
         } as any
+        this.resultSources = simulationSources
+        this.chooseDisplayPollutant(r.availablePollutants, this.calculationPollutant)
         this.lastSimulationInputs = {
           mode: 'parallel',
           meteorologyId: request.meteorologyId,
@@ -582,7 +624,7 @@ export default Vue.extend({
           receptorHeight: request.receptorHeight,
           calculationPollutant: this.calculationPollutant,
         }
-        this.$nextTick(() => this.fitBounds())
+        this.$nextTick(() => this.fitResultBounds())
       } finally {
         this.running = false
       }
@@ -595,6 +637,7 @@ export default Vue.extend({
     },
     clearResult() {
       this.result = null
+      this.resultSources = []
       this.lastSimulationInputs = null
       this.customMin = null
       this.customMax = null
@@ -602,6 +645,7 @@ export default Vue.extend({
       if (this.$refs.map) this.clearSelection()
     },
     fitBounds() { ;(this.$refs.map as any).fitBounds() },
+    fitResultBounds() { ;(this.$refs.map as any).fitResultBounds() },
     onMapViewChange(p: any) {
       this.$store.commit('setPref', { key: 'mapCenter', value: p.center })
       this.$store.commit('setPref', { key: 'mapZoom', value: p.zoom })
@@ -612,5 +656,5 @@ export default Vue.extend({
 
 <style scoped>
 .dashboard-map{position:relative;height:calc(100vh - 104px);min-height:620px;overflow:hidden;border:1px solid #cfdde4;border-radius:8px;background:#eef3f4}.dashboard-top-toolbar{display:flex;align-items:center;justify-content:flex-end;flex:1 1 auto;flex-wrap:wrap;gap:8px;min-width:0}.toolbar-select{width:128px}.toolbar-wind{width:230px}.toolbar-compact{width:96px}.toolbar-speed{width:108px}.parallel-note{font-size:12px;color:#64748b}.floating-card{border:1px solid #dfe7ee;border-radius:8px;background:rgba(255,255,255,.96);box-shadow:0 10px 28px rgba(15,46,60,.12)}.range-panel{position:absolute;left:18px;bottom:18px;z-index:1000;width:230px;padding:16px 16px 10px}.range-row{display:flex;justify-content:space-between;color:#64748b;font-size:12px}.range-row strong{color:#1677ff}.right-stack{position:absolute;right:14px;top:76px;bottom:14px;z-index:1000;display:flex;width:320px;flex-direction:column;gap:10px;overflow-y:auto}.right-stack .floating-card{padding:14px}.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #edf2f5;font-weight:800}.card-icon{color:#1677ff}.hint{color:#64748b;font-size:12px;line-height:1.6}.warning{color:#d97706}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats-grid div{padding:12px;border-radius:8px;background:#f8fafc}.stats-grid strong{display:block;font-size:22px;color:#1677ff}.stats-grid span{font-size:12px;color:#64748b}.quick-actions{position:absolute;left:18px;top:92px;z-index:1000;display:flex;flex-direction:column;gap:8px}.selection-summary{margin-top:8px;color:#475569;font-size:12px}.wind-rose{position:relative;width:150px;height:150px;margin:16px auto 10px}.wind-rose svg{display:block;width:100%;height:100%;cursor:crosshair}.wind-rose text{fill:#64748b;font-size:11px}.wind-ring,.wind-axis{fill:none;stroke:#dbe6ec;stroke-width:1}.wind-ring:nth-child(2),.wind-ring:nth-child(3){stroke:#e8eef2;stroke-width:3}.wind-pointer{stroke:#1677ff;stroke-linecap:round;stroke-width:4}.wind-pointer-tip{fill:#1677ff}.field-grid{display:grid;gap:10px;margin-top:12px}.weather-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.weather-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.weather-fields .el-input-number{width:100%}.full-field{display:flex;flex-direction:column;gap:6px;margin-top:10px;color:#31545c;font-size:12px}.complete{color:#16a34a;font-size:12px}.range-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:10px;color:#31545c;font-size:12px}.range-header small{display:block;color:#64748b;margin-top:3px}.color-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.color-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.color-fields .el-input-number,.color-fields .el-select{width:100%}.ranking-controls{margin-top:10px}.ranking-summary{margin-top:10px;padding:8px 10px;border-radius:8px;background:#f0f7ff;color:#31545c;font-size:12px}.station-summary-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}.station-summary-card{padding:10px;border:1px solid #edf2f5;border-radius:10px;background:#f8fafc}.station-summary-title{display:flex;justify-content:space-between;gap:8px;color:#31545c;font-size:12px}.station-summary-title strong{font-size:13px;color:#0f172a}.station-pollutant-block{margin-top:8px}.pollutant-summary-row,.ranking-item{display:grid;grid-template-columns:52px minmax(0,1fr) 48px 86px;gap:6px;align-items:center;font-size:12px;color:#475569}.ranking-item{grid-template-columns:20px minmax(0,1fr) 48px 86px;margin-top:6px}.ranking-main{min-width:0}.ranking-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ranking-bar{height:6px;overflow:hidden;border-radius:999px;background:#e2e8f0}.ranking-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#1677ff)}.ranking-index,.ranking-percent{color:#64748b;text-align:right}.ranking-item strong,.pollutant-summary-row strong{text-align:right;color:#0f172a;font-size:11px}
+@media (max-width: 1100px){.dashboard-map{display:flex;height:auto;min-height:0;flex-direction:column;gap:10px;overflow:visible;padding:10px}.dashboard-map>.map-panel{height:460px;min-height:460px;flex:0 0 auto;border-radius:8px}.range-panel,.right-stack,.quick-actions{position:static;z-index:auto;width:auto}.range-panel{order:2;padding:14px}.right-stack{order:3;display:flex;max-height:none;flex-direction:column;overflow:visible}.quick-actions{order:1;flex-direction:row;align-self:flex-start}.dashboard-top-toolbar{justify-content:flex-start}.toolbar-region,.toolbar-select,.toolbar-wind,.toolbar-compact,.toolbar-speed{width:100%}.weather-fields,.color-fields{grid-template-columns:1fr}.pollutant-summary-row,.ranking-item{grid-template-columns:28px minmax(0,1fr) 44px}.pollutant-summary-row strong,.ranking-item strong{grid-column:2 / 4;text-align:left}}
 </style>
-

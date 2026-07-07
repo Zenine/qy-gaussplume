@@ -77,6 +77,19 @@ public class SimulationControllerTests : IDisposable
     private static double AxisSpan(IReadOnlyCollection<double> values) =>
         values.Max() - values.Min();
 
+    private static void AssertNorthWindKeepsSourceAtPlumeStart(
+        SimulationResultDto result,
+        double anchorLat,
+        double anchorLon)
+    {
+        var northRange = result.GridLat.Max() - anchorLat;
+        var southRange = anchorLat - result.GridLat.Min();
+
+        AxisCenter(result.GridLat).Should().BeLessThan(anchorLat);
+        AxisCenter(result.GridLon).Should().BeApproximately(anchorLon, 1e-9);
+        southRange.Should().BeGreaterThan(northRange * 2.5);
+    }
+
     [Fact]
     public async Task 气象场不存在返回404()
     {
@@ -138,6 +151,10 @@ public class SimulationControllerTests : IDisposable
         result.Concentrations.Length.Should().Be(result.GridLat.Length);
         result.Concentrations[0].Length.Should().Be(result.GridLon.Length);
 
+        var northRange = result.GridLat.Max() - src.Latitude;
+        var southRange = src.Latitude - result.GridLat.Min();
+        southRange.Should().BeGreaterThan(northRange * 2.5);
+
         result.Contributions.Should().HaveCount(1);
         result.Contributions[0].SourceId.Should().Be(src.Id);
         result.Contributions[0].TotalConcentration.Should().BeGreaterThan(0);
@@ -146,6 +163,66 @@ public class SimulationControllerTests : IDisposable
         result.AvailablePollutants.Should().Contain("PM2.5");
         result.PollutantConcentrations.Should().NotBeNull();
         result.PollutantConcentrations!.Keys.Should().Contain("PM2.5");
+    }
+
+    [Fact]
+    public async Task 单风向扩散网格_点源线源面源都以源几何为起点向下风向展开()
+    {
+        var met = await CreateMet(ws: 3.0, wd: 0.0);
+        await AssertNorthWindSourceGeometryAsync(
+            await CreatePointSource(lat: 39.9, lon: 116.4),
+            minLat: 39.9,
+            maxLat: 39.9,
+            minLon: 116.4,
+            maxLon: 116.4);
+
+        await AssertNorthWindSourceGeometryAsync(
+            await CreateLineSource(startLat: 39.88, startLon: 116.36, endLat: 39.92, endLon: 116.44),
+            minLat: 39.88,
+            maxLat: 39.92,
+            minLon: 116.36,
+            maxLon: 116.44);
+
+        var areaLatHalf = 2_000.0 / 111_000.0;
+        var areaLonHalf = 1_000.0 / (111_000.0 * Math.Cos(39.9 * Math.PI / 180.0));
+        await AssertNorthWindSourceGeometryAsync(
+            await CreateAreaSource(lat: 39.9, lon: 116.4, length: 4_000, width: 2_000),
+            minLat: 39.9 - areaLatHalf,
+            maxLat: 39.9 + areaLatHalf,
+            minLon: 116.4 - areaLonHalf,
+            maxLon: 116.4 + areaLonHalf);
+
+        async Task AssertNorthWindSourceGeometryAsync(
+            EmissionSourceDto source,
+            double minLat,
+            double maxLat,
+            double minLon,
+            double maxLon)
+        {
+            var resp = await _client.PostJsonAsync("/api/simulation/run", new SimulationRequestDto
+            {
+                MeteorologyId = met.Id,
+                SourceIds = new List<int> { source.Id },
+                ReceptorIds = new List<int>(),
+                GridResolution = 100,
+                DomainSize = 10_000,
+            });
+            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var result = await resp.ReadJsonAsync<SimulationResultDto>();
+            result.GridLat.Min().Should().BeLessThan(minLat);
+            result.GridLat.Max().Should().BeGreaterThan(maxLat);
+            result.GridLon.Min().Should().BeLessThan(minLon);
+            result.GridLon.Max().Should().BeGreaterThan(maxLon);
+
+            var sourceCenterLat = (minLat + maxLat) / 2;
+            var sourceCenterLon = (minLon + maxLon) / 2;
+            var southSpace = minLat - result.GridLat.Min();
+            var northSpace = result.GridLat.Max() - maxLat;
+            southSpace.Should().BeGreaterThan(northSpace);
+            AxisCenter(result.GridLat).Should().BeLessThan(sourceCenterLat);
+            AxisCenter(result.GridLon).Should().BeApproximately(sourceCenterLon, 1e-9);
+        }
     }
 
 
@@ -184,7 +261,7 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task 单源远受体_浓度场网格中心保持污染源中心()
+    public async Task 单源远受体_单风向网格按下风向偏移且不被远受体拉偏()
     {
         var met = await CreateMet(ws: 3.0, wd: 0.0);
         await CreatePointSource(lat: 39.9, lon: 116.4, pm25Rate: 1.0);
@@ -199,12 +276,11 @@ public class SimulationControllerTests : IDisposable
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await resp.ReadJsonAsync<SimulationResultDto>();
-        AxisCenter(result.GridLat).Should().BeApproximately(39.9, 1e-9);
-        AxisCenter(result.GridLon).Should().BeApproximately(116.4, 1e-9);
+        AssertNorthWindKeepsSourceAtPlumeStart(result, 39.9, 116.4);
     }
 
     [Fact]
-    public async Task 单源调大模拟范围_网格扩大但中心不变()
+    public async Task 单源调大模拟范围_网格扩大且下风向空间同步扩大()
     {
         var met = await CreateMet(ws: 3.0, wd: 0.0);
         await CreatePointSource(lat: 39.9, lon: 116.4, pm25Rate: 1.0);
@@ -227,16 +303,14 @@ public class SimulationControllerTests : IDisposable
 
         var small = await smallResp.ReadJsonAsync<SimulationResultDto>();
         var large = await largeResp.ReadJsonAsync<SimulationResultDto>();
-        AxisCenter(small.GridLat).Should().BeApproximately(39.9, 1e-9);
-        AxisCenter(small.GridLon).Should().BeApproximately(116.4, 1e-9);
-        AxisCenter(large.GridLat).Should().BeApproximately(39.9, 1e-9);
-        AxisCenter(large.GridLon).Should().BeApproximately(116.4, 1e-9);
+        AssertNorthWindKeepsSourceAtPlumeStart(small, 39.9, 116.4);
+        AssertNorthWindKeepsSourceAtPlumeStart(large, 39.9, 116.4);
         AxisSpan(large.GridLat).Should().BeGreaterThan(AxisSpan(small.GridLat) * 2);
         AxisSpan(large.GridLon).Should().BeGreaterThan(AxisSpan(small.GridLon) * 2);
     }
 
     [Fact]
-    public async Task 多源远受体_浓度场网格中心使用参与源外包框中心()
+    public async Task 多源远受体_单风向网格使用参与源外包框并向下风向留足空间()
     {
         var met = await CreateMet(ws: 3.0, wd: 0.0);
         await CreatePointSource(lat: 39.9, lon: 116.4, pm25Rate: 1.0);
@@ -252,7 +326,7 @@ public class SimulationControllerTests : IDisposable
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await resp.ReadJsonAsync<SimulationResultDto>();
-        AxisCenter(result.GridLat).Should().BeApproximately((39.9 + 39.94) / 2, 1e-9);
+        AssertNorthWindKeepsSourceAtPlumeStart(result, (39.9 + 39.94) / 2, (116.4 + 116.5) / 2);
         AxisCenter(result.GridLon).Should().BeApproximately((116.4 + 116.5) / 2, 1e-9);
     }
 
@@ -275,8 +349,10 @@ public class SimulationControllerTests : IDisposable
         var latRangeMeters = AxisSpan(result.GridLat) * 111_000;
         var lonRangeMeters = AxisSpan(result.GridLon) * 111_000
             * Math.Cos(result.GridLat.Average() * Math.PI / 180.0);
-        AxisCenter(result.GridLat).Should().BeApproximately(39.9, 1e-9);
+        AxisCenter(result.GridLat).Should().BeLessThan(39.9);
         AxisCenter(result.GridLon).Should().BeApproximately(116.4, 1e-9);
+        result.GridLat.Min().Should().BeLessThan(39.9 - 2_000.0 / 111_000.0);
+        result.GridLat.Max().Should().BeGreaterThan(39.9 + 2_000.0 / 111_000.0);
         latRangeMeters.Should().BeGreaterThan(4_000);
         lonRangeMeters.Should().BeGreaterThan(4_000);
     }
@@ -300,11 +376,13 @@ public class SimulationControllerTests : IDisposable
         var result = await resp.ReadJsonAsync<SimulationResultDto>();
         var expectedAreaSouthEdge = 39.9 - 3_000.0 / 111_000.0;
         var expectedCenterLat = (expectedAreaSouthEdge + 39.96) / 2;
-        AxisCenter(result.GridLat).Should().BeApproximately(expectedCenterLat, 1e-8);
+        AxisCenter(result.GridLat).Should().BeLessThan(expectedCenterLat);
+        AxisCenter(result.GridLon).Should().BeApproximately(116.4, 1e-9);
+        result.GridLat.Max().Should().BeGreaterThan(39.96);
     }
 
     [Fact]
-    public async Task 线源_网格中心使用起终点外包框中心()
+    public async Task 线源_单风向网格使用起终点外包框并向下风向留足空间()
     {
         var met = await CreateMet(ws: 3.0, wd: 0.0);
         await CreateLineSource(startLat: 39.88, startLon: 116.36, endLat: 39.92, endLon: 116.44);
@@ -319,7 +397,7 @@ public class SimulationControllerTests : IDisposable
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await resp.ReadJsonAsync<SimulationResultDto>();
-        AxisCenter(result.GridLat).Should().BeApproximately((39.88 + 39.92) / 2, 1e-9);
+        AssertNorthWindKeepsSourceAtPlumeStart(result, (39.88 + 39.92) / 2, (116.36 + 116.44) / 2);
         AxisCenter(result.GridLon).Should().BeApproximately((116.36 + 116.44) / 2, 1e-9);
     }
 
@@ -574,7 +652,7 @@ public class SimulationControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task 网格范围_以污染源为中心且不小于用户模拟范围()
+    public async Task 网格范围_以污染源为起点且不小于用户模拟范围()
     {
         var met = await CreateMet();
         await CreatePointSource(lat: 39.900, lon: 116.400);
@@ -593,8 +671,7 @@ public class SimulationControllerTests : IDisposable
         var lonRangeMeters = (result.GridLon.Max() - result.GridLon.Min()) * 111_000
             * Math.Cos(result.GridLat.Average() * Math.PI / 180.0);
 
-        AxisCenter(result.GridLat).Should().BeApproximately(39.900, 1e-9);
-        AxisCenter(result.GridLon).Should().BeApproximately(116.400, 1e-9);
+        AssertNorthWindKeepsSourceAtPlumeStart(result, 39.900, 116.400);
         latRangeMeters.Should().BeGreaterThan(49_000);
         lonRangeMeters.Should().BeGreaterThan(49_000);
         latRangeMeters.Should().BeLessThan(51_000);

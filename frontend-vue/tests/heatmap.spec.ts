@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
+  computeAnchoredBounds,
   computeBounds,
   renderHeatmapToCanvas,
 } from '@/composables/useHeatmapRenderer'
@@ -93,6 +94,38 @@ describe('renderHeatmapToCanvas', () => {
     expect(lowAlpha).toBe(0)
     expect(midAlpha).toBeGreaterThan(0)
     expect(highAlpha).toBeGreaterThan(midAlpha)
+  })
+
+  it('网格纬度升序时，最高纬度绘制在画布顶部，最低纬度绘制在底部', () => {
+    lastImageData = null
+    renderHeatmapToCanvas({
+      concentrations: [
+        [100, 0, 0],
+        [0, 0, 0],
+        [0, 0, 50],
+      ],
+      gridLat: [39.9, 39.91, 39.92],
+      gridLon: [116.4, 116.41, 116.42],
+      min: 0,
+      max: 100,
+      scale: 'jet',
+      opacity: 1,
+      renderScale: 1,
+      useGcj02: false,
+    })
+
+    expect(lastImageData).not.toBeNull()
+    const data = lastImageData!.data
+    const width = lastImageData!.width
+    const topRightAlpha = data[(0 * width + 2) * 4 + 3]
+    const bottomLeftAlpha = data[(2 * width + 0) * 4 + 3]
+    const topLeftAlpha = data[3]
+    const bottomRightAlpha = data[(2 * width + 2) * 4 + 3]
+
+    expect(topRightAlpha).toBeGreaterThan(0)
+    expect(bottomLeftAlpha).toBeGreaterThan(topRightAlpha)
+    expect(topLeftAlpha).toBe(0)
+    expect(bottomRightAlpha).toBe(0)
   })
 
   it('连续低值模式显示所有正浓度格点', () => {
@@ -192,5 +225,23 @@ describe('computeBounds', () => {
     expect(b[1][0]).not.toBe(39.95)
     // 但数量级应接近（不超过 0.02 度）
     expect(Math.abs(b[0][0] - 39.9)).toBeLessThan(0.02)
+  })
+
+  it('GCJ02 锚定边界保证污染源在热力图内的归一化位置与 marker 对齐', () => {
+    const gridLat = [30.72, 30.78]
+    const gridLon = [120.68, 120.82]
+    const source: [number, number] = [30.75, 120.73]
+    const b = computeAnchoredBounds(gridLat, gridLon, source, true) as [
+      [number, number],
+      [number, number],
+    ]
+    const [sourceLatGcj, sourceLonGcj] = wgs84ToGcj02(source[0], source[1])
+    const latRatio = (source[0] - Math.min(...gridLat)) / (Math.max(...gridLat) - Math.min(...gridLat))
+    const lonRatio = (source[1] - Math.min(...gridLon)) / (Math.max(...gridLon) - Math.min(...gridLon))
+    const anchoredLat = b[0][0] + latRatio * (b[1][0] - b[0][0])
+    const anchoredLon = b[0][1] + lonRatio * (b[1][1] - b[0][1])
+
+    expect(anchoredLat).toBeCloseTo(sourceLatGcj, 12)
+    expect(anchoredLon).toBeCloseTo(sourceLonGcj, 12)
   })
 })

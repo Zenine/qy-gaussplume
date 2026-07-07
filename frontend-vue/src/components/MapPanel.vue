@@ -7,7 +7,7 @@ import type { EmissionSource, Receptor, SimulationResult } from '@/types'
 import { wgs84ToGcj02 } from '@/utils/coords'
 import type { SelectionBounds } from '@/utils/selection'
 import {
-  computeBounds,
+  computeAnchoredBounds,
   renderHeatmapToCanvas,
   type HeatmapDisplayMode,
   type HeatmapOptions,
@@ -18,6 +18,7 @@ import { sourceFitPoints, sourceMapGeometry, type LatLngTuple } from '@/utils/so
 
 const props = defineProps<{
   sources: EmissionSource[]
+  heatmapSources?: EmissionSource[]
   receptors: Receptor[]
   result?: SimulationResult | null
   scale?: ColorScale
@@ -87,6 +88,18 @@ function sourcePointMarker(source: EmissionSource, point: LatLngTuple, size = 14
     iconAnchor: [radius, radius],
   })
   return L.marker(toGcjTuple(point), { icon }).bindPopup(sourcePopup(source))
+}
+
+function resultAnchorPoint(): LatLngTuple | null {
+  const anchorSources = props.heatmapSources?.length ? props.heatmapSources : props.sources
+  const points = anchorSources.flatMap((source) => sourceFitPoints(source))
+  if (points.length === 0) return null
+  const lats = points.map(([lat]) => lat)
+  const lons = points.map(([, lon]) => lon)
+  return [
+    (Math.min(...lats) + Math.max(...lats)) / 2,
+    (Math.min(...lons) + Math.max(...lons)) / 2,
+  ]
 }
 
 function renderMarkers() {
@@ -178,7 +191,7 @@ function renderHeatmap() {
   }
   const canvas = renderHeatmapToCanvas(opts)
   const url = canvas.toDataURL('image/png')
-  const bounds = computeBounds(gridLat, gridLon, true)
+  const bounds = computeAnchoredBounds(gridLat, gridLon, resultAnchorPoint(), true)
   heatmapOverlay.value = L.imageOverlay(url, bounds, {
     opacity: 1,
     interactive: false,
@@ -291,7 +304,20 @@ function fitBounds() {
   map.value.fitBounds(bounds.pad(0.2), { animate: true })
 }
 
-defineExpose({ fitBounds, clearSelection, fitSelection })
+function fitResultBounds() {
+  if (!map.value || !props.result?.gridLat?.length || !props.result?.gridLon?.length) {
+    fitBounds()
+    return
+  }
+  const anchoredBounds = computeAnchoredBounds(props.result.gridLat, props.result.gridLon, resultAnchorPoint(), true) as [
+    L.LatLngTuple,
+    L.LatLngTuple,
+  ]
+  const bounds = L.latLngBounds(anchoredBounds[0], anchoredBounds[1])
+  map.value.fitBounds(bounds.pad(0.08), { animate: true })
+}
+
+defineExpose({ fitBounds, fitResultBounds, clearSelection, fitSelection })
 
 onMounted(() => {
   if (!mapEl.value) return

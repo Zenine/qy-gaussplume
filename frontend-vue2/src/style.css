@@ -27,3 +27,76 @@ body { font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-ser
 .table-shell { border: 1px solid #dfe7ee; border-radius: 10px; overflow: hidden; background: #fff; }
 .spacer { flex: 1; }
 .muted { color: #94a3b8; }
+
+@media (max-width: 760px) {
+  .app-layout {
+    min-width: 0;
+  }
+
+  .app-sidebar {
+    width: 72px !important;
+    flex: 0 0 72px !important;
+  }
+
+  .brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .brand-copy,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .main-menu {
+    padding: 8px;
+  }
+
+  .main-menu .el-menu-item {
+    justify-content: center;
+    padding: 0 !important;
+  }
+
+  .main-menu .el-menu-item span {
+    display: none;
+  }
+
+  .header {
+    height: auto !important;
+    min-height: 64px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+    align-content: flex-start;
+  }
+
+  .page-heading {
+    min-width: 0;
+  }
+
+  .workspace-kicker,
+  .header-badge {
+    display: none;
+  }
+
+  .header .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-actions {
+    order: 2;
+    flex-basis: 100%;
+    width: 100%;
+    padding-top: 4px;
+  }
+
+  .el-main {
+    padding: 10px;
+  }
+
+  .page-toolbar {
+    align-items: flex-start !important;
+  }
+}

@@ -33,8 +33,8 @@ export function sourceMapGeometry(source: EmissionSource): SourceMapGeometry {
     && isPositive(source.areaLength)
     && isPositive(source.areaWidth)
   ) {
-    const halfLat = metersToLatitudeDegrees(source.areaWidth / 2)
-    const halfLon = metersToLongitudeDegrees(source.areaLength / 2, source.latitude)
+    const halfLat = metersToLatitudeDegrees(source.areaLength / 2)
+    const halfLon = metersToLongitudeDegrees(source.areaWidth / 2, source.latitude)
     return {
       kind: 'polygon',
       center,

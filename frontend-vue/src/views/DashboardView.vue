@@ -71,6 +71,7 @@ const SIMULATION_RESULT_STORAGE_PREFIX = 'gnn.simulationResult.v1'
 const MAX_PERSISTED_RESULT_BYTES = 10 * 1024 * 1024
 
 const lastSimulationInputs = ref<LastSimulationInputs | null>(null)
+const resultSources = ref<EmissionSource[]>([])
 
 const showContribution = ref(false)
 const showFormula = ref(false)
@@ -496,7 +497,8 @@ async function runSimulation() {
   }
   running.value = true
   try {
-    const sourceIds = selectionBounds.value ? effectiveSources.value.map((s) => s.id) : undefined
+    const simulationSources = [...effectiveSources.value]
+    const sourceIds = selectionBounds.value ? simulationSources.map((s) => s.id) : undefined
     const receptorIds = selectionBounds.value ? effectiveReceptors.value.map((r) => r.id) : undefined
     const r = await simulationApi.run({
       meteorologyId: selectedMeteorologyId.value,
@@ -518,6 +520,7 @@ async function runSimulation() {
           : r.availablePollutants[0]
     }
     result.value = r
+    resultSources.value = simulationSources
     lastSimulationInputs.value = {
       mode: 'single',
       meteorologyId: selectedMeteorologyId.value,
@@ -530,7 +533,7 @@ async function runSimulation() {
     }
     persistSimulationResult()
     ElMessage.success('模拟完成')
-    mapRef.value?.fitBounds()
+    mapRef.value?.fitResultBounds()
   } catch (e) {
     ElMessage.error(errorMessage(e, '模拟失败'))
   } finally {
@@ -549,7 +552,8 @@ async function runParallelSimulation() {
   }
   running.value = true
   try {
-    const sourceIds = selectionBounds.value ? effectiveSources.value.map((s) => s.id) : undefined
+    const simulationSources = [...effectiveSources.value]
+    const sourceIds = selectionBounds.value ? simulationSources.map((s) => s.id) : undefined
     const receptorIds = selectionBounds.value ? effectiveReceptors.value.map((r) => r.id) : undefined
     const request: ParallelSimulationRequest = {
       meteorologyId: selectedMeteorologyId.value,
@@ -564,6 +568,7 @@ async function runParallelSimulation() {
       returnAggregatedOnly: true,
     }
     const r = await simulationApi.runParallel(request)
+    resultSources.value = simulationSources
     onParallelCompleted(r, request)
     ElMessage.success('全局模拟完成')
   } catch (e) {
@@ -583,6 +588,7 @@ function runCurrentSimulation() {
 
 function clearResult() {
   result.value = null
+  resultSources.value = []
   lastSimulationInputs.value = null
   localStorage.removeItem(simulationResultStorageKey())
   customMin.value = null
@@ -641,9 +647,12 @@ function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimu
         : r.availablePollutants[0]
   }
   calculationPollutant.value = request?.pollutantType ?? ''
+  resultSources.value = request?.sourceIds
+    ? activeSources.value.filter((source) => request.sourceIds?.includes(source.id))
+    : [...effectiveSources.value]
   lastSimulationInputs.value = parallelInputsFromRequest(request)
   persistSimulationResult()
-  mapRef.value?.fitBounds()
+  mapRef.value?.fitResultBounds()
 }
 
 onMounted(() => {
@@ -659,6 +668,7 @@ onMounted(() => {
     <MapPanel
       ref="mapRef"
       :sources="activeSources"
+      :heatmap-sources="result ? resultSources : activeSources"
       :receptors="activeReceptors"
       :result="displayedResult"
       :scale="scale"

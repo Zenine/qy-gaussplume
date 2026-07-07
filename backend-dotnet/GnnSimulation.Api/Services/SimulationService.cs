@@ -31,7 +31,8 @@ public class SimulationService
         var receptors = await LoadReceptorsAsync(request.ReceptorIds, ct);
 
         var model = BuildModel(met, request);
-        var grid = GridBuilder.Build(sources, receptors, request.GridResolution, request.DomainSize);
+        var windDirection = request.WindDirection ?? met.WindDirection;
+        var grid = GridBuilder.Build(sources, receptors, request.GridResolution, request.DomainSize, windDirection);
 
         var nLat = grid.Lat.Length;
         var nLon = grid.Lon.Length;

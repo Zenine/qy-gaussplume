@@ -62,6 +62,23 @@ describe('sourceMapGeometry', () => {
     expect(geometry.corners[2][1]).toBeGreaterThan(120)
   })
 
+  it('面源长宽口径与后端网格一致：AreaLength 控制纬向，AreaWidth 控制经向', () => {
+    const geometry = sourceMapGeometry(makeSource({
+      sourceType: 'area',
+      areaLength: 200,
+      areaWidth: 100,
+    }))
+
+    expect(geometry.kind).toBe('polygon')
+    if (geometry.kind !== 'polygon') return
+    const latSpan = geometry.corners[2][0] - geometry.corners[0][0]
+    const lonSpan = geometry.corners[2][1] - geometry.corners[0][1]
+    const latMeters = latSpan * 111_320
+    const lonMeters = lonSpan * 111_320 * Math.cos((30 * Math.PI) / 180)
+    expect(latMeters).toBeCloseTo(200, 0)
+    expect(lonMeters).toBeCloseTo(100, 0)
+  })
+
   it('等效面源保留等效面源标记用于虚线样式', () => {
     const geometry = sourceMapGeometry(makeSource({
       sourceType: 'equivalent_area',

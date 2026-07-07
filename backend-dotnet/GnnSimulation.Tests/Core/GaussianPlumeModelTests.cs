@@ -180,6 +180,29 @@ public class GaussianPlumeModelTests
         field[0, 2].Should().BeGreaterThan(0);
     }
 
+    [Theory]
+    [InlineData(0.0, 0, 2, 4, 2)]   // 北风：向南扩散
+    [InlineData(90.0, 2, 0, 2, 4)]  // 东风：向西扩散
+    [InlineData(180.0, 4, 2, 0, 2)] // 南风：向北扩散
+    [InlineData(270.0, 2, 4, 2, 0)] // 西风：向东扩散
+    public void 浓度场_以污染源为原点沿气象下风向扩散(
+        double windDirection,
+        int downwindLatIndex,
+        int downwindLonIndex,
+        int upwindLatIndex,
+        int upwindLonIndex)
+    {
+        var m = new GaussianPlumeModel(3.0, windDirection, "D");
+        var gridLat = new[] { 39.88, 39.89, 39.90, 39.91, 39.92 };
+        var gridLon = new[] { 116.38, 116.39, 116.40, 116.41, 116.42 };
+
+        var field = m.CalculateConcentrationField(39.90, 116.40, 50, 1.0, gridLat, gridLon);
+
+        field[2, 2].Should().Be(0);
+        field[downwindLatIndex, downwindLonIndex].Should().BeGreaterThan(0);
+        field[upwindLatIndex, upwindLonIndex].Should().Be(0);
+    }
+
     [Fact]
     public void 反推_等价于正推的逆运算()
     {

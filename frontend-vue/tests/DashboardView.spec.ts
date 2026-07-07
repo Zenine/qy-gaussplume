@@ -35,6 +35,7 @@ const mapStub = {
   emits: ['selection-change', 'view-change'],
   methods: {
     fitBounds: vi.fn(),
+    fitResultBounds: vi.fn(),
     clearSelection: vi.fn(),
     fitSelection: vi.fn(),
   },
