@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   computeAnchoredBounds,
   computeBounds,
@@ -7,20 +7,49 @@ import {
 import { wgs84ToGcj02 } from '@/utils/coords'
 
 let lastImageData: ImageData | null = null
+let strokeCalls: Array<{ moveTo: [number, number]; lineTo: [number, number] }> = []
 
 // jsdom 不原生支持 Canvas 2D。用最小 stub 让逻辑跑通
 beforeAll(() => {
-  HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-    createImageData: (w: number, h: number) => ({
-      data: new Uint8ClampedArray(w * h * 4),
-      width: w,
-      height: h,
-      colorSpace: 'srgb',
-    }),
-    putImageData: vi.fn((img: ImageData) => {
-      lastImageData = img
-    }),
-  })) as unknown as HTMLCanvasElement['getContext']
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => {
+    const state: { moveTo?: [number, number]; lineTo?: [number, number] } = {}
+    return {
+      createImageData: (w: number, h: number) => ({
+        data: new Uint8ClampedArray(w * h * 4),
+        width: w,
+        height: h,
+        colorSpace: 'srgb',
+      }),
+      putImageData: vi.fn((img: ImageData) => {
+        lastImageData = img
+      }),
+      createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(() => {
+        state.moveTo = undefined
+        state.lineTo = undefined
+      }),
+      moveTo: vi.fn((x: number, y: number) => {
+        state.moveTo = [x, y]
+      }),
+      lineTo: vi.fn((x: number, y: number) => {
+        state.lineTo = [x, y]
+      }),
+      stroke: vi.fn(() => {
+        if (state.moveTo && state.lineTo) strokeCalls.push({ moveTo: state.moveTo, lineTo: state.lineTo })
+      }),
+      set lineCap(_value: string) {},
+      set lineJoin(_value: string) {},
+      set lineWidth(_value: number) {},
+      set strokeStyle(_value: unknown) {},
+    }
+  }) as unknown as HTMLCanvasElement['getContext']
+})
+
+beforeEach(() => {
+  lastImageData = null
+  strokeCalls = []
 })
 
 describe('renderHeatmapToCanvas', () => {
@@ -69,7 +98,6 @@ describe('renderHeatmapToCanvas', () => {
   })
 
   it('按扩散羽流显示：低浓度透明，高浓度按色阶增强', () => {
-    lastImageData = null
     renderHeatmapToCanvas({
       concentrations: [
         [1, 50, 100],
@@ -96,8 +124,35 @@ describe('renderHeatmapToCanvas', () => {
     expect(highAlpha).toBeGreaterThan(midAlpha)
   })
 
+  it('羽流突出模式会从污染源沿下风向补一段可见源头', () => {
+    renderHeatmapToCanvas({
+      concentrations: [
+        [0, 100, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+      ],
+      gridLat: [0, 1, 2],
+      gridLon: [0, 1, 2],
+      min: 0,
+      max: 100,
+      scale: 'jet',
+      opacity: 1,
+      renderScale: 10,
+      useGcj02: false,
+      sourceOrigins: [{ lat: 1, lon: 1 }],
+      windDirection: 0,
+    })
+
+    expect(strokeCalls).toHaveLength(1)
+    const [startX, startY] = strokeCalls[0].moveTo
+    const [endX, endY] = strokeCalls[0].lineTo
+    expect(startX).toBeCloseTo(14.5, 1)
+    expect(startY).toBeCloseTo(14.5, 1)
+    expect(endY).toBeGreaterThan(startY)
+    expect(Math.abs(endX - startX)).toBeLessThan(0.01)
+  })
+
   it('网格纬度升序时，最高纬度绘制在画布顶部，最低纬度绘制在底部', () => {
-    lastImageData = null
     renderHeatmapToCanvas({
       concentrations: [
         [100, 0, 0],
@@ -129,7 +184,6 @@ describe('renderHeatmapToCanvas', () => {
   })
 
   it('连续低值模式显示所有正浓度格点', () => {
-    lastImageData = null
     renderHeatmapToCanvas({
       concentrations: [
         [1, 50, 100],
@@ -155,7 +209,6 @@ describe('renderHeatmapToCanvas', () => {
   })
 
   it('不透明度允许超过 1 以增强中高浓度，但最终 alpha 安全封顶', () => {
-    lastImageData = null
     renderHeatmapToCanvas({
       concentrations: [
         [50, 100],

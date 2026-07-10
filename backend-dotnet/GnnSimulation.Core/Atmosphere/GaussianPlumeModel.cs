@@ -543,7 +543,7 @@ public sealed class GaussianPlumeModel
         return result;
     }
 
-    // ================== 线源（分段点源法） ==================
+    // ================== 线源（分段短面源/带状源法） ==================
 
     /// <summary>
     /// 计算线源浓度场。
@@ -566,7 +566,8 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
-        var numSegments = Math.Max(1, (int)(lineLength / segmentLength));
+        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var actualSegmentLength = lineLength / numSegments;
         var segmentEmission = emissionRate / numSegments;
 
         var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
@@ -584,7 +585,7 @@ public sealed class GaussianPlumeModel
             var segField = CalculateAreaSourceConcentrationField(
                 centerLat: segLat,
                 centerLon: segLon,
-                areaLength: segmentLength,
+                areaLength: actualSegmentLength,
                 areaWidth: lineWidth,
                 areaHeight: lineHeight,
                 emissionRate: segmentEmission,
@@ -623,7 +624,8 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
-        var numSegments = Math.Max(1, (int)(lineLength / segmentLength));
+        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var actualSegmentLength = lineLength / numSegments;
         var segmentEmission = emissionRate / numSegments;
         var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
 
@@ -637,7 +639,7 @@ public sealed class GaussianPlumeModel
             total += CalculateAreaSourceReceptorConcentration(
                 centerLat: segLat,
                 centerLon: segLon,
-                areaLength: segmentLength,
+                areaLength: actualSegmentLength,
                 areaWidth: lineWidth,
                 areaHeight: lineHeight,
                 emissionRate: segmentEmission,

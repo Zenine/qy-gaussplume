@@ -16,6 +16,13 @@ export interface HeatmapOptions {
   useGcj02: boolean // 国内瓦片需要 WGS84→GCJ02 偏移
   displayMode?: HeatmapDisplayMode
   visibleThreshold?: number
+  sourceOrigins?: HeatmapSourceOrigin[]
+  windDirection?: number | null
+}
+
+export interface HeatmapSourceOrigin {
+  lat: number
+  lon: number
 }
 
 const PLUME_VISIBLE_THRESHOLD = 0.08
@@ -103,7 +110,84 @@ export function renderHeatmapToCanvas(opts: HeatmapOptions): HTMLCanvasElement {
   }
 
   ctx.putImageData(img, 0, 0)
+  drawSourceOriginPlumes(ctx, img.data, w, h, gridLat, gridLon, opts.sourceOrigins, opts.windDirection, displayMode)
   return canvas
+}
+
+function drawSourceOriginPlumes(
+  ctx: CanvasRenderingContext2D,
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  gridLat: number[],
+  gridLon: number[],
+  origins: HeatmapSourceOrigin[] | undefined,
+  windDirection: number | null | undefined,
+  displayMode: HeatmapDisplayMode,
+) {
+  if (displayMode !== 'plume' || !origins?.length || windDirection == null) return
+  if (typeof ctx.createLinearGradient !== 'function' || typeof ctx.beginPath !== 'function') return
+
+  const south = Math.min(...gridLat)
+  const north = Math.max(...gridLat)
+  const west = Math.min(...gridLon)
+  const east = Math.max(...gridLon)
+  const latSpan = north - south
+  const lonSpan = east - west
+  if (latSpan <= 0 || lonSpan <= 0) return
+
+  const angle = (270 - windDirection) * Math.PI / 180
+  const dx = Math.cos(angle)
+  const dy = -Math.sin(angle)
+  const maxBridge = Math.max(10, Math.min(width, height) * 0.18)
+  const lineWidth = Math.max(3, Math.min(width, height) * 0.018)
+
+  for (const origin of origins) {
+    const lonRatio = (origin.lon - west) / lonSpan
+    const latRatio = (origin.lat - south) / latSpan
+    if (lonRatio < 0 || lonRatio > 1 || latRatio < 0 || latRatio > 1) continue
+
+    const sx = lonRatio * (width - 1)
+    const sy = (1 - latRatio) * (height - 1)
+    const firstVisible = firstVisibleDistanceAlongWind(pixels, width, height, sx, sy, dx, dy, maxBridge)
+    const length = Math.max(lineWidth * 1.5, Math.min(maxBridge, (firstVisible ?? maxBridge * 0.35) + lineWidth))
+    const ex = sx + dx * length
+    const ey = sy + dy * length
+    const gradient = ctx.createLinearGradient(sx, sy, ex, ey)
+    gradient.addColorStop(0, 'rgba(255, 115, 40, 0.46)')
+    gradient.addColorStop(0.45, 'rgba(255, 168, 64, 0.28)')
+    gradient.addColorStop(1, 'rgba(255, 205, 96, 0)')
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = lineWidth
+    ctx.strokeStyle = gradient
+    ctx.beginPath()
+    ctx.moveTo(sx, sy)
+    ctx.lineTo(ex, ey)
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
+function firstVisibleDistanceAlongWind(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  sx: number,
+  sy: number,
+  dx: number,
+  dy: number,
+  maxDistance: number,
+) {
+  for (let d = 1; d <= maxDistance; d++) {
+    const px = Math.round(sx + dx * d)
+    const py = Math.round(sy + dy * d)
+    if (px < 0 || px >= width || py < 0 || py >= height) break
+    const alpha = pixels[(py * width + px) * 4 + 3]
+    if (alpha > 0) return d
+  }
+  return null
 }
 
 // 为网格计算 Leaflet bounds（WGS84 → GCJ02 可选）

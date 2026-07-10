@@ -204,6 +204,82 @@ public class GaussianPlumeModelTests
     }
 
     [Fact]
+    public void 线源浓度场_非整倍数长度按实际短面源分段累加()
+    {
+        var m = new GaussianPlumeModel(3.0, 90.0, "D");
+        var startLat = 39.90;
+        var startLon = 116.4000;
+        var endLat = 39.90;
+        var endLon = startLon + MetersToLonDegrees(25, startLat);
+        var gridLat = new[] { 39.8998, 39.9000, 39.9002 };
+        var gridLon = new[] { 116.3990, 116.3995, 116.4000, 116.4005 };
+
+        var actual = m.CalculateLineSourceConcentrationField(
+            startLat, startLon,
+            endLat, endLon,
+            lineWidth: 5,
+            lineHeight: 1,
+            emissionRate: 9,
+            gridLat: gridLat,
+            gridLon: gridLon,
+            segmentLength: 10,
+            sigmaZ0: null,
+            receptorHeight: 0,
+            pollutant: "NOx");
+
+        var expected = ExpectedLineFieldByShortAreaSegments(
+            m,
+            startLat, startLon,
+            endLat, endLon,
+            lineWidth: 5,
+            lineHeight: 1,
+            emissionRate: 9,
+            gridLat: gridLat,
+            gridLon: gridLon,
+            segmentLength: 10,
+            pollutant: "NOx");
+
+        AssertMatrixApproximately(actual, expected, 1e-9);
+    }
+
+    [Fact]
+    public void 线源受体贡献_非整倍数长度按实际短面源分段累加()
+    {
+        var m = new GaussianPlumeModel(3.0, 90.0, "D");
+        var startLat = 39.90;
+        var startLon = 116.4000;
+        var endLat = 39.90;
+        var endLon = startLon + MetersToLonDegrees(25, startLat);
+
+        var actual = m.CalculateLineSourceReceptorConcentration(
+            startLat, startLon,
+            endLat, endLon,
+            lineWidth: 5,
+            lineHeight: 1,
+            emissionRate: 9,
+            receptorLat: 39.90,
+            receptorLon: 116.3995,
+            segmentLength: 10,
+            sigmaZ0: null,
+            receptorHeight: 0,
+            pollutant: "NOx");
+
+        var expected = ExpectedLineReceptorByShortAreaSegments(
+            m,
+            startLat, startLon,
+            endLat, endLon,
+            lineWidth: 5,
+            lineHeight: 1,
+            emissionRate: 9,
+            receptorLat: 39.90,
+            receptorLon: 116.3995,
+            segmentLength: 10,
+            pollutant: "NOx");
+
+        actual.Should().BeApproximately(expected, Math.Max(1e-9, Math.Abs(expected) * 1e-9));
+    }
+
+    [Fact]
     public void 反推_等价于正推的逆运算()
     {
         var m = new GaussianPlumeModel(3.0, 0.0, "D");
@@ -253,4 +329,106 @@ public class GaussianPlumeModelTests
         var ranked = ContributionAnalysis.Rank(sources, new[] { 0.0, 0.0 });
         ranked.Should().OnlyContain(r => r.Percentage == 0);
     }
+
+    private static double[,] ExpectedLineFieldByShortAreaSegments(
+        GaussianPlumeModel model,
+        double startLat, double startLon,
+        double endLat, double endLon,
+        double lineWidth, double lineHeight,
+        double emissionRate,
+        double[] gridLat, double[] gridLon,
+        double segmentLength,
+        string pollutant)
+    {
+        var lineLength = LineLengthMeters(startLat, startLon, endLat, endLon);
+        var segmentCount = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var actualSegmentLength = lineLength / segmentCount;
+        var segmentEmission = emissionRate / segmentCount;
+        var result = new double[gridLat.Length, gridLon.Length];
+
+        for (var seg = 0; seg < segmentCount; seg++)
+        {
+            var t = (seg + 0.5) / segmentCount;
+            var segLat = startLat + t * (endLat - startLat);
+            var segLon = startLon + t * (endLon - startLon);
+            var field = model.CalculateAreaSourceConcentrationField(
+                centerLat: segLat,
+                centerLon: segLon,
+                areaLength: actualSegmentLength,
+                areaWidth: lineWidth,
+                areaHeight: lineHeight,
+                emissionRate: segmentEmission,
+                gridLat: gridLat,
+                gridLon: gridLon,
+                sigmaZ0: null,
+                receptorHeight: 0,
+                pollutant: pollutant);
+            for (var i = 0; i < gridLat.Length; i++)
+                for (var j = 0; j < gridLon.Length; j++)
+                    result[i, j] += field[i, j];
+        }
+
+        return result;
+    }
+
+    private static double ExpectedLineReceptorByShortAreaSegments(
+        GaussianPlumeModel model,
+        double startLat, double startLon,
+        double endLat, double endLon,
+        double lineWidth, double lineHeight,
+        double emissionRate,
+        double receptorLat, double receptorLon,
+        double segmentLength,
+        string pollutant)
+    {
+        var lineLength = LineLengthMeters(startLat, startLon, endLat, endLon);
+        var segmentCount = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var actualSegmentLength = lineLength / segmentCount;
+        var segmentEmission = emissionRate / segmentCount;
+        var total = 0.0;
+
+        for (var seg = 0; seg < segmentCount; seg++)
+        {
+            var t = (seg + 0.5) / segmentCount;
+            var segLat = startLat + t * (endLat - startLat);
+            var segLon = startLon + t * (endLon - startLon);
+            total += model.CalculateAreaSourceReceptorConcentration(
+                centerLat: segLat,
+                centerLon: segLon,
+                areaLength: actualSegmentLength,
+                areaWidth: lineWidth,
+                areaHeight: lineHeight,
+                emissionRate: segmentEmission,
+                receptorLat: receptorLat,
+                receptorLon: receptorLon,
+                sigmaZ0: null,
+                receptorHeight: 0,
+                pollutant: pollutant);
+        }
+
+        return total;
+    }
+
+    private static void AssertMatrixApproximately(double[,] actual, double[,] expected, double relativeTolerance)
+    {
+        actual.GetLength(0).Should().Be(expected.GetLength(0));
+        actual.GetLength(1).Should().Be(expected.GetLength(1));
+        for (var i = 0; i < actual.GetLength(0); i++)
+            for (var j = 0; j < actual.GetLength(1); j++)
+                actual[i, j].Should().BeApproximately(
+                    expected[i, j],
+                    Math.Max(1e-12, Math.Abs(expected[i, j]) * relativeTolerance),
+                    $"cell [{i},{j}]");
+    }
+
+    private static double LineLengthMeters(double startLat, double startLon, double endLat, double endLon)
+    {
+        var lonToM = 111_000.0 * Math.Cos((startLat + endLat) / 2 * Math.PI / 180.0);
+        var dx = (endLon - startLon) * lonToM;
+        var dy = (endLat - startLat) * 111_000.0;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static double MetersToLonDegrees(double meters, double latitude) =>
+        meters / (111_000.0 * Math.Cos(latitude * Math.PI / 180.0));
 }

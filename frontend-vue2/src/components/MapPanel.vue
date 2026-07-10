@@ -20,6 +20,7 @@ export default Vue.extend({
   props: {
     sources: { type: Array, default: () => [] },
     heatmapSources: { type: Array, default: () => [] },
+    heatmapWindDirection: { type: Number, default: null },
     receptors: { type: Array, default: () => [] },
     result: { type: Object, default: null },
     scale: { type: String, default: 'jet' },
@@ -70,6 +71,7 @@ export default Vue.extend({
     opacity: 'renderHeatmap',
     renderScale: 'renderHeatmap',
     heatmapDisplayMode: 'renderHeatmap',
+    heatmapWindDirection: 'renderHeatmap',
     boundaryGeoJson: 'renderBoundaryLayer',
     tileLayer(value: string) { this.setTileLayer(value) },
   },
@@ -98,6 +100,24 @@ export default Vue.extend({
         (Math.min(...lats) + Math.max(...lats)) / 2,
         (Math.min(...lons) + Math.max(...lons)) / 2,
       ]
+    },
+    resultSourceOrigins() {
+      const anchorSources = (this.heatmapSources as EmissionSource[]).length
+        ? this.heatmapSources as EmissionSource[]
+        : this.sources as EmissionSource[]
+      return anchorSources
+        .filter((source) => source.sourceType === 'point')
+        .map((source) => {
+          const points = sourceFitPoints(source)
+          if (points.length === 0) return null
+          const lats = points.map(([lat]) => lat)
+          const lons = points.map(([, lon]) => lon)
+          return {
+            lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+            lon: (Math.min(...lons) + Math.max(...lons)) / 2,
+          }
+        })
+        .filter((origin): origin is { lat: number; lon: number } => origin !== null)
     },
     renderMarkers() {
       if (!this.map) return
@@ -136,7 +156,20 @@ export default Vue.extend({
         }
       }
       if (max <= 0) return
-      const canvas = renderHeatmapToCanvas({ concentrations: result.concentrations, gridLat: result.gridLat, gridLon: result.gridLon, min: this.min || 0, max, scale: this.scale as any, opacity: this.opacity, displayMode: this.heatmapDisplayMode as any, renderScale: this.renderScale, useGcj02: true })
+      const canvas = renderHeatmapToCanvas({
+        concentrations: result.concentrations,
+        gridLat: result.gridLat,
+        gridLon: result.gridLon,
+        min: this.min || 0,
+        max,
+        scale: this.scale as any,
+        opacity: this.opacity,
+        displayMode: this.heatmapDisplayMode as any,
+        renderScale: this.renderScale,
+        useGcj02: true,
+        sourceOrigins: this.resultSourceOrigins(),
+        windDirection: this.heatmapWindDirection as number | null,
+      })
       this.heatmapOverlay = L.imageOverlay(canvas.toDataURL('image/png'), computeAnchoredBounds(result.gridLat, result.gridLon, this.resultAnchorPoint(), true), { opacity: 1, interactive: false }).addTo(this.map)
     },
     clearBoundaryLayer() { if (this.boundaryLayer) { this.boundaryLayer.remove(); this.boundaryLayer = null } },

@@ -19,6 +19,7 @@ import { sourceFitPoints, sourceMapGeometry, type LatLngTuple } from '@/utils/so
 const props = defineProps<{
   sources: EmissionSource[]
   heatmapSources?: EmissionSource[]
+  heatmapWindDirection?: number | null
   receptors: Receptor[]
   result?: SimulationResult | null
   scale?: ColorScale
@@ -100,6 +101,23 @@ function resultAnchorPoint(): LatLngTuple | null {
     (Math.min(...lats) + Math.max(...lats)) / 2,
     (Math.min(...lons) + Math.max(...lons)) / 2,
   ]
+}
+
+function resultSourceOrigins() {
+  const anchorSources = props.heatmapSources?.length ? props.heatmapSources : props.sources
+  return anchorSources
+    .filter((source) => source.sourceType === 'point')
+    .map((source) => {
+      const points = sourceFitPoints(source)
+      if (points.length === 0) return null
+      const lats = points.map(([lat]) => lat)
+      const lons = points.map(([, lon]) => lon)
+      return {
+        lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+        lon: (Math.min(...lons) + Math.max(...lons)) / 2,
+      }
+    })
+    .filter((origin): origin is { lat: number; lon: number } => origin !== null)
 }
 
 function renderMarkers() {
@@ -188,6 +206,8 @@ function renderHeatmap() {
     displayMode: props.heatmapDisplayMode ?? 'plume',
     renderScale: props.renderScale ?? 2,
     useGcj02: true,
+    sourceOrigins: resultSourceOrigins(),
+    windDirection: props.heatmapWindDirection,
   }
   const canvas = renderHeatmapToCanvas(opts)
   const url = canvas.toDataURL('image/png')

@@ -58,6 +58,7 @@
       ref="map"
       :sources="activeSources"
       :heatmap-sources="result ? resultSources : activeSources"
+      :heatmap-wind-direction="lastSimulationInputs && lastSimulationInputs.mode === 'single' ? lastSimulationInputs.windDirection : null"
       :receptors="activeReceptors"
       :result="displayedResult"
       :scale="scale"
