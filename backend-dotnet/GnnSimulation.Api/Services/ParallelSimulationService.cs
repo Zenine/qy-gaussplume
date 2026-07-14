@@ -18,6 +18,16 @@ public class ParallelSimulationService
     {
         if (request.WindDirections.Count == 0)
             throw new SimulationBadRequestException("风向列表不能为空");
+        if (request.Weights is { } weights && weights.Count != request.WindDirections.Count)
+            throw new SimulationBadRequestException($"权重数量 ({weights.Count}) 与风向数量 ({request.WindDirections.Count}) 不一致");
+        if (request.Weights?.Any(weight => !double.IsFinite(weight) || weight < 0) == true)
+            throw new SimulationBadRequestException("每个风向的权重必须是非负有限数值");
+        if (request.Weights is { Count: > 0 } requestWeights)
+        {
+            var totalWeight = requestWeights.Sum();
+            if (!double.IsFinite(totalWeight) || totalWeight <= 0)
+                throw new SimulationBadRequestException("权重总和必须是大于 0 的有限数值");
+        }
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -115,15 +125,15 @@ public class ParallelSimulationService
     {
         var n = successful.Count;
 
-        // 权重按请求中的原始风向索引绑定；部分风向失败时，只对成功方向的原始权重重新归一化。
-        // 缺失/长度不对时，对成功方向使用等权重。
+        // 权重已在入口完成数量和值域校验，并按请求中的原始风向索引绑定；
+        // 未提供时使用等权，部分风向失败时只对成功方向的原始权重重新归一化。
         var weights = request.Weights is { } w && w.Count == request.WindDirections.Count
             ? successful.Select(r => w[r.Index]).ToArray()
             : Enumerable.Repeat(1.0 / Math.Max(n, 1), n).ToArray();
         var totalWeight = weights.Sum();
-        var normalized = totalWeight > 0
-            ? weights.Select(x => x / totalWeight).ToArray()
-            : weights;
+        if (!double.IsFinite(totalWeight) || totalWeight <= 0)
+            throw new SimulationBadRequestException("成功风向的权重总和必须是大于 0 的有限数值");
+        var normalized = weights.Select(x => x / totalWeight).ToArray();
 
         double[,]? aggregated = null;
         var aggregatedPollutants = new Dictionary<string, double[,]>();

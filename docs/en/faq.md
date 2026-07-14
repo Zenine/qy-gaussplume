@@ -27,4 +27,4 @@ Equivalent-area sources use measured `concentration` to calculate an equivalent 
 
 ### What should run before committing?
 
-Run `./scripts/verify.sh`. It executes 155 backend xUnit tests, 111 frontend Vitest tests, and the frontend production build.
+Run `./scripts/verify.sh`. It executes 163 backend xUnit tests, 113 frontend Vitest tests, and the frontend production build.

@@ -60,6 +60,59 @@ public class ParallelSimulationTests : IDisposable
     }
 
     [Fact]
+    public async Task 多风向权重_数量与风向不一致返回400()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            Weights = new List<double> { 1 },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("权重数量").And.Contain("风向数量");
+    }
+
+    [Theory]
+    [InlineData(-0.1, 1.1)]
+    [InlineData(0.0, 0.0)]
+    public async Task 多风向权重_负数或总和为零返回400(double firstWeight, double secondWeight)
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            Weights = new List<double> { firstWeight, secondWeight },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("权重");
+    }
+
+    [Fact]
+    public async Task 多风向权重_有限值相加溢出返回400()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            Weights = new List<double> { double.MaxValue, double.MaxValue },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("权重总和");
+    }
+
+    [Fact]
     public async Task 气象场不存在返回404()
     {
         var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto

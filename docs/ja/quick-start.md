@@ -27,7 +27,7 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd .
 AI コーディング助手には次の文を使えます。
 
 ```text
-QY-GaussPlume のソースは /Users/zeninexu/github/未命名文件夹/qy-gaussplume にあります。QUICK_START.md を読んでから質問してください。質問がなければ作業を始めてください。
+QY-GaussPlume リポジトリのルートで `QUICK_START.md` を読み、その後に質問してください。質問がなければ作業を始めてください。
 ```
 
 ## 検証

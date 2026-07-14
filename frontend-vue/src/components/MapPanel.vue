@@ -110,15 +110,12 @@ function renderMarkers() {
       const line = L.polyline(geometry.points.map(toGcjTuple), {
         color: safeCssColor(s.markerColor),
         weight: Math.max(3, Math.min(10, s.lineWidth ?? 4)),
-        opacity: 0.85,
+        opacity: 0.9,
+        lineCap: 'round',
+        lineJoin: 'round',
       }).bindPopup(sourcePopup(s))
       line.addTo(map.value)
       entityLayers.value.push(line)
-      for (const point of geometry.points) {
-        const endpoint = sourcePointMarker(s, point, 10)
-        endpoint.addTo(map.value)
-        entityLayers.value.push(endpoint)
-      }
     } else {
       const marker = sourcePointMarker(s, geometry.center)
       marker.addTo(map.value)

@@ -23,7 +23,7 @@ backend-dotnet/
 │   └── Program.cs                  # DI、CORS、启动自愈
 ├── GnnSimulation.Core/             # 无依赖核心算法库
 │   └── Atmosphere/
-│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发
+│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发 + 线源连续积分
 │       ├── PasquillGifford.cs              # A-F 稳定度 σ 参数
 │       ├── PollutantProperties.cs          # 八种污染物沉降/化学参数
 │       ├── StabilityClassifier.cs          # 风速+辐照分类
@@ -34,7 +34,7 @@ backend-dotnet/
 │   ├── GnnDbContext.cs             # Fluent snake_case 映射 + 自动时间戳 + 级联删除
 │   ├── Migrations/                 # 初始 Migration（新库用）
 │   └── Design/DesignTimeDbContextFactory.cs
-└── GnnSimulation.Tests/            # xUnit 测试（155 用例）
+└── GnnSimulation.Tests/            # xUnit 测试（163 用例）
     ├── Core/                       # 算法单测 + 黄金值对齐
     ├── Data/                       # 实体 + DbContext
     ├── Api/                        # WebApplicationFactory 集成测试
@@ -54,7 +54,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 155 个测试
+dotnet test                                      # 跑全部 163 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -84,9 +84,9 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 | 测试类别 | 文件 | 数量 |
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 28 |
-| **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 47 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 80 |
-| **合计** | | **155** |
+| **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 51 |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 84 |
+| **合计** | | **163** |
 
 ## 黄金值对齐
 

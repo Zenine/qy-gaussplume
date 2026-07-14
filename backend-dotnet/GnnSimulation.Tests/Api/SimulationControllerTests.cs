@@ -100,6 +100,7 @@ public class SimulationControllerTests : IDisposable
         dto.WindAggregationFormula.Should().Contain("权重");
         dto.Pollutants.Should().Contain(p => p.Type == "PM2.5" && p.GravitationalSettlingVelocity > 0);
         dto.Pollutants.Should().Contain(p => p.Type == "NOx" && p.ChemicalEnhanced);
+        dto.SourceTypes.Should().Contain(s => s.Type == "line" && s.Formula.Contains("∫") && s.Notes.Contains("Gauss-Legendre"));
         dto.SourceTypes.Should().Contain(s => s.Type == "equivalent_area" && s.Formula.Contains("concentration"));
     }
 

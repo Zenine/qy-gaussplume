@@ -85,7 +85,7 @@ SimulationService.RunAsync
    │       point           → CalculateConcentrationField
    │       area            → CalculateAreaSourceConcentrationField
    │       equivalent_area → 带 isEquivalent=true 的面源，浓度夹紧
-   │       line            → CalculateLineSourceConcentrationField (分段点源法)
+   │       line            → CalculateLineSourceConcentrationField (分段四点 Gauss-Legendre 连续积分，直接累加网格)
    │     AddInPlace → 累加到总浓度场
    │     每污染物独立再算一次 → pollutantConcentrations dict
    │
@@ -115,7 +115,7 @@ ParallelSimulationService.RunAsync
    ├─► 估算内存 > 0.5 GB ⇒ 强制 returnAggregatedOnly = true（防响应爆）
    │
    └─► 聚合：
-         权重归一化 (nullable → 等权)
+         权重校验（数量一致、有限非负、总和 > 0）并归一化 (nullable → 等权)
          总浓度场 = Σ (风向结果 × 权重)
          污染物浓度场 = Σ (风向结果 × 权重) 按类别独立累加
          受体贡献聚合 = Σ (同 source_id 加权合并) → 排序 + 百分比
@@ -172,8 +172,9 @@ src/
 | **P15** | 排放源/气象场批量删除 + 多污染因子独立计算 + 多风向聚合一致性修复 | 146 | 79 |
 | **P16** | 公式说明接口 + 主控台公式抽屉 | 149 | 108 |
 | **P17** | 污染源中心化范围截断 + 启用状态参与主控台模拟 | 155 | 111 |
+| **P18** | 线源连续积分与地图语义 + 多风向权重校验 + 结果污染物筛选 | 163 | 113 |
 
-**当前**：266 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：276 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 

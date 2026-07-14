@@ -27,7 +27,7 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd .
 如果你想讓 AI 助手繼續開發這個專案，可以使用：
 
 ```text
-QY-GaussPlume 的源碼在 /Users/zeninexu/github/未命名文件夹/qy-gaussplume。請讀 QUICK_START.md，然後向我提問。沒有問題就開始工作。
+進入 QY-GaussPlume 儲存庫根目錄後，請讀 `QUICK_START.md`，然後向我提問。沒有問題就開始工作。
 ```
 
 ## 驗證

@@ -27,4 +27,4 @@ QY-GaussPlume 的常見問題圍繞本地啟動、資料來源、模擬參數、
 
 ### 提交前應該執行什麼驗證？
 
-執行 `./scripts/verify.sh`。該腳本會執行後端 155 個 xUnit 用例、前端 111 個 Vitest 用例和前端生產建置。
+執行 `./scripts/verify.sh`。該腳本會執行後端 163 個 xUnit 用例、前端 113 個 Vitest 用例和前端生產建置。

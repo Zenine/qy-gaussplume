@@ -27,7 +27,7 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com && cd .
 Use this with an AI coding assistant:
 
 ```text
-The QY-GaussPlume source is at /Users/zeninexu/github/未命名文件夹/qy-gaussplume. Read QUICK_START.md, then ask me questions. If there are no questions, start working.
+From the QY-GaussPlume repository root, read `QUICK_START.md`, then ask me questions. If there are no questions, start working.
 ```
 
 ## Verification

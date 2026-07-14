@@ -2,8 +2,8 @@
 生成 Python 版高斯烟羽模型的黄金数值，供 C# 测试对齐使用。
 
 用法：
-    cd /Users/zeninexu/github/gnn
-    python3 backend-dotnet/GnnSimulation.Tests/Data/golden/generate_golden.py
+    cd backend-dotnet/GnnSimulation.Tests/Data/golden
+    python3 generate_golden.py
 
 会在同目录下生成 golden_values.json。
 """

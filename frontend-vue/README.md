@@ -7,9 +7,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | **3.0.9** |
-| 更新日期 | **2026-06-17** |
-| 主要范围 | 风向指针圆心坐标、排放源/气象场批量删除、多污染因子独立计算、公式说明展示、多风向聚合一致性 |
-| 验证结果 | Vitest 111 个用例，`npm run build` 通过 |
+| 更新日期 | **2026-07-14** |
+| 主要范围 | 线源连续积分与地图语义、多风向权重校验、结果污染物筛选 |
+| 验证结果 | Vitest 113 个用例，`npm run build` 通过 |
 
 ## 本次 GNN 修改说明
 
@@ -19,6 +19,7 @@
 - **选中状态清理**：排放源筛选或刷新、气象场刷新后会清空表格选中状态；关闭批量删除确认框不会误报失败。
 - **公式说明可见**：主控台新增“公式说明”入口，`FormulaDrawer` 从 `/api/simulation/formulas` 拉取公式、源类型和污染因子参数，不在前端硬编码算法参数。
 - **维护测试同步**：新增 Dashboard、Sources、Receptors、Meteorology 视图回归测试，覆盖上述行为。
+- **依赖安全升级**：Axios 更新到 1.18.1，Vite 更新到 6.4.3，Vitest 更新到 4.1.10；生产依赖 `npm audit --omit=dev --audit-level=high` 为 0 漏洞。
 
 ## GNN 首页 Hero 图
 
@@ -53,7 +54,7 @@ cd ../backend-dotnet && dotnet run --project GnnSimulation.Api
 | `npm run dev` | Vite 开发服务器，热更新，`/api/*` 代理到后端 |
 | `npm run build` | `vue-tsc -b`（类型检查） + `vite build`，输出 `dist/` |
 | `npm run preview` | 预览生产构建 |
-| `npm test` | Vitest 一次跑完全部 111 用例 |
+| `npm test` | Vitest 一次跑完全部 113 用例 |
 | `npm run test:watch` | Vitest watch 模式 |
 
 ## 目录结构
@@ -132,7 +133,8 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 - 左下角用滑块控制模拟范围（km）、网格分辨率（m）和模拟高度（m），并继续写入 `prefs`。
 - 右侧初始卡片提供矩形区域绘制、气象参数预览、当前范围内排放源/受体点统计。
 - 模拟完成后右侧切换为结果卡和受体点贡献分析卡，可调整色阶、透明度、扩散显示模式、渲染精度和浓度范围；贡献分析卡直接按空气站点分组，污染物下继续展示前 10 个非零贡献污染源。
-- 地图按排放源类型显示空间几何：点源为点，面源为矩形，等效面源为紫色虚线矩形，线源为线段和起终点。
+- 地图按排放源类型显示空间几何：点源为点，面源为矩形，等效面源为紫色虚线矩形，线源为连续圆角线段，不叠加点源式端点。
+- 结果卡的污染物下拉框只列出本次响应实际包含的污染物分场；排放源中存在但未参与本次计算的污染物不会混入结果选项。
 - 框选区域后，前端会把区域内 `sourceIds` / `receptorIds` 随模拟请求提交；空受体列表保持为空，不回退到全部受体点。
 
 ### 坐标系统（`utils/coords.ts`）
@@ -157,7 +159,7 @@ gridResolution · domainSize · customMin · customMax · useLogScale
 ## 测试
 
 ```bash
-npm test          # 20 文件 · 111 用例
+npm test          # 21 文件 · 113 用例
 npm run build     # 含 TS 类型检查
 ```
 
@@ -178,7 +180,7 @@ Vitest 用 jsdom，对 `<canvas>` 2D context 在 `tests/heatmap.spec.ts` 中做�
 | 状态管理 | 直接操作 DOM + localStorage | Pinia + 自动同步 |
 | 热力图 | 内联大块 JS | 拆分 composable，可测 |
 | 类型安全 | 无 | TypeScript 全覆盖 |
-| 测试 | 几乎无 | 111 单测 + 组件测试 |
+| 测试 | 几乎无 | 113 单测 + 组件测试 |
 
 ## 常见问题
 

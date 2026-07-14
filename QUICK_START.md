@@ -46,5 +46,5 @@ python3 ../scripts/generate-llms-full.py --all-langs
 ## 给 AI 助手的一句话
 
 ```text
-项目在 /Users/zeninexu/github/未命名文件夹/qy-gaussplume。先读 QUICK_START.md、README.md、docs/WORKFLOW.md 和 checkpoint.md，再按项目验证入口工作。
+项目为 qy-gaussplume。进入仓库根目录后，先读 QUICK_START.md、README.md、docs/WORKFLOW.md 和 checkpoint.md，再按项目验证入口工作。
 ```

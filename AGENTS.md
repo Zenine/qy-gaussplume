@@ -13,7 +13,7 @@
 
 ## 代码入口
 
-- 后端：`backend-dotnet/AirPollution.Api`
+- 后端：`backend-dotnet/GnnSimulation.Api`
 - 前端：`frontend-vue/src`
 - 文档：`docs`
 - 多语术语表：`i18n/glossary.md`

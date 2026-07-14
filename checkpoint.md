@@ -1,6 +1,6 @@
 # Meridian 发布检查点
 
-日期：2026-06-03
+日期：2026-07-14
 
 ## 已完成
 
@@ -20,11 +20,13 @@
 - `cd docs && npm run docs:build`：通过。
 - `python3 scripts/generate-llms-full.py --all-langs`：已生成根目录和 `docs/public` 两份 `llms-full.txt`。
 - `python3 scripts/verify-visual.py --skip-dev`：通过静态构建、SEO/GEO 与 llms 资源检查。
-- `./scripts/verify.sh`：通过，后端 138 个测试、前端 71 个测试、前端生产构建均成功。
+- `./scripts/verify.sh`：通过，后端 163 个测试、前端 113 个测试、前端生产构建均成功。
+- `frontend-vue` 生产依赖审计：`npm audit --omit=dev --audit-level=high` 为 0 漏洞。
 
 ## 剩余风险
 
-- `npm audit --audit-level=moderate` 报告 VitePress 1.6.4 依赖链中的 `vite/esbuild` 开发服务器 moderate 告警，npm 标记为 `No fix available`；当前未切换到不稳定替代版本。
+- `docs` 的 `npm audit --audit-level=high` 报告 VitePress 1.6.4 依赖链 3 项告警且无可用稳定修复；当前未使用 `--force` 切换不稳定版本。
+- NuGet 最新 `SQLitePCLRaw.lib.e_sqlite3` 2.1.11 仍被 `GHSA-2m69-gcr7-jv3q` 标记；等待上游修复或评估系统 SQLite provider，详见 `TODO.md`。
 
 ## 恢复口令
 

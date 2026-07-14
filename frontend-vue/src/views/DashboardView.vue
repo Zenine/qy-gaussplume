@@ -232,6 +232,28 @@ const pollutantOptions = computed(() => {
   return [...values]
 })
 
+type ResultPollutantSource = {
+  pollutantConcentrations?: Record<string, number[][]> | null
+  availablePollutants?: string[] | null
+}
+
+function actualResultPollutants(value: ResultPollutantSource | null): string[] {
+  if (!value) return []
+  const fields = Object.keys(value.pollutantConcentrations ?? {})
+  return fields.length ? fields : (value.availablePollutants ?? [])
+}
+
+function selectResultPollutant(value: ResultPollutantSource, preferred?: string | null): string {
+  const options = actualResultPollutants(value)
+  if (preferred && options.includes(preferred)) return preferred
+  if (selectedPollutant.value && options.includes(selectedPollutant.value)) return selectedPollutant.value
+  return options[0] ?? ''
+}
+
+const resultPollutantOptions = computed(() => {
+  return actualResultPollutants(result.value)
+})
+
 const autoRange = computed(() => {
   if (!result.value) return { min: 0, max: 0 }
   return concentrationRange(displayedResult.value?.concentrations ?? result.value.concentrations)
@@ -331,7 +353,7 @@ function restoreSimulationResult() {
     const parsed = JSON.parse(raw)
     if (!parsed?.result?.concentrations || !parsed?.result?.gridLat || !parsed?.result?.gridLon) return
     result.value = parsed.result
-    selectedPollutant.value = parsed.selectedPollutant ?? selectedPollutant.value
+    selectedPollutant.value = selectResultPollutant(parsed.result, parsed.selectedPollutant)
     selectedRankingReceptor.value = parsed.selectedRankingReceptor ?? ''
     selectedRankingPollutant.value = parsed.selectedRankingPollutant ?? ''
     lastSimulationInputs.value = parsed.lastSimulationInputs ?? null
@@ -452,14 +474,7 @@ async function runSimulation() {
       domainSize: domainSize.value,
       receptorHeight: simulationHeight.value,
     })
-    if (r.availablePollutants?.length) {
-      selectedPollutant.value = calculationPollutant.value
-        && r.availablePollutants.includes(calculationPollutant.value)
-        ? calculationPollutant.value
-        : selectedPollutant.value && r.availablePollutants.includes(selectedPollutant.value)
-          ? selectedPollutant.value
-          : r.availablePollutants[0]
-    }
+    selectedPollutant.value = selectResultPollutant(r, calculationPollutant.value)
     result.value = r
     lastSimulationInputs.value = {
       mode: 'single',
@@ -567,7 +582,7 @@ function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimu
     return
   }
   // 用并行聚合结果替换地图展示，保留污染物分场与受体贡献数据。
-  result.value = {
+  const nextResult: SimulationResult = {
     concentrations: r.concentrations,
     gridLat: r.gridLat,
     gridLon: r.gridLon,
@@ -576,13 +591,8 @@ function onParallelCompleted(r: ParallelSimulationResult, request?: ParallelSimu
     pollutantConcentrations: r.pollutantConcentrations ?? null,
     availablePollutants: r.availablePollutants ?? null,
   }
-  if (r.availablePollutants?.length) {
-    selectedPollutant.value = request?.pollutantType && r.availablePollutants.includes(request.pollutantType)
-      ? request.pollutantType
-      : selectedPollutant.value && r.availablePollutants.includes(selectedPollutant.value)
-        ? selectedPollutant.value
-        : r.availablePollutants[0]
-  }
+  selectedPollutant.value = selectResultPollutant(nextResult, request?.pollutantType)
+  result.value = nextResult
   calculationPollutant.value = request?.pollutantType ?? ''
   lastSimulationInputs.value = parallelInputsFromRequest(request)
   persistSimulationResult()
@@ -824,7 +834,7 @@ onMounted(() => {
               clearable
               placeholder="全部污染物"
             >
-              <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
+              <el-option v-for="p in resultPollutantOptions" :key="p" :value="p" :label="p" />
             </el-select>
           </label>
           <label class="full-field">

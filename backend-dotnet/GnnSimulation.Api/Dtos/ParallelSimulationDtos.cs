@@ -14,7 +14,7 @@ public class ParallelSimulationRequestDto
     public double WindSpeed { get; set; }
     public List<double> WindDirections { get; set; } = new();
 
-    // 风向对应的权重；null 或长度不匹配时视为等权重
+    // 风向对应的非负有限权重；null 时等权，提供时数量必须匹配且总和为大于 0 的有限数值。
     public List<double>? Weights { get; set; }
 
     public double ReceptorHeight { get; set; } = 0.0;

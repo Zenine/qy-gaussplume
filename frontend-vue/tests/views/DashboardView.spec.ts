@@ -257,6 +257,7 @@ function mountView() {
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks()
   localStorage.clear()
   setActivePinia(createPinia())
   vi.spyOn(sourcesApi, 'list').mockResolvedValue(sources)
@@ -611,6 +612,41 @@ describe('DashboardView', () => {
         pollutantType: 'PM10',
       }),
     )
+  })
+
+  it('结果污染物下拉只展示本次实际返回的分场', async () => {
+    vi.mocked(sourcesApi.list).mockResolvedValue([{
+      ...sources[0],
+      pollutants: [{
+        id: 9,
+        sourceId: sources[0].id,
+        pollutantType: 'O3',
+        emissionRate: 1,
+        concentration: null,
+        createdAt: '',
+        updatedAt: '',
+      }],
+    }])
+    vi.mocked(simulationApi.run).mockResolvedValue({
+      ...contributionResult,
+      pollutantConcentrations: { 'PM2.5': [[0, 1]] },
+      availablePollutants: ['PM2.5', 'O3'],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const calculationSelect = wrapper.findComponent('[data-test="calculation-pollutant-select"]')
+    await calculationSelect.vm.$emit('update:modelValue', 'O3')
+    await wrapper.find('[data-test="run-simulation"]').trigger('click')
+    await flushPromises()
+
+    const resultSelect = wrapper.findComponent('[data-test="top-pollutant-select"]')
+    const resultValues = resultSelect.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))
+    expect(resultValues).toEqual(['PM2.5'])
+    expect(resultSelect.props('modelValue')).toBe('PM2.5')
+
+    const calculationValues = calculationSelect.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))
+    expect(calculationValues).toContain('O3')
   })
 
   it('右侧污染物指标清空后按空气站点展示全部污染物和污染源排名', async () => {

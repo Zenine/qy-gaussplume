@@ -81,8 +81,8 @@ public class SimulationController : ControllerBase
                 {
                     Type = "line",
                     Name = "线源",
-                    Formula = "Line source segmented into finite source elements",
-                    Notes = "按起终点、线宽、线高、分段长度和 sigmaZ0Line 拆分计算后累加。",
+                    Formula = "C_line = ∫₀ᴸ q′ · K_line(s) ds，q′ = Q_total / L",
+                    Notes = "沿起终点连续积分；segmentLength 仅控制数值积分区间，区间内使用 Gauss-Legendre 求积，不再退化为相连点源。",
                 },
                 new()
                 {
