@@ -22,6 +22,20 @@ public sealed class GaussianPlumeModel
 
     private readonly PasquillGiffordParams _sigmaParams;
 
+    // 4 点 Gauss-Legendre 求积：在每个最长 50 m 的积分区间内对连续线源核函数积分，
+    // 避免仅取分段中点导致热力图呈现一串离散点源。
+    private static readonly double[] LineQuadratureNodes =
+    [
+        -0.8611363115940526, -0.3399810435848563,
+         0.3399810435848563,  0.8611363115940526,
+    ];
+
+    private static readonly double[] LineQuadratureWeights =
+    [
+        0.3478548451374538, 0.6521451548625461,
+        0.6521451548625461, 0.3478548451374538,
+    ];
+
     /// <summary>
     /// 初始化高斯烟羽模型。
     /// 风速夹紧到不低于 0.1 m/s，稳定度等级使用 Pasquill-Gifford A-F 分类。
@@ -153,11 +167,8 @@ public sealed class GaussianPlumeModel
         var humidityFactor = 1 + (Humidity - 50) / 200;
         var cloudFactor = 1 + CloudCover / 50;
 
-        if (PollutantProperties.ChemicalEnhancedPollutants.Contains(pollutant))
-        {
-            tempFactor *= 1.5;
-            humidityFactor *= 1.3;
-        }
+        tempFactor *= PollutantProperties.GetChemicalTemperatureMultiplier(pollutant);
+        humidityFactor *= PollutantProperties.GetChemicalHumidityMultiplier(pollutant);
 
         var kEffective = kBase * tempFactor * humidityFactor * cloudFactor;
         var travelTime = distance / WindSpeed;
@@ -414,6 +425,40 @@ public sealed class GaussianPlumeModel
         var nLon = gridLon.Length;
         var field = new double[nLat, nLon];
 
+        AccumulateAreaSourceConcentrationField(
+            field,
+            centerLat, centerLon,
+            areaLength, areaWidth, areaHeight,
+            emissionRate,
+            gridLat, gridLon,
+            sigmaZ0,
+            receptorHeight,
+            maxConcentration,
+            isEquivalent,
+            pollutant);
+
+        return field;
+    }
+
+    /// <summary>
+    /// 将一个面源浓度场直接累加到已有矩阵。
+    /// 线源求积会高频调用该路径，因此不得为每个求积点分配临时网格。
+    /// </summary>
+    private void AccumulateAreaSourceConcentrationField(
+        double[,] field,
+        double centerLat, double centerLon,
+        double areaLength, double areaWidth, double areaHeight,
+        double emissionRate,
+        double[] gridLat, double[] gridLon,
+        double? sigmaZ0 = null,
+        double receptorHeight = 0.0,
+        double? maxConcentration = null,
+        bool isEquivalent = false,
+        string pollutant = "PM2.5")
+    {
+        var nLat = gridLat.Length;
+        var nLon = gridLon.Length;
+
         var sigmaY0 = areaWidth / 4.3;
         var sZ0 = sigmaZ0 ?? (areaHeight > 0 ? areaHeight / 2.15 : 1.0);
 
@@ -477,11 +522,9 @@ public sealed class GaussianPlumeModel
                     conc = Math.Min(conc, maxConcentration.Value);
                 }
 
-                field[i, j] = conc;
+                field[i, j] += conc;
             }
         }
-
-        return field;
     }
 
     /// <summary>
@@ -543,11 +586,12 @@ public sealed class GaussianPlumeModel
         return result;
     }
 
-    // ================== 线源（分段短面源/带状源法） ==================
+    // ================== 线源（连续积分带状源法） ==================
 
     /// <summary>
     /// 计算线源浓度场。
-    /// 将线源按 segmentLength 切成多个短面源/线段，每段独立计算后累加到总浓度场。
+    /// 沿线源对带状源核函数做复合 Gauss-Legendre 数值积分。
+    /// segmentLength 只控制积分区间长度，不再把每个区间退化成一个点源。
     /// </summary>
     /// <returns>二维浓度场，索引顺序为 [latIndex, lonIndex]。</returns>
     public double[,] CalculateLineSourceConcentrationField(
@@ -566,9 +610,10 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
-        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var integrationStep = Math.Min(Math.Max(segmentLength, 1.0), 50.0);
+        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
         var actualSegmentLength = lineLength / numSegments;
-        var segmentEmission = emissionRate / numSegments;
+        var panelEmission = emissionRate / numSegments;
 
         var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
 
@@ -576,28 +621,30 @@ public sealed class GaussianPlumeModel
         var nLon = gridLon.Length;
         var field = new double[nLat, nLon];
 
-        for (var seg = 0; seg < numSegments; seg++)
+        for (var panel = 0; panel < numSegments; panel++)
         {
-            var t = (seg + 0.5) / numSegments;
-            var segLat = startLat + t * (endLat - startLat);
-            var segLon = startLon + t * (endLon - startLon);
+            for (var q = 0; q < LineQuadratureNodes.Length; q++)
+            {
+                var localT = (LineQuadratureNodes[q] + 1.0) / 2.0;
+                var t = (panel + localT) / numSegments;
+                var sampleLat = startLat + t * (endLat - startLat);
+                var sampleLon = startLon + t * (endLon - startLon);
+                var sampleEmission = panelEmission * LineQuadratureWeights[q] / 2.0;
 
-            var segField = CalculateAreaSourceConcentrationField(
-                centerLat: segLat,
-                centerLon: segLon,
-                areaLength: actualSegmentLength,
-                areaWidth: lineWidth,
-                areaHeight: lineHeight,
-                emissionRate: segmentEmission,
-                gridLat: gridLat,
-                gridLon: gridLon,
-                sigmaZ0: sZ0,
-                receptorHeight: receptorHeight,
-                pollutant: pollutant);
-
-            for (var i = 0; i < nLat; i++)
-                for (var j = 0; j < nLon; j++)
-                    field[i, j] += segField[i, j];
+                AccumulateAreaSourceConcentrationField(
+                    field,
+                    centerLat: sampleLat,
+                    centerLon: sampleLon,
+                    areaLength: actualSegmentLength,
+                    areaWidth: lineWidth,
+                    areaHeight: lineHeight,
+                    emissionRate: sampleEmission,
+                    gridLat: gridLat,
+                    gridLon: gridLon,
+                    sigmaZ0: sZ0,
+                    receptorHeight: receptorHeight,
+                    pollutant: pollutant);
+            }
         }
 
         return field;
@@ -605,7 +652,7 @@ public sealed class GaussianPlumeModel
 
     /// <summary>
     /// 计算线源对单个受体点的浓度贡献。
-    /// 将线源分段后逐段计算受体浓度并求和。
+    /// 沿线源对带状源核函数做复合 Gauss-Legendre 数值积分。
     /// </summary>
     /// <returns>受体点浓度，单位 μg/m³。</returns>
     public double CalculateLineSourceReceptorConcentration(
@@ -624,30 +671,36 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
-        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / segmentLength));
+        var integrationStep = Math.Min(Math.Max(segmentLength, 1.0), 50.0);
+        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
         var actualSegmentLength = lineLength / numSegments;
-        var segmentEmission = emissionRate / numSegments;
+        var panelEmission = emissionRate / numSegments;
         var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
 
         var total = 0.0;
-        for (var seg = 0; seg < numSegments; seg++)
+        for (var panel = 0; panel < numSegments; panel++)
         {
-            var t = (seg + 0.5) / numSegments;
-            var segLat = startLat + t * (endLat - startLat);
-            var segLon = startLon + t * (endLon - startLon);
+            for (var q = 0; q < LineQuadratureNodes.Length; q++)
+            {
+                var localT = (LineQuadratureNodes[q] + 1.0) / 2.0;
+                var t = (panel + localT) / numSegments;
+                var sampleLat = startLat + t * (endLat - startLat);
+                var sampleLon = startLon + t * (endLon - startLon);
+                var sampleEmission = panelEmission * LineQuadratureWeights[q] / 2.0;
 
-            total += CalculateAreaSourceReceptorConcentration(
-                centerLat: segLat,
-                centerLon: segLon,
-                areaLength: actualSegmentLength,
-                areaWidth: lineWidth,
-                areaHeight: lineHeight,
-                emissionRate: segmentEmission,
-                receptorLat: receptorLat,
-                receptorLon: receptorLon,
-                sigmaZ0: sZ0,
-                receptorHeight: receptorHeight,
-                pollutant: pollutant);
+                total += CalculateAreaSourceReceptorConcentration(
+                    centerLat: sampleLat,
+                    centerLon: sampleLon,
+                    areaLength: actualSegmentLength,
+                    areaWidth: lineWidth,
+                    areaHeight: lineHeight,
+                    emissionRate: sampleEmission,
+                    receptorLat: receptorLat,
+                    receptorLon: receptorLon,
+                    sigmaZ0: sZ0,
+                    receptorHeight: receptorHeight,
+                    pollutant: pollutant);
+            }
         }
         return total;
     }

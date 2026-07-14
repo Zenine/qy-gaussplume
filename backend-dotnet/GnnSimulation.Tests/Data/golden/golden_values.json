@@ -613,6 +613,14 @@
       "cloud_cover": 2.0,
       "distance": 1000,
       "decay": 0.9635763545998078
+    },
+    {
+      "pollutant": "SO2",
+      "humidity": 50,
+      "temperature": 298,
+      "cloud_cover": 0.0,
+      "distance": 1000,
+      "decay": 0.9692186960868652
     }
   ]
 }

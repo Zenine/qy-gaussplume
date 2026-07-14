@@ -164,7 +164,7 @@ Content-Type: application/json
 ### 4.5 运行多风向模拟
 
 ```http
-POST /api/simulation/run-parallel
+POST /api/simulation/run_parallel
 Content-Type: application/json
 ```
 
@@ -178,6 +178,7 @@ Content-Type: application/json
   "pollutantType": "PM2.5",
   "windSpeed": 3.0,
   "windDirections": [0, 45, 90, 135, 180, 225, 270, 315],
+  "windSpeeds": [2.45, 2.23, 2.24, 2.17, 1.92, 2.11, 1.87, 1.84],
   "weights": [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125],
   "gridResolution": 100,
   "domainSize": 5000,
@@ -185,7 +186,7 @@ Content-Type: application/json
 }
 ```
 
-多风向用于按多个来风方向加权聚合，不表示污染源方向。`weights` 可不传；不传时按等权处理。
+多风向用于按多个来风方向加权聚合，不表示污染源方向。`windSpeeds` 可逐项给出每个风向的平均风速，省略时统一使用 `windSpeed`；`weights` 可不传，不传时按等权处理，提供时数量必须与风向一致、不得为负且总和必须大于 0。Web 前端还可通过 `/api/simulation/wind-profile/template` 和 `/api/simulation/wind-profile/import` 下载、解析三列 XLSX 风频表，上传上限为 5 MB。
 
 ## 5. C 语言调用示例（libcurl）
 
@@ -260,7 +261,7 @@ int main(void) {
 
 当前项目验证规模：
 
-- 后端自动化测试：171 个
-- 前端自动化测试：119 个
+- 后端自动化测试：192 个
+- 前端自动化测试：123 个
 
 如果后续 C 平台只调用 API，也建议保留一组固定请求 JSON 和固定返回摘要，作为平台集成冒烟测试。

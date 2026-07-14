@@ -4,13 +4,121 @@ using GnnSimulation.Data.Entities;
 namespace GnnSimulation.Api.Services;
 
 public record ExcelImportResult(int ImportedCount, IReadOnlyList<string> Errors);
+public record WindProfileRow(double WindDirection, double WindSpeed, double Weight);
 
 // 基于 ClosedXML 的 Excel IO。所有表头使用中文，便于业务人员直接校验导入导出内容。
 public static class ExcelService
 {
     private static readonly XLColor HeaderFill = XLColor.FromHtml("#007AFF");
     private static readonly XLColor PollutantFill = XLColor.FromHtml("#34C759");
-    private static readonly string[] PollutantTypes = new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "O3" };
+    private static readonly string[] PollutantTypes = new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "SO2", "O3" };
+
+    // ========== Multi-direction wind profile ==========
+
+    public static readonly string[] WindProfileHeaders =
+        { "风向中心角度", "平均风速(m/s)", "加权值" };
+
+    // 72 方位示例来自当前业务测试数据；用户可下载后直接试算，也可替换任意数据行。
+    private static readonly (double Speed, double Weight)[] DefaultWindProfile =
+    {
+        (2.45, 0.0169), (2.23, 0.0159), (2.24, 0.0151), (2.17, 0.0158),
+        (1.92, 0.0157), (2.11, 0.0169), (1.87, 0.0138), (1.84, 0.0143),
+        (1.67, 0.0112), (1.57, 0.0118), (1.65, 0.0095), (1.57, 0.0127),
+        (1.67, 0.0112), (1.59, 0.0122), (1.55, 0.0106), (1.65, 0.0107),
+        (1.91, 0.0140), (1.83, 0.0141), (1.87, 0.0131), (2.42, 0.0138),
+        (2.84, 0.0267), (2.97, 0.0372), (2.67, 0.0305), (2.55, 0.0248),
+        (2.13, 0.0228), (2.18, 0.0191), (1.90, 0.0217), (1.94, 0.0213),
+        (1.89, 0.0213), (1.69, 0.0159), (1.57, 0.0192), (1.65, 0.0220),
+        (1.60, 0.0230), (1.59, 0.0244), (1.46, 0.0178), (1.47, 0.0141),
+        (1.44, 0.0145), (1.49, 0.0116), (1.34, 0.0112), (1.26, 0.0095),
+        (1.59, 0.0097), (1.69, 0.0091), (1.70, 0.0093), (1.89, 0.0121),
+        (1.90, 0.0080), (1.61, 0.0093), (1.14, 0.0064), (1.64, 0.0072),
+        (1.27, 0.0057), (1.44, 0.0067), (1.66, 0.0101), (1.68, 0.0075),
+        (1.79, 0.0049), (1.40, 0.0043), (1.37, 0.0032), (1.97, 0.0055),
+        (2.12, 0.0056), (2.39, 0.0069), (2.42, 0.0065), (2.77, 0.0069),
+        (2.55, 0.0107), (2.74, 0.0152), (2.72, 0.0131), (2.48, 0.0133),
+        (2.57, 0.0154), (2.54, 0.0147), (2.23, 0.0163), (2.13, 0.0154),
+        (2.42, 0.0171), (2.38, 0.0159), (2.37, 0.0158), (2.47, 0.0143),
+    };
+
+    public static byte[] BuildWindProfileTemplate()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("风向加权");
+        WriteHeaderRow(ws, WindProfileHeaders, HeaderFill);
+        for (var index = 0; index < DefaultWindProfile.Length; index++)
+        {
+            var item = DefaultWindProfile[index];
+            WriteRow(ws, index + 2, new object?[] { index * 5.0, item.Speed, item.Weight });
+        }
+        ws.Column(1).Width = 18;
+        ws.Column(2).Width = 20;
+        ws.Column(3).Width = 16;
+        ws.Column(2).Style.NumberFormat.Format = "0.00";
+        ws.Column(3).Style.NumberFormat.Format = "0.000000";
+        return ToBytes(wb);
+    }
+
+    public static (List<WindProfileRow> Items, List<string> Errors) ParseWindProfile(Stream stream)
+    {
+        var items = new List<WindProfileRow>();
+        var errors = new List<string>();
+        using var wb = new XLWorkbook(stream);
+        var ws = wb.Worksheet(1);
+
+        for (var column = 1; column <= WindProfileHeaders.Length; column++)
+        {
+            var actual = ws.Cell(1, column).GetString().Trim();
+            if (!string.Equals(actual, WindProfileHeaders[column - 1], StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"第1行第{column}列表头应为“{WindProfileHeaders[column - 1]}”，实际为“{actual}”");
+            }
+        }
+        if (errors.Count > 0) return (items, errors);
+
+        var seenDirections = new HashSet<double>();
+        var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+        for (var row = 2; row <= lastRow; row++)
+        {
+            if (ws.Cell(row, 1).IsEmpty() && ws.Cell(row, 2).IsEmpty() && ws.Cell(row, 3).IsEmpty())
+                continue;
+
+            if (!ws.Cell(row, 1).TryGetValue<double>(out var direction)
+                || !ws.Cell(row, 2).TryGetValue<double>(out var speed)
+                || !ws.Cell(row, 3).TryGetValue<double>(out var weight))
+            {
+                errors.Add($"第{row}行: 三列都必须填写数值");
+                continue;
+            }
+            if (!double.IsFinite(direction) || direction < 0 || direction >= 360)
+            {
+                errors.Add($"第{row}行: 风向中心角度必须在 [0, 360) 范围内");
+                continue;
+            }
+            if (!double.IsFinite(speed) || speed <= 0)
+            {
+                errors.Add($"第{row}行: 平均风速必须大于 0");
+                continue;
+            }
+            if (!double.IsFinite(weight) || weight < 0)
+            {
+                errors.Add($"第{row}行: 加权值不能小于 0");
+                continue;
+            }
+            if (!seenDirections.Add(direction))
+            {
+                errors.Add($"第{row}行: 风向中心角度重复 ({direction})");
+                continue;
+            }
+            items.Add(new WindProfileRow(direction, speed, weight));
+        }
+
+        if (items.Count == 0 && errors.Count == 0)
+            errors.Add("表格中没有可导入的风向数据");
+        if (items.Count > 0 && items.Sum(item => item.Weight) <= 0)
+            errors.Add("加权值总和必须大于 0");
+        return (items, errors);
+    }
 
     // ========== Receptors ==========
 

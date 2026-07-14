@@ -58,6 +58,8 @@ public class PollutantFormulaParameterDto
     public double WetScavengingB { get; set; }
     public double ChemicalRate { get; set; }
     public bool ChemicalEnhanced { get; set; }
+    public double ChemicalTemperatureMultiplier { get; set; }
+    public double ChemicalHumidityMultiplier { get; set; }
     public bool TemperatureCorrected { get; set; }
 }
 

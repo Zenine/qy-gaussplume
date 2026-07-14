@@ -85,7 +85,7 @@ SimulationService.RunAsync
    │       point           → CalculateConcentrationField
    │       area            → CalculateAreaSourceConcentrationField
    │       equivalent_area → 带 isEquivalent=true 的面源，浓度夹紧
-   │       line            → CalculateLineSourceConcentrationField (分段短面源/带状源法)
+   │       line            → CalculateLineSourceConcentrationField (Gauss-Legendre 连续线积分/带状源法)
    │     AddInPlace → 累加到总浓度场
    │     每污染物独立再算一次 → pollutantConcentrations dict
    │
@@ -107,8 +107,9 @@ POST /api/simulation/run_parallel
 ParallelSimulationService.RunAsync
    ├─► 加载数据（同上，但一次性共享）
    ├─► 构建 WindDirectionWorker.Context (无状态上下文)
+   ├─► XLSX 导入可先把三列表转换为 windDirections / windSpeeds / weights
    ├─► Task.Run(() => Parallel.ForEach(windDirections, ctx =>
-   │       WindDirectionWorker.Run(wind, ctx)    // 每个风向独立计算
+   │       WindDirectionWorker.Run(wind, speed, ctx) // 每个风向使用自己的平均风速
    │   ))
    │     → ConcurrentBag<WindDirectionResultDto>
    │
@@ -173,8 +174,12 @@ src/
 | **P16** | 公式说明接口 + 主控台公式抽屉 | 149 | 109 |
 | **P17** | 固定区域隔离、启用状态、地图视角与演示数据清理 | 164 | 115 |
 | **P18** | 启用点位展示、污染源中心化范围、管理页批量停用与主控台工具栏整理 | 171 | 119 |
+| **P19** | Vue2 72 风向布局、污染物联动、等效面源输入与线源连续积分修复 | 180 | 123 |
+| **P20** | SO2 业务污染物目录、沉降/化学参数和温湿度增强链路 | 181 | 123 |
+| **P21** | Vue2 全局模拟 XLSX 风向加权导入、逐方位平均风速与线源内存回归 | 187 | 123 |
+| **P22** | 提交前审阅：多风向权重完整校验、上传边界与文档收尾 | 192 | 123 |
 
-**当前**：290 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
+**当前**：315 个自动化测试全绿，真实数据 500×500 网格模拟验证通过。
 
 ## 关键权衡
 

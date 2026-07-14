@@ -9,6 +9,8 @@ namespace GnnSimulation.Api.Controllers;
 [Route("api/simulation")]
 public class SimulationController : ControllerBase
 {
+    private const long MaxWindProfileFileSize = 5 * 1024 * 1024;
+    private const string XlsxMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     private readonly SimulationService _service;
     private readonly ParallelSimulationService _parallel;
 
@@ -50,6 +52,8 @@ public class SimulationController : ControllerBase
                     WetScavengingB = scavenging.B,
                     ChemicalRate = PollutantProperties.GetChemicalRate(type),
                     ChemicalEnhanced = PollutantProperties.ChemicalEnhancedPollutants.Contains(type),
+                    ChemicalTemperatureMultiplier = PollutantProperties.GetChemicalTemperatureMultiplier(type),
+                    ChemicalHumidityMultiplier = PollutantProperties.GetChemicalHumidityMultiplier(type),
                     TemperatureCorrected = PollutantProperties.TempCorrectedPollutants.Contains(type),
                 };
             })
@@ -58,7 +62,7 @@ public class SimulationController : ControllerBase
         return new SimulationFormulaInfoDto
         {
             GaussianPlumeFormula = "C = Q / (2πuσyσz) · exp(-y²/(2σy²)) · [exp(-(z-H)²/(2σz²)) + exp(-(z+H)²/(2σz²))]；Q(g/s) 在计算中换算为 μg/s，H 为 Briggs 抬升后的有效源高。",
-            DecayFormula = "沉降衰减 D_dep = exp(-((v_d/BLH)+Λ)·x/u)，v_d = v_g + 1/(R_a+R_b+R_c)，Λ = (a·P^b + background_scavenging) × cloud_factor；化学衰减 D_chem = exp(-k_eff·x/u)。受体贡献、面源、线源和等效面源使用 C_final = C_plume × D_dep × D_chem；点源网格场为保持历史批量场口径仅使用 D_dep。",
+            DecayFormula = "沉降衰减 D_dep = exp(-((v_d/BLH)+Λ)·x/u)，v_d = v_g + 1/(R_a+R_b+R_c)，Λ = (a·P^b + background_scavenging) × cloud_factor；化学衰减 D_chem = exp(-k_eff·x/u)，SO2 等增强污染物的 k_eff 额外乘温度 1.5 和湿度 1.3。受体贡献、面源、线源和等效面源使用 C_final = C_plume × D_dep × D_chem；点源网格场为保持历史批量场口径仅使用 D_dep。",
             WindAggregationFormula = "C_aggregate = Σ(C_direction_i × normalized_weight_i)。失败风向剔除后，只对成功风向的原始权重重新归一化；各污染物分场和受体贡献按同一归一化权重分别聚合。",
             Pollutants = pollutants,
             SourceTypes = new List<SourceFormulaInfoDto>
@@ -81,8 +85,8 @@ public class SimulationController : ControllerBase
                 {
                     Type = "line",
                     Name = "线源",
-                    Formula = "C_line = Σ C_area(segment_i)，segmentEmission = Q_total / numSegments",
-                    Notes = "按起终点、lineWidth、lineHeight、segmentLength 和 sigmaZ0Line 拆成若干短面源 segment 后累加。",
+                    Formula = "C_line = ∫₀ᴸ q′ · K_line(s) ds，q′ = Q_total / L",
+                    Notes = "沿起终点连续积分；segmentLength 仅控制数值积分区间，区间内使用 Gauss-Legendre 求积，不再退化为相连点源。",
                 },
                 new()
                 {
@@ -93,6 +97,42 @@ public class SimulationController : ControllerBase
                 },
             },
         };
+    }
+
+    [HttpGet("wind-profile/template")]
+    public IActionResult DownloadWindProfileTemplate()
+    {
+        return File(ExcelService.BuildWindProfileTemplate(), XlsxMediaType, "wind_profile_72_template.xlsx");
+    }
+
+    [HttpPost("wind-profile/import")]
+    public ActionResult<WindProfileImportResultDto> ImportWindProfile([FromForm] IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { detail = "请选择非空的 XLSX 文件" });
+        if (file.Length > MaxWindProfileFileSize)
+            return BadRequest(new { detail = "风频 XLSX 文件不能超过 5 MB" });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var (items, errors) = ExcelService.ParseWindProfile(stream);
+            if (errors.Count > 0)
+                return BadRequest(new { detail = string.Join("；", errors) });
+
+            return new WindProfileImportResultDto
+            {
+                DirectionCount = items.Count,
+                WindDirections = items.Select(item => item.WindDirection).ToList(),
+                WindSpeeds = items.Select(item => item.WindSpeed).ToList(),
+                Weights = items.Select(item => item.Weight).ToList(),
+                WeightSum = items.Sum(item => item.Weight),
+            };
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { detail = "无法读取 XLSX 文件，请确认文件格式和模板表头正确" });
+        }
     }
 
     [HttpPost("run")]

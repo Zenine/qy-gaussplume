@@ -108,6 +108,9 @@ watch(
               <el-table-column label="修正" min-width="130">
                 <template #default="{ row }">
                   <el-tag v-if="row.chemicalEnhanced" size="small" type="warning">化学增强</el-tag>
+                  <span v-if="row.chemicalEnhanced" class="enhancement-multipliers">
+                    温度 ×{{ row.chemicalTemperatureMultiplier }} / 湿度 ×{{ row.chemicalHumidityMultiplier }}
+                  </span>
                   <el-tag v-if="row.temperatureCorrected" size="small" type="success">温度修正</el-tag>
                   <span v-if="!row.chemicalEnhanced && !row.temperatureCorrected" class="muted">常规</span>
                 </template>
@@ -173,6 +176,7 @@ pre {
   color: #6b7280;
   font-size: 12px;
 }
+.enhancement-multipliers { display: block; margin-top: 4px; color: #92400e; font-size: 12px; }
 
 .source-formulas {
   display: grid;

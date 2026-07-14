@@ -220,6 +220,8 @@ export interface PollutantFormulaParameter {
   wetScavengingB: number
   chemicalRate: number
   chemicalEnhanced: boolean
+  chemicalTemperatureMultiplier: number
+  chemicalHumidityMultiplier: number
   temperatureCorrected: boolean
 }
 

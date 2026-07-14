@@ -14,7 +14,10 @@ public class ParallelSimulationRequestDto
     public double WindSpeed { get; set; }
     public List<double> WindDirections { get; set; } = new();
 
-    // 风向对应的权重；null 或长度不匹配时视为等权重
+    // 与风向逐项对应的平均风速；导入风频表时使用，未提供时回退到统一 WindSpeed。
+    public List<double>? WindSpeeds { get; set; }
+
+    // 风向对应的非负权重；null 时等权，提供时数量必须匹配且总和大于 0。
     public List<double>? Weights { get; set; }
 
     public double ReceptorHeight { get; set; } = 0.0;
@@ -34,6 +37,7 @@ public class WindDirectionErrorDto
 public class WindDirectionResultDto
 {
     public double WindDirection { get; set; }
+    public double WindSpeed { get; set; }
     public bool Success { get; set; }
     public string? Error { get; set; }
 
@@ -69,4 +73,13 @@ public class ParallelSimulationResultDto
 
     // 详细模式专用
     public List<WindDirectionResultDto>? Results { get; set; }
+}
+
+public class WindProfileImportResultDto
+{
+    public int DirectionCount { get; set; }
+    public List<double> WindDirections { get; set; } = new();
+    public List<double> WindSpeeds { get; set; } = new();
+    public List<double> Weights { get; set; } = new();
+    public double WeightSum { get; set; }
 }

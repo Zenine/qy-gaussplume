@@ -1,6 +1,6 @@
 # QY-GaussPlume 后端
 
-清源高斯烟羽扩散模拟平台的 .NET 9 后端。支持四类源（点/面/等效面/线）+ 六种污染物，提供单风向与多风向并行两种模拟入口。
+清源高斯烟羽扩散模拟平台的 .NET 9 后端。支持四类源（点/面/等效面/线）+ 七种业务污染物，提供单风向与多风向并行两种模拟入口。
 
 ## qy 项目架构图
 
@@ -23,7 +23,7 @@ backend-dotnet/
 │   └── Program.cs                  # DI、CORS、启动自愈
 ├── GnnSimulation.Core/             # 无依赖核心算法库
 │   └── Atmosphere/
-│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发
+│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发 + 线源连续积分
 │       ├── PasquillGifford.cs              # A-F 稳定度 σ 参数
 │       ├── PollutantProperties.cs          # 八种污染物沉降/化学参数
 │       ├── StabilityClassifier.cs          # 风速+辐照分类
@@ -34,7 +34,7 @@ backend-dotnet/
 │   ├── GnnDbContext.cs             # Fluent snake_case 映射 + 自动时间戳 + 级联删除
 │   ├── Migrations/                 # 初始 Migration（新库用）
 │   └── Design/DesignTimeDbContextFactory.cs
-└── GnnSimulation.Tests/            # xUnit 测试（172 用例）
+└── GnnSimulation.Tests/            # xUnit 测试（192 用例）
     ├── Core/                       # 算法单测 + 黄金值对齐
     ├── Data/                       # 实体 + DbContext
     ├── Api/                        # WebApplicationFactory 集成测试
@@ -54,7 +54,7 @@ cd backend-dotnet
 
 dotnet restore                                   # 首次
 dotnet build                                     # 可选
-dotnet test                                      # 跑全部 172 个测试
+dotnet test                                      # 跑全部 192 个测试
 dotnet run --project GnnSimulation.Api           # 启动 API @ http://localhost:5207
 ```
 
@@ -84,9 +84,9 @@ Swagger OpenAPI: <http://localhost:5207/openapi/v1.json>
 | 测试类别 | 文件 | 数量 |
 |---|---|---|
 | **Data** | `DbContextShapeTests`、`EmissionSourceTests`、`PollutantEmissionTests`、`ReceptorTests`、`MeteorologyTests` | 32 |
-| **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 47 |
-| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 93 |
-| **合计** | | **172** |
+| **Core** | `GaussianPlumeModelTests`（物理性质）、`StabilityClassifierTests`、`GoldenValueTests`（JSON 黄金值逐场景对齐） | 56 |
+| **Api** | `SourcesControllerTests`、`ReceptorsControllerTests`、`MeteorologyControllerTests`、`ConfigControllerTests`、`SimulationControllerTests`、`SimulationConsistencyTests`、`ParallelSimulationTests`、`MapControllerTests`、`ShapefileServiceTests`、`ExcelIoTests` | 104 |
+| **合计** | | **192** |
 
 ## 黄金值对齐
 
@@ -109,7 +109,7 @@ JSON 会被 csproj 的 `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirec
 | 受体点 | `GET/POST/PUT/DELETE /api/receptors` + `/batch` + `/template` + `/import` + `/export`；列表、创建、批量创建、导入支持 `regionKey` |
 | 气象场 | `GET/POST/PUT/DELETE /api/meteorology` + `/batch`；列表、创建、批量创建支持 `regionKey`，支持 `isActive` |
 | 标记配置 | `GET /api/config` + `GET/POST/PUT /api/config/{type}` |
-| 模拟 | `POST /api/simulation/run` · `POST /api/simulation/run_parallel` · `GET /api/simulation/formulas` |
+| 模拟 | `POST /api/simulation/run` · `POST /api/simulation/run_parallel` · `GET /api/simulation/formulas` · `GET/POST /api/simulation/wind-profile/{template|import}` |
 | 地图 | `GET /api/map/geojson` · `/bounds` · `/info` |
 
 详见 [../docs/API.md](../docs/API.md)。

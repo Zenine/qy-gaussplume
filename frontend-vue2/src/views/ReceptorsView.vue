@@ -36,7 +36,7 @@
         <el-table-column prop="longitude" label="经度" width="150" show-overflow-tooltip />
         <el-table-column prop="height" label="高度 (m)" width="100" />
         <el-table-column label="标记" width="120">
-          <template slot-scope="scope"><el-tag :color="scope.row.markerColor" effect="dark">{{ scope.row.markerSymbol }}</el-tag></template>
+          <template slot-scope="scope"><el-tag :color="scope.row.markerColor" effect="dark">{{ markerLabel(scope.row.markerSymbol, markerSymbolOptions) }}</el-tag></template>
         </el-table-column>
         <el-table-column label="启用" width="96">
           <template slot-scope="scope">
@@ -62,7 +62,13 @@
         <el-form-item label="纬度" required><el-input-number v-model="form.latitude" :precision="6" :step="0.001" /></el-form-item>
         <el-form-item label="经度" required><el-input-number v-model="form.longitude" :precision="6" :step="0.001" /></el-form-item>
         <el-form-item label="高度 (m)"><el-input-number v-model="form.height" :min="0" :step="0.5" /></el-form-item>
-        <el-form-item label="标记图标"><el-input v-model="form.markerSymbol" /></el-form-item>
+        <el-form-item label="标记图标">
+          <el-select v-model="form.markerSymbol" data-test="receptor-marker-symbol-select" filterable style="width:100%">
+            <el-option v-for="item in markerSymbolOptions" :key="item.symbol" :value="item.symbol" :label="`${item.icon} ${item.name}`">
+              <span class="marker-option-icon">{{ item.icon }}</span><span>{{ item.name }}</span><small>{{ item.symbol }}</small>
+            </el-option>
+          </el-select>
+        </el-form-item>
         <el-form-item label="标记颜色"><el-color-picker v-model="form.markerColor" /></el-form-item>
         <el-form-item label="是否启用"><el-switch v-model="form.isActive" /></el-form-item>
       </el-form>
@@ -76,10 +82,11 @@
 
 <script lang="ts">
 import Vue from 'vue'
-import { receptorsApi } from '@/api'
+import { receptorsApi, sourcesApi } from '@/api'
 import { downloadBlob } from '@/utils/download'
 import { errorMessage } from '@/utils/error'
-import type { Receptor, ReceptorCreate } from '@/types'
+import { fallbackMarkerSymbols, markerLabel } from '@/utils/markerSymbols'
+import type { MarkerSymbolInfo, Receptor, ReceptorCreate } from '@/types'
 
 function createDefaultForm(): ReceptorCreate {
   return {
@@ -99,6 +106,7 @@ export default Vue.extend({
     items: [] as Receptor[],
     loading: false,
     selected: [] as Receptor[],
+    markerSymbols: [] as MarkerSymbolInfo[],
     dialogVisible: false,
     dialogMode: 'create' as 'create' | 'edit',
     editId: null as number | null,
@@ -108,12 +116,23 @@ export default Vue.extend({
     regionName(): string {
       return this.$store.state.regions.find((r: any) => r.key === this.$store.state.currentRegionKey)?.name || ''
     },
+    markerSymbolOptions(): MarkerSymbolInfo[] {
+      return this.markerSymbols.length > 0 ? this.markerSymbols : fallbackMarkerSymbols
+    },
   },
   watch: {
     '$store.state.currentRegionKey'() { this.refresh() },
   },
-  mounted() { this.refresh() },
+  mounted() { this.refresh(); this.loadMarkerSymbols() },
   methods: {
+    markerLabel,
+    async loadMarkerSymbols() {
+      try {
+        this.markerSymbols = await sourcesApi.markerSymbols()
+      } catch {
+        this.markerSymbols = fallbackMarkerSymbols
+      }
+    },
     clearSelectedRows() {
       this.selected = []
       ;(this.$refs.tableRef as any)?.clearSelection?.()
@@ -265,5 +284,5 @@ export default Vue.extend({
 </script>
 
 <style scoped>
-.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}.spacer{flex:1}.el-input-number{width:100%}
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}.spacer{flex:1}.el-input-number{width:100%}.marker-option-icon{display:inline-block;width:28px;font-size:18px}.el-select-dropdown__item small{float:right;color:#94a3b8}
 </style>

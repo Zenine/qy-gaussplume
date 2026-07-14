@@ -207,6 +207,7 @@ for (pol, hum, temp, cc) in [
     ("PM2.5", 50, 293.15, 0.0),
     ("VOCs", 80, 308.15, 5.0),  # VOCs 是增强集合
     ("NOx", 30, 280, 2.0),
+    ("SO2", 50, 298, 0.0),       # SO2: k=4.81e-5，温度×1.5，湿度×1.3
 ]:
     mm = make_default_model(humidity=hum, temperature=temp, cloud_cover=cc)
     chem.append(dict(pollutant=pol, humidity=hum, temperature=temp, cloud_cover=cc,

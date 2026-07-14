@@ -12,11 +12,11 @@ body { font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-ser
 .main-menu { flex: 1; border-right: 0 !important; padding: 8px 10px; }
 .main-menu .el-menu-item { height: 44px; margin: 4px 0; border-radius: 8px; }
 .sidebar-footer { display: flex; align-items: center; gap: 8px; margin: 0 16px 18px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; color: #c7e7e2; font-size: 12px; background: rgba(255,255,255,.06); }
-.header { display: flex; align-items: center; gap: 14px; min-height: 72px; border-bottom: 1px solid #dfe7ee; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); }
+.header { display: flex; height: auto !important; align-items: center; gap: 14px; min-height: 72px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; border-bottom: 1px solid #dfe7ee; background: rgba(255,255,255,.92); backdrop-filter: blur(10px); }
 .page-heading { display: flex; flex: 0 0 auto; flex-direction: column; gap: 2px; }
 .workspace-kicker { color: #64748b; font-size: 12px; line-height: 1; }
 .header .title { color: #102a43; font-size: 16px; font-weight: 700; }
-.header-actions { display: flex; flex: 1 1 auto; min-width: 0; }
+.header-actions { display: flex; order: 2; flex: 1 1 100%; width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
 .header-actions:empty { display: none; }
 .spacer { flex: 1; }
 .header-badge { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border: 1px solid #d9e7e4; border-radius: 999px; color: #31545c; background: #f4fbf9; font-size: 12px; }

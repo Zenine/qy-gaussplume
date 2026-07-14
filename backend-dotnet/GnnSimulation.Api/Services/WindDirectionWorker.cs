@@ -10,7 +10,6 @@ internal static class WindDirectionWorker
 {
     public record Context(
         Meteorology Meteorology,
-        double OverrideWindSpeed,
         IReadOnlyList<EmissionSource> Sources,
         IReadOnlyList<Receptor> Receptors,
         double GridResolution,
@@ -18,14 +17,15 @@ internal static class WindDirectionWorker
         string? PollutantType,
         double ReceptorHeight);
 
-    public static WindDirectionResultDto Run(double windDirection, Context ctx)
+    public static WindDirectionResultDto Run(double windDirection, double windSpeed, Context ctx)
     {
         // Worker 不向外抛异常，而是把单个风向失败记录在结果中，
         // 这样并行模拟可以保留其他成功风向的数据。
         try
         {
-            var result = Compute(windDirection, ctx);
+            var result = Compute(windDirection, windSpeed, ctx);
             result.WindDirection = windDirection;
+            result.WindSpeed = windSpeed;
             result.Success = true;
             return result;
         }
@@ -34,17 +34,18 @@ internal static class WindDirectionWorker
             return new WindDirectionResultDto
             {
                 WindDirection = windDirection,
+                WindSpeed = windSpeed,
                 Success = false,
                 Error = ex.Message,
             };
         }
     }
 
-    private static WindDirectionResultDto Compute(double windDirection, Context ctx)
+    private static WindDirectionResultDto Compute(double windDirection, double windSpeed, Context ctx)
     {
         var met = ctx.Meteorology;
         var model = new GaussianPlumeModel(
-            windSpeed: ctx.OverrideWindSpeed,
+            windSpeed: windSpeed,
             windDirection: windDirection,
             stabilityClass: met.StabilityClass ?? "D",
             temperature: met.Temperature ?? 293.15,

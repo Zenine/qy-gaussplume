@@ -25,14 +25,14 @@ cd frontend-vue && npm run dev
 # 完整验证（提交前推荐）
 ./scripts/verify.sh
 
-# 后端（171 用例，~30s）
+# 后端（192 用例，~30s）
 cd backend-dotnet
 dotnet test --nologo
 
 # 单个类
 dotnet test --filter "FullyQualifiedName~SourcesControllerTests"
 
-# 前端（119 用例）
+# 前端（123 用例）
 cd frontend-vue
 npm test
 
@@ -56,6 +56,7 @@ npm run test:watch
 4. 主控台固定 4 个业务区域：`nanhu` 南湖区、`xiuzhou` 秀洲区、`jiashan` 嘉善县、`tongxiang` 桐乡市。排放源、受体点、气象场通过区域关联表隔离，不在业务表中直接加区域字段。
 5. 列表、创建、批量创建和导入接口传入非法 `regionKey` 时必须返回 400，不能退化成全量列表；历史无区域归属数据默认回填到 `nanhu`，避免升级后页面看不到原有数据。
 6. 对应测试放在 `frontend-vue/tests/views/{SourcesView,ReceptorsView,MeteorologyView}.spec.ts`、`backend-dotnet/GnnSimulation.Tests/Api/{SourcesControllerTests,ReceptorsControllerTests,MeteorologyControllerTests,RegionCatalogTests}.cs`。
+7. 排放源和受体点的标记图标应从 `/api/sources/marker-symbols` 加载；表单不得退化为只能输入 `factory` / `monitor` 的文本框，地图应同时使用 `markerSymbol` 和 `markerColor` 渲染点源与受体点。
 
 ## 常见变更模板
 
@@ -106,7 +107,7 @@ npm run test:watch
 1. `gridLat` / `gridLon` 只表示浓度场采样网格，不表示污染源需要网格化布点；污染源仍来自真实业务坐标或 Excel/API 导入。
 2. 匿名演示库应使用少量离散工程示例源，避免排列成规则网格误导业务理解。
 3. 地图热力图用于展示从污染源出发的扩散浓度场；默认“羽流突出”模式过滤近零低值并使用分段色阶，避免整张模拟网格被低浓度底色铺满；“连续低值”模式显示所有正浓度格点，用于复核原 Python 出图口径。两种模式都只影响展示，不改变计算结果。
-4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示线段和起终点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
+4. 前端需要按排放源类型渲染空间几何：点源显示点，面源显示矩形，等效面源显示紫色虚线矩形，线源显示连续线带且不叠加点源式节点；所有点、面、线坐标都要从 WGS84 转 GCJ02 后再贴到高德瓦片上。
 5. 模拟完成后，如果用户修改模拟范围、网格分辨率、模拟高度或本次计算污染物筛选，当前结果只是过期展示；页面应提示“页面参数已变化，当前结果未更新，请重新模拟”。
 6. 模拟范围默认值保持 5 km，主控台滑杆范围保持 5-100 km、步长 5 km；它同时作为请求参数、结果过期判断口径和浓度场最小边长，浓度场中心由参与排放源外包框决定，不应被远处受体点拉偏。
 7. 面源和等效面源的 `AreaLength` / `AreaWidth` 必须与 QY 主线保持同一口径：`AreaLength` 控制纬向跨度，`AreaWidth` 控制经向跨度；改动时同步覆盖网格中心和外包框回归测试。
@@ -127,6 +128,13 @@ npm run test:watch
 7. 详情抽屉同样使用 `receptorContributions`，默认展示所有空气站点，不再要求先选一个空气站点；总贡献浓度由当前空气站点、当前污染物下的非零贡献行求和。
 8. 对应测试放在 `frontend-vue/tests/views/DashboardView.spec.ts` 和 `frontend-vue/tests/components/ContributionPanel.spec.ts`。
 
+### 改线源计算或显示
+
+1. 线源浓度场与受体贡献必须沿起终点连续积分，不能把各分段中点当成多个离散点源展示。
+2. `lineSegmentLength` 只控制数值积分区间；每个区间使用 Gauss-Legendre 求积，内部积分区间最长 50 m，并直接累加到同一浓度矩阵，避免粗分段跳变和逐求积点分配完整网格。
+3. Vue2 地图使用连续圆角线带显示线源，不在线上或端点叠加点源样式 marker。
+4. 修改后至少运行 `GaussianPlumeModelTests`、Vue2 `npm run test:static` 和 `npm run build`。
+
 ### 改多风向并行模拟
 
 1. 多风向 `/api/simulation/run_parallel` 的行为应与单风向 `/api/simulation/run` 保持语义一致：`sourceIds` / `receptorIds` 为 `null` 表示使用全部启用数据，空数组表示明确空选择。
@@ -134,9 +142,11 @@ npm run test:watch
 3. 等效面源要同时覆盖网格浓度场和受体贡献：传入实测 `concentration`、`isEquivalent=true` 和 `sigmaZ0Area`，保持与单风向路径一致。
 4. 聚合权重必须绑定请求中的原始风向顺序；部分风向失败时，只对成功风向的原始权重重新归一化。所有风向均失败时应返回明确错误，不返回成功空结果。
 5. 多风向预设保留 8/16/32/64/72，与原 Python 页面一致。
-6. 主控台应保留“单风向/多风向”一等入口；多风向模式下直接在顶部选择方向数和统一风速，点击运行应调用 `/api/simulation/run_parallel`，弹窗仅作为备用高级入口。
+6. 主控台应保留“单风向/多风向”一等入口；多风向模式下既可选择预设方向数和统一风速，也可导入三列 XLSX 风频表；导入后必须把同一行的方向、平均风速和权重按原始顺序传给 `/api/simulation/run_parallel`。
 7. 主控台展示多风向聚合结果时，应记录本次并行请求摘要和 `lastSimulationMode='parallel'`；不要用单风向气象控制里的 `draftWindSpeed` / `draftWindDirection` 判断多风向结果是否过期。
 8. 对应测试放在 `backend-dotnet/GnnSimulation.Tests/Api/ParallelSimulationTests.cs`；污染物公式参数测试放在 `backend-dotnet/GnnSimulation.Tests/Core/GaussianPlumeModelTests.cs`。前端多风向入口和过期状态测试放在 `frontend-vue/tests/components/ParallelSimulationDialog.spec.ts` 与 `frontend-vue/tests/views/DashboardView.spec.ts`。
+9. 风频 XLSX 表头固定为“风向中心角度、平均风速(m/s)、加权值”；解析测试放在 `ExcelIoTests.cs`，禁止只在浏览器端解析而绕过后端一致性校验。
+10. 直接 API 请求和 XLSX 导入必须使用相同的权重约束：数量与风向一致、每项非负且有限、总和大于 0；上传文件不得超过 5 MB，解析异常不得原样返回客户端。
 
 ### 改公式说明展示
 
@@ -193,11 +203,11 @@ cd frontend-vue && npm install --registry=https://registry.npmmirror.com
 ```bash
 # 1. 后端测试绿
 cd backend-dotnet && dotnet test --nologo | tail -3
-# 预期：已通过! - 失败: 0，通过: 171
+# 预期：已通过! - 失败: 0，通过: 192
 
 # 2. 前端测试绿
 cd frontend-vue && npm test 2>&1 | tail -3
-# 预期：Test Files 20 passed, Tests 119 passed
+# 预期：Test Files 20 passed, Tests 123 passed
 
 # 3. 构建成功
 (cd backend-dotnet && dotnet build --nologo) && (cd frontend-vue && npm run build)

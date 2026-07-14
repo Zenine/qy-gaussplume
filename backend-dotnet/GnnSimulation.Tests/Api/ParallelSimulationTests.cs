@@ -101,6 +101,83 @@ public class ParallelSimulationTests : IDisposable
     }
 
     [Fact]
+    public async Task 每风向风速_按风向原始顺序传入Worker()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindSpeed = 9.9,
+            WindDirections = new List<double> { 0, 90, 180 },
+            WindSpeeds = new List<double> { 2.45, 2.23, 1.44 },
+            Weights = new List<double> { 0.2, 0.3, 0.5 },
+            GridResolution = 500,
+            DomainSize = 1000,
+            ReturnAggregatedOnly = false,
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await resp.ReadJsonAsync<ParallelSimulationResultDto>();
+        result.Results!.Select(x => x.WindDirection).Should().Equal(0, 90, 180);
+        result.Results!.Select(x => x.WindSpeed).Should().Equal(2.45, 2.23, 1.44);
+    }
+
+    [Fact]
+    public async Task 每风向风速_数量与风向不一致返回400()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            WindSpeeds = new List<double> { 2.45 },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("风速数量").And.Contain("风向数量");
+    }
+
+    [Fact]
+    public async Task 多风向权重_数量与风向不一致返回400()
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            Weights = new List<double> { 1 },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("权重数量").And.Contain("风向数量");
+    }
+
+    [Theory]
+    [InlineData(-0.1, 1.1)]
+    [InlineData(0.0, 0.0)]
+    public async Task 多风向权重_负数或总和为零返回400(double firstWeight, double secondWeight)
+    {
+        var met = await CreateMet();
+        await CreatePoint();
+
+        var resp = await _client.PostJsonAsync("/api/simulation/run_parallel", new ParallelSimulationRequestDto
+        {
+            MeteorologyId = met.Id,
+            WindDirections = new List<double> { 0, 90 },
+            Weights = new List<double> { firstWeight, secondWeight },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("权重");
+    }
+
+    [Fact]
     public async Task 聚合模式_只返回合成浓度场()
     {
         var met = await CreateMet();

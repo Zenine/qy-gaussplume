@@ -25,7 +25,10 @@ assertIncludes(sources, "form.sourceType === 'area' || form.sourceType === 'equi
 assertIncludes(sources, "form.sourceType === 'line'", '排放源表单必须有线源专属字段')
 assertIncludes(sources, 'data-test="pollutant-emission-rate-input"', '普通源污染物必须使用排放速率输入')
 assertIncludes(sources, 'data-test="pollutant-concentration-input"', '等效面源污染物必须使用测量浓度输入')
+assertIncludes(sources, 'v-else', '等效面源污染物数值框必须与普通源排放速率框严格互斥，不能同时显示两列数值输入')
 assertIncludes(sources, 'downloadBlob', '排放源模板下载必须落盘为 Excel 文件')
+assertIncludes(sources, 'data-test="source-marker-symbol-select"', '排放源页标记图标必须使用可选目录，不能只提供 factory 文本框')
+assertIncludes(sources, 'sourcesApi.markerSymbols()', '排放源页必须从后端加载标记图标目录')
 
 // 受体点管理页对齐 Vue3 核心功能。
 assertIncludes(receptors, 'downloadTemplate', '受体点页必须支持下载模板')
@@ -37,6 +40,8 @@ assertIncludes(receptors, '全部停用', '受体点页必须提供全部停用'
 assertIncludes(receptors, 'Promise.allSettled', '受体点页批量操作应允许部分失败并刷新列表')
 assertIncludes(receptors, '删除确认', '受体点页删除必须有确认框')
 assertIncludes(receptors, '批量删除确认', '受体点页批量删除必须有确认框')
+assertIncludes(receptors, 'data-test="receptor-marker-symbol-select"', '受体点页标记图标必须使用可选目录，不能只提供 monitor 文本框')
+assertIncludes(receptors, 'sourcesApi.markerSymbols()', '受体点页必须复用后端标记图标目录')
 
 // 气象场管理页对齐 Vue3 核心功能。
 assertIncludes(meteorology, 'boundaryLayerHeight', '气象场页必须包含边界层高度字段')

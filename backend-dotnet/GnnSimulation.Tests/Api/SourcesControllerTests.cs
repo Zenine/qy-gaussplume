@@ -247,22 +247,24 @@ public class SourcesControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GET_pollutant_types_返回6种()
+    public async Task GET_pollutant_types_返回7种并包含SO2()
     {
         var resp = await _client.GetAsync("/api/sources/pollutant-types");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var list = await resp.ReadJsonAsync<List<PollutantTypeInfoDto>>();
-        list.Should().HaveCount(6);
-        list.Select(x => x.Type).Should().Contain(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "O3" });
+        list.Should().HaveCount(7);
+        list.Select(x => x.Type).Should().Contain(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "SO2", "O3" });
     }
 
     [Fact]
-    public async Task GET_marker_symbols_返回12种()
+    public async Task GET_marker_symbols_返回13种并包含排放源与受体点默认图标()
     {
         var resp = await _client.GetAsync("/api/sources/marker-symbols");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var list = await resp.ReadJsonAsync<List<MarkerSymbolInfoDto>>();
-        list.Should().HaveCount(12);
+        list.Should().Contain(x => x.Symbol == "factory" && x.Icon == "🏭");
+        list.Should().Contain(x => x.Symbol == "monitor" && x.Icon == "📍");
+        list.Should().HaveCount(13);
     }
 
     [Fact]

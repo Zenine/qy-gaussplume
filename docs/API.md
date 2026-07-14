@@ -28,8 +28,8 @@
 | POST | `/api/sources/batch?regionKey=nanhu` | 批量创建并绑定区域，body `EmissionSourceCreateDto[]` |
 | PUT | `/api/sources/{id}` | 部分更新（PATCH 语义：传 null 不改；`pollutants` 非 null 整体替换） |
 | DELETE | `/api/sources/{id}` | 删除（级联污染物） |
-| GET | `/api/sources/pollutant-types` | 六种污染物元数据 |
-| GET | `/api/sources/marker-symbols` | 十二种图标元数据 |
+| GET | `/api/sources/pollutant-types` | 七种业务污染物元数据，包含 SO2 |
+| GET | `/api/sources/marker-symbols` | 十三种图标元数据，包含排放源默认 `factory` 和受体点默认 `monitor` |
 | POST | `/api/sources/{id}/pollutants` | 追加或覆盖一个污染物排放 |
 | DELETE | `/api/sources/{id}/pollutants/{pid}` | 移除一个污染物 |
 | GET | `/api/sources/template/{type}` | 下载 Excel 模板（type ∈ point/area/equivalent_area/line） |
@@ -187,8 +187,9 @@
 ```json
 {
   "meteorologyId": 1,
-  "windSpeed": 3.0,                    // 覆盖气象场风速
+  "windSpeed": 3.0,                    // 未传 windSpeeds 时使用的统一风速
   "windDirections": [0, 22.5, 45, ...],  // 任意数量
+  "windSpeeds": [2.45, 2.23, 2.24, ...], // 可选；与风向逐项对应
   "weights": null,                     // null = 等权
   "sourceIds": null, "receptorIds": null, "pollutantType": null,
   "gridResolution": 10, "domainSize": 10000, "receptorHeight": 0,
@@ -196,6 +197,17 @@
   "returnAggregatedOnly": true         // false = 详细模式返回每风向
 }
 ```
+
+当 `windSpeeds` 存在时，其数量必须与 `windDirections` 一致，每项必须大于 0；否则使用统一 `windSpeed`。`weights` 按风向原始顺序绑定，提供时数量必须一致、每项必须为非负有限数值且总和大于 0；聚合前自动归一化，不要求权重和恰好等于 1。
+
+#### 风向加权 XLSX
+
+| 方法 | 端点 | 说明 |
+|---|---|---|
+| GET | `/api/simulation/wind-profile/template` | 下载 72 方位模板，三列为“风向中心角度、平均风速(m/s)、加权值” |
+| POST | `/api/simulation/wind-profile/import` | 上传 `.xlsx`，multipart/form-data 字段名 `file`；返回 `windDirections`、`windSpeeds`、`weights` 和权重和 |
+
+上传文件不得超过 5 MB。导入会拒绝缺列、非数值、重复风向、超出 `[0, 360)` 的角度、非正风速、负权重和权重总和为 0 的文件，并在业务校验错误中指出行号；损坏或非 XLSX 文件只返回通用格式错误，不回传底层解析异常。
 
 **响应** `ParallelSimulationResultDto`:
 
@@ -227,7 +239,7 @@
   "success": true,
   "mode": "detailed",
   "results": [
-    { "windDirection": 0, "success": true, "concentrations": [[...]], ... },
+    { "windDirection": 0, "windSpeed": 2.45, "success": true, "concentrations": [[...]], ... },
     ...
   ]
 }
@@ -236,6 +248,10 @@
 ### `GET /api/simulation/formulas` - 公式说明
 
 返回前端公式抽屉展示所需的算法说明。污染因子参数来自后端 `PollutantProperties`，用于确认 PM2.5、PM10、SO2、NOx、CO、O3 等污染物分别使用各自的沉降、湿清除、化学衰减和温度修正参数；前端不应复制这些参数。
+
+SO2 当前参数：重力沉降速度 0 m/s，干沉降阻力 Rb/Rc=150/400，湿清除 a=8×10⁻⁶、b=0.7，化学转化基础速率 k=4.81×10⁻⁵；化学有效速率在通用环境因子之外再乘温度增强 1.5 和湿度增强 1.3。
+
+源类型说明中的线源公式为沿起终点的连续积分；`segmentLength` 只控制数值积分区间，每个区间使用 Gauss-Legendre 求积，不表示多个离散点源。
 
 **响应** `SimulationFormulaInfoDto`:
 
@@ -255,6 +271,8 @@
       "wetScavengingB": 0.8,
       "chemicalRate": 0.00002,
       "chemicalEnhanced": false,
+      "chemicalTemperatureMultiplier": 1.0,
+      "chemicalHumidityMultiplier": 1.0,
       "temperatureCorrected": false
     }
   ],

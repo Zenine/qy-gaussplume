@@ -20,6 +20,8 @@ const formulaInfo: SimulationFormulaInfo = {
       wetScavengingB: 0.8,
       chemicalRate: 0.00002,
       chemicalEnhanced: false,
+      chemicalTemperatureMultiplier: 1,
+      chemicalHumidityMultiplier: 1,
       temperatureCorrected: false,
     },
     {
@@ -32,6 +34,8 @@ const formulaInfo: SimulationFormulaInfo = {
       wetScavengingB: 0.7,
       chemicalRate: 0.00015,
       chemicalEnhanced: true,
+      chemicalTemperatureMultiplier: 1.5,
+      chemicalHumidityMultiplier: 1.3,
       temperatureCorrected: true,
     },
   ],
@@ -66,6 +70,7 @@ describe('FormulaDrawer', () => {
     expect(text).toContain('C = Q exp')
     expect(text).toContain('PM2.5')
     expect(text).toContain('NOx')
+    expect(text).toContain('温度 ×1.5 / 湿度 ×1.3')
     expect(text).toContain('等效面源')
     expect(text).toContain('Q_equiv')
   })

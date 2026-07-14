@@ -125,6 +125,7 @@
           </el-select>
           <el-input-number
             v-if="form.sourceType !== 'equivalent_area'"
+            key="emission-rate"
             v-model="p.emissionRate"
             :min="0"
             :step="0.1"
@@ -132,7 +133,8 @@
             data-test="pollutant-emission-rate-input"
           />
           <el-input-number
-            v-if="form.sourceType === 'equivalent_area'"
+            v-else
+            key="measured-concentration"
             v-model="p.concentration"
             :min="0"
             :step="1"
@@ -145,7 +147,13 @@
 
         <el-divider>标记</el-divider>
         <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="标记图标"><el-input v-model="form.markerSymbol" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="标记图标">
+            <el-select v-model="form.markerSymbol" data-test="source-marker-symbol-select" filterable style="width:100%">
+              <el-option v-for="item in markerSymbolOptions" :key="item.symbol" :value="item.symbol" :label="`${item.icon} ${item.name}`">
+                <span class="marker-option-icon">{{ item.icon }}</span><span>{{ item.name }}</span><small>{{ item.symbol }}</small>
+              </el-option>
+            </el-select>
+          </el-form-item></el-col>
           <el-col :span="12"><el-form-item label="标记颜色"><el-color-picker v-model="form.markerColor" /></el-form-item></el-col>
         </el-row>
         <el-form-item label="是否启用"><el-switch v-model="form.isActive" /></el-form-item>
@@ -163,7 +171,8 @@ import Vue from 'vue'
 import { sourcesApi } from '@/api'
 import { downloadBlob } from '@/utils/download'
 import { errorMessage } from '@/utils/error'
-import type { EmissionSource, EmissionSourceCreate, PollutantEmissionCreate, PollutantTypeInfo } from '@/types'
+import { fallbackMarkerSymbols } from '@/utils/markerSymbols'
+import type { EmissionSource, EmissionSourceCreate, MarkerSymbolInfo, PollutantEmissionCreate, PollutantTypeInfo } from '@/types'
 
 type SourceType = 'point' | 'area' | 'equivalent_area' | 'line'
 
@@ -174,7 +183,7 @@ const sourceTypes: Array<{ value: SourceType; label: string }> = [
   { value: 'line', label: '线源' },
 ]
 
-const defaultPollutants: PollutantTypeInfo[] = ['PM2.5', 'PM10', 'TSP', 'VOCs', 'NOx', 'O3'].map((type) => ({
+const defaultPollutants: PollutantTypeInfo[] = ['PM2.5', 'PM10', 'TSP', 'VOCs', 'NOx', 'SO2', 'O3'].map((type) => ({
   type,
   name: type,
   unit: 'g/s',
@@ -218,6 +227,7 @@ export default Vue.extend({
     selected: [] as EmissionSource[],
     sourceTypes,
     pollutantTypes: [] as PollutantTypeInfo[],
+    markerSymbols: [] as MarkerSymbolInfo[],
     draftFilterType: '' as SourceType | '',
     appliedFilterType: '' as SourceType | '',
     importType: 'point' as SourceType,
@@ -235,6 +245,9 @@ export default Vue.extend({
     },
     pollutantTypeOptions(): PollutantTypeInfo[] {
       return this.pollutantTypes.length > 0 ? this.pollutantTypes : defaultPollutants
+    },
+    markerSymbolOptions(): MarkerSymbolInfo[] {
+      return this.markerSymbols.length > 0 ? this.markerSymbols : fallbackMarkerSymbols
     },
   },
   watch: {
@@ -272,6 +285,11 @@ export default Vue.extend({
         this.pollutantTypes = await sourcesApi.pollutantTypes()
       } catch {
         this.pollutantTypes = defaultPollutants
+      }
+      try {
+        this.markerSymbols = await sourcesApi.markerSymbols()
+      } catch {
+        this.markerSymbols = fallbackMarkerSymbols
       }
     },
     resetForm() { this.form = createDefaultForm() },
@@ -438,5 +456,5 @@ export default Vue.extend({
 </script>
 
 <style scoped>
-.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}.spacer{flex:1}.muted{color:#9ca3af}.pollutant-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}.pollutant-row .el-input-number{width:180px}.el-input-number{width:100%}
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}.spacer{flex:1}.muted{color:#9ca3af}.pollutant-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}.pollutant-row .el-input-number{width:180px}.el-input-number{width:100%}.marker-option-icon{display:inline-block;width:28px;font-size:18px}.el-select-dropdown__item small{float:right;color:#94a3b8}
 </style>

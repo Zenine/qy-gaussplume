@@ -14,6 +14,7 @@ public static class PollutantCatalog
             ["TSP"] = new("TSP", "g/s", "总悬浮颗粒物"),
             ["VOCs"] = new("VOCs", "g/s", "挥发性有机物"),
             ["NOx"] = new("NOx", "g/s", "氮氧化物"),
+            ["SO2"] = new("SO2", "g/s", "二氧化硫"),
             ["O3"] = new("O3", "g/s", "臭氧"),
         };
 
@@ -21,6 +22,7 @@ public static class PollutantCatalog
         new Dictionary<string, MarkerSymbolInfo>
         {
             ["factory"] = new("工厂", "🏭"),
+            ["monitor"] = new("监测点", "📍"),
             ["industry"] = new("工业", "⚙️"),
             ["power"] = new("电厂", "⚡"),
             ["chemical"] = new("化工厂", "🧪"),

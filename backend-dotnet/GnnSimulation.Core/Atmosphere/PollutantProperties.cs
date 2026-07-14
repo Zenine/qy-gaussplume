@@ -59,14 +59,20 @@ public static class PollutantProperties
             ["TSP"] = 5e-6,
             ["VOCs"] = 3e-4,
             ["NOx"] = 1.5e-4,
-            ["SO2"] = 8e-5,
+            ["SO2"] = 4.81e-5,
             ["CO"] = 1e-6,
             ["O3"] = 1e-4,
         };
 
-    // 化学转化增强对应的污染物（VOCs/NOx/O3 受温度湿度影响更强）
+    // 化学转化增强对应的污染物；增强项在基础环境温湿度因子之外相乘。
     public static readonly HashSet<string> ChemicalEnhancedPollutants =
-        new() { "VOCs", "NOx", "O3" };
+        new() { "VOCs", "NOx", "SO2", "O3" };
+
+    public static double GetChemicalTemperatureMultiplier(string pollutant) =>
+        ChemicalEnhancedPollutants.Contains(pollutant) ? 1.5 : 1.0;
+
+    public static double GetChemicalHumidityMultiplier(string pollutant) =>
+        ChemicalEnhancedPollutants.Contains(pollutant) ? 1.3 : 1.0;
 
     // 干沉降温度修正对应的污染物
     public static readonly HashSet<string> TempCorrectedPollutants =

@@ -280,6 +280,7 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('冬季北风')
     expect(wrapper.text()).toContain('公式说明')
     expect(wrapper.find('[data-test="range-panel"]').text()).toContain('5 km')
+    expect(wrapper.findAllComponents({ name: 'ElOption' }).some((option) => option.props('value') === 'SO2')).toBe(true)
     const sliders = wrapper.findAllComponents({ name: 'ElSlider' })
     expect(sliders[0].props('min')).toBe(5)
     expect(sliders[0].props('max')).toBe(100)

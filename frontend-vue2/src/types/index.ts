@@ -220,6 +220,8 @@ export interface PollutantFormulaParameter {
   wetScavengingB: number
   chemicalRate: number
   chemicalEnhanced: boolean
+  chemicalTemperatureMultiplier: number
+  chemicalHumidityMultiplier: number
   temperatureCorrected: boolean
 }
 
@@ -248,10 +250,19 @@ export interface ParallelSimulationRequest {
   domainSize?: number
   windSpeed: number
   windDirections: number[]
+  windSpeeds?: number[]
   weights?: number[]
   receptorHeight?: number
   numWorkers?: number
   returnAggregatedOnly?: boolean
+}
+
+export interface WindProfileImportResult {
+  directionCount: number
+  windDirections: number[]
+  windSpeeds: number[]
+  weights: number[]
+  weightSum: number
 }
 
 export interface WindDirectionError {
@@ -261,6 +272,7 @@ export interface WindDirectionError {
 
 export interface WindDirectionResult {
   windDirection: number
+  windSpeed: number
   success: boolean
   error?: string | null
   concentrations?: number[][] | null

@@ -6,6 +6,7 @@ import L from 'leaflet'
 import type { EmissionSource, Receptor, SimulationResult } from '@/types'
 import { wgs84ToGcj02 } from '@/utils/coords'
 import { escapeHtml, safeCssColor } from '@/utils/html'
+import { markerGlyph } from '@/utils/markerSymbols'
 import { sourceFitPoints, sourceMapGeometry, type LatLngTuple } from '@/utils/sourceGeometry'
 import { computeAnchoredBounds, renderHeatmapToCanvas } from '@/composables/useHeatmapRenderer'
 
@@ -85,7 +86,16 @@ export default Vue.extend({
     clearEntityLayers() { this.entityLayers.forEach((l) => l.remove()); this.entityLayers = [] },
     sourcePopup(s: EmissionSource) { return `<strong>${escapeHtml(s.name)}</strong><br>类型: ${escapeHtml(s.sourceType)}<br>高度: ${escapeHtml(s.height)} m` },
     sourcePointMarker(s: EmissionSource, point: LatLngTuple, size = 14) {
-      const icon = L.divIcon({ className: 'gnn-marker', html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${safeCssColor(s.markerColor)};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.4);"></div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
+      const source = s
+      const glyph = markerGlyph(source.markerSymbol)
+      const markerSize = Math.max(size, 24)
+      const color = safeCssColor(source.markerColor)
+      const icon = L.divIcon({
+        className: 'gnn-marker',
+        html: `<div style="display:grid;place-items:center;width:${markerSize}px;height:${markerSize}px;border-radius:50%;background:#fff;color:${color};border:2px solid ${color};box-shadow:0 1px 5px rgba(0,0,0,.35);font-size:${Math.round(markerSize * 0.62)}px;line-height:1;">${escapeHtml(glyph)}</div>`,
+        iconSize: [markerSize, markerSize],
+        iconAnchor: [markerSize / 2, markerSize / 2],
+      })
       return L.marker(this.toGcj(point), { icon }).bindPopup(this.sourcePopup(s))
     },
     resultAnchorPoint(): LatLngTuple | null {
@@ -128,16 +138,17 @@ export default Vue.extend({
           const layer = L.polygon(geometry.corners.map(this.toGcj), { color: geometry.equivalent ? '#7c3aed' : safeCssColor(s.markerColor), weight: 2, dashArray: geometry.equivalent ? '6 4' : undefined, fillColor: safeCssColor(s.markerColor), fillOpacity: 0.18 }).bindPopup(this.sourcePopup(s))
           layer.addTo(this.map); this.entityLayers.push(layer)
         } else if (geometry.kind === 'polyline') {
-          const line = L.polyline(geometry.points.map(this.toGcj), { color: safeCssColor(s.markerColor), weight: 4, opacity: 0.85 }).bindPopup(this.sourcePopup(s))
+          const line = L.polyline(geometry.points.map(this.toGcj), { color: safeCssColor(s.markerColor), weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).bindPopup(this.sourcePopup(s))
           line.addTo(this.map); this.entityLayers.push(line)
-          geometry.points.forEach((p) => { const m = this.sourcePointMarker(s, p, 10); m.addTo(this.map!); this.entityLayers.push(m) })
         } else {
           const marker = this.sourcePointMarker(s, geometry.center); marker.addTo(this.map); this.entityLayers.push(marker)
         }
       }
       for (const r of this.receptors as Receptor[]) {
         const [lat, lon] = wgs84ToGcj02(r.latitude, r.longitude)
-        const icon = L.divIcon({ className: 'gnn-marker', html: `<div style="width:12px;height:12px;background:${safeCssColor(r.markerColor)};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.4);"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] })
+        const glyph = markerGlyph(r.markerSymbol)
+        const color = safeCssColor(r.markerColor)
+        const icon = L.divIcon({ className: 'gnn-marker', html: `<div style="display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:#fff;color:${color};border:2px solid ${color};box-shadow:0 1px 5px rgba(0,0,0,.35);font-size:15px;line-height:1;">${escapeHtml(glyph)}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] })
         const marker = L.marker([lat, lon], { icon }).bindPopup(`<strong>${escapeHtml(r.name)}</strong><br>受体点<br>高度: ${escapeHtml(r.height)} m`)
         marker.addTo(this.map); this.entityLayers.push(marker)
       }

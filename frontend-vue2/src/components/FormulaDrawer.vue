@@ -15,6 +15,7 @@
             <el-table-column label="干沉降阻力" min-width="130"><template slot-scope="s">Rb {{ formatNumber(s.row.dryResistanceRb) }} / Rc {{ formatNumber(s.row.dryResistanceRc) }}</template></el-table-column>
             <el-table-column label="湿清除系数" min-width="120"><template slot-scope="s">a {{ formatNumber(s.row.wetScavengingA) }} / b {{ formatNumber(s.row.wetScavengingB) }}</template></el-table-column>
             <el-table-column label="化学衰减" min-width="100"><template slot-scope="s">{{ formatNumber(s.row.chemicalRate) }}</template></el-table-column>
+            <el-table-column label="化学增强" min-width="150"><template slot-scope="s"><span v-if="s.row.chemicalEnhanced">温度 ×{{ s.row.chemicalTemperatureMultiplier }} / 湿度 ×{{ s.row.chemicalHumidityMultiplier }}</span><span v-else class="muted">无</span></template></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="源类型" name="sources">

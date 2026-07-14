@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :visible.sync="innerVisible" title="全局模拟 (多风向加权)" width="640px" :close-on-click-modal="false">
+  <el-dialog :visible.sync="innerVisible" title="全局模拟 (多风向加权)" width="min(640px, 94vw)" :close-on-click-modal="false">
     <el-form label-width="120px">
       <el-form-item label="气象场">
         <el-select v-model="metId" style="width:100%">
@@ -11,7 +11,7 @@
         <span class="hint">覆盖气象场中的风速</span>
       </el-form-item>
       <el-form-item label="风向数">
-        <el-radio-group v-model="dirCount">
+        <el-radio-group v-model="dirCount" class="direction-count-options">
           <el-radio-button :label="8">8</el-radio-button>
           <el-radio-button :label="16">16</el-radio-button>
           <el-radio-button :label="32">32</el-radio-button>
@@ -113,4 +113,4 @@ export default Vue.extend({
 })
 </script>
 
-<style scoped>.hint{margin-left:12px;color:#9ca3af;font-size:12px}</style>
+<style scoped>.hint{margin-left:12px;color:#9ca3af;font-size:12px}.direction-count-options{display:flex;flex-wrap:wrap;gap:6px}.direction-count-options .el-radio-button{margin:0}.direction-count-options .el-radio-button::v-deep .el-radio-button__inner{border-left:1px solid #dcdfe6;border-radius:4px;box-shadow:none}</style>

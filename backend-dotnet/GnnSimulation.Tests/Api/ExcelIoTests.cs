@@ -84,7 +84,7 @@ public class ExcelIoTests : IDisposable
     }
 
     [Fact]
-    public async Task 点源模板_列头包含所有6种污染物()
+    public async Task 点源模板_列头包含所有7种污染物()
     {
         var resp = await _client.GetAsync("/api/sources/template/point");
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -95,7 +95,7 @@ public class ExcelIoTests : IDisposable
         var lastCol = ws.Row(1).LastCellUsed()!.Address.ColumnNumber;
         var headers = Enumerable.Range(1, lastCol).Select(c => ws.Cell(1, c).GetString()).ToList();
 
-        headers.Should().Contain(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "O3" });
+        headers.Should().Contain(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "SO2", "O3" });
         headers.Should().Contain(new[] { "名称", "纬度", "经度", "高度", "标记符号", "标记颜色" });
     }
 
@@ -112,6 +112,99 @@ public class ExcelIoTests : IDisposable
         ws.Cell(1, 3).GetString().Should().Be("起点经度");
         ws.Cell(1, 4).GetString().Should().Be("终点纬度");
         ws.Cell(1, 5).GetString().Should().Be("终点经度");
+    }
+
+    [Fact]
+    public async Task 风向加权模板_包含三列表头和72方位示例()
+    {
+        var resp = await _client.GetAsync("/api/simulation/wind-profile/template");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        resp.Content.Headers.ContentType!.MediaType.Should().Be(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var ws = wb.Worksheet(1);
+
+        ws.Cell(1, 1).GetString().Should().Be("风向中心角度");
+        ws.Cell(1, 2).GetString().Should().Be("平均风速(m/s)");
+        ws.Cell(1, 3).GetString().Should().Be("加权值");
+        ws.Cell(2, 1).GetDouble().Should().Be(0);
+        ws.Cell(2, 2).GetDouble().Should().Be(2.45);
+        ws.Cell(2, 3).GetDouble().Should().Be(0.0169);
+        ws.Cell(73, 1).GetDouble().Should().Be(355);
+        ws.Cell(73, 2).GetDouble().Should().Be(2.47);
+        ws.Cell(73, 3).GetDouble().Should().Be(0.0143);
+    }
+
+    [Fact]
+    public async Task 风向加权导入_解析每方位风速和权重并保持行顺序()
+    {
+        var bytes = BuildWindProfileXlsx(new[]
+        {
+            new[] { 0.0, 2.45, 0.0169 },
+            new[] { 5.0, 2.23, 0.0159 },
+            new[] { 355.0, 2.47, 0.0143 },
+        });
+
+        using var content = new MultipartFormDataContent();
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = MediaTypeHeaderValue.Parse(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        content.Add(file, "file", "wind-profile.xlsx");
+
+        var resp = await _client.PostAsync("/api/simulation/wind-profile/import", content);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await resp.ReadJsonAsync<WindProfileImportResultDto>();
+
+        result.DirectionCount.Should().Be(3);
+        result.WindDirections.Should().Equal(0, 5, 355);
+        result.WindSpeeds.Should().Equal(2.45, 2.23, 2.47);
+        result.Weights.Should().Equal(0.0169, 0.0159, 0.0143);
+        result.WeightSum.Should().BeApproximately(0.0471, 1e-12);
+    }
+
+    [Fact]
+    public async Task 风向加权导入_重复角度返回400并指出行号()
+    {
+        var bytes = BuildWindProfileXlsx(new[]
+        {
+            new[] { 0.0, 2.45, 0.5 },
+            new[] { 0.0, 2.23, 0.5 },
+        });
+
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(bytes), "file", "wind-profile.xlsx");
+
+        var resp = await _client.PostAsync("/api/simulation/wind-profile/import", content);
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("第3行").And.Contain("风向中心角度重复");
+    }
+
+    [Fact]
+    public async Task 风向加权导入_文件超过大小上限返回400且不尝试解析()
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(new byte[5 * 1024 * 1024 + 1]), "file", "oversized.xlsx");
+
+        var resp = await _client.PostAsync("/api/simulation/wind-profile/import", content);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("5 MB");
+    }
+
+    [Fact]
+    public async Task 风向加权导入_损坏文件返回通用错误且不暴露解析异常()
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(new byte[] { 0x01, 0x02, 0x03 }), "file", "broken.xlsx");
+
+        var resp = await _client.PostAsync("/api/simulation/wind-profile/import", content);
+        var body = await resp.Content.ReadAsStringAsync();
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body.Should().Contain("请确认文件格式和模板表头正确");
+        body.Should().NotContain("corrupted").And.NotContain("Exception");
     }
 
     [Fact]
@@ -174,6 +267,26 @@ public class ExcelIoTests : IDisposable
                 };
             }
             r++;
+        }
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    private static byte[] BuildWindProfileXlsx(IEnumerable<double[]> rows)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("风向加权");
+        ws.Cell(1, 1).Value = "风向中心角度";
+        ws.Cell(1, 2).Value = "平均风速(m/s)";
+        ws.Cell(1, 3).Value = "加权值";
+        var rowNumber = 2;
+        foreach (var row in rows)
+        {
+            ws.Cell(rowNumber, 1).Value = row[0];
+            ws.Cell(rowNumber, 2).Value = row[1];
+            ws.Cell(rowNumber, 3).Value = row[2];
+            rowNumber++;
         }
         using var ms = new MemoryStream();
         wb.SaveAs(ms);

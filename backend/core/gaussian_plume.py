@@ -238,7 +238,7 @@ Lambda × (1 + 0.1 ×
             'TSP': 5e-6,
             'VOCs': 3e-4,
             'NOx': 1.5e-4,
-            'SO2': 8e-5,
+            'SO2': 4.81e-5,
             'CO': 1e-6,
             'O3': 1e-4
         }
@@ -251,7 +251,7 @@ Lambda × (1 + 0.1 ×
 
         cloud_factor = 1 + self.cloud_cover / 50
 
-        if pollutant_type in ['VOCs', 'NOx', 'O3']:
+        if pollutant_type in ['VOCs', 'NOx', 'SO2', 'O3']:
             temp_factor *= 1.5
             humidity_factor *= 1.3
 

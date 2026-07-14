@@ -36,11 +36,12 @@ public class PollutantEmissionTests
     }
 
     [Fact]
-    public void PollutantCatalog中应包含全部6种污染物()
+    public void PollutantCatalog中应包含全部7种污染物并包含SO2()
     {
-        PollutantCatalog.Pollutants.Should().HaveCount(6);
-        PollutantCatalog.Pollutants.Keys.Should().BeEquivalentTo(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "O3" });
+        PollutantCatalog.Pollutants.Should().HaveCount(7);
+        PollutantCatalog.Pollutants.Keys.Should().BeEquivalentTo(new[] { "PM2.5", "PM10", "TSP", "VOCs", "NOx", "SO2", "O3" });
         PollutantCatalog.Pollutants["PM2.5"].Unit.Should().Be("g/s");
+        PollutantCatalog.Pollutants["SO2"].Description.Should().Be("二氧化硫");
     }
 
     [Fact]

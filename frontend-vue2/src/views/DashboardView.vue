@@ -1,6 +1,22 @@
 <template>
   <div class="dashboard-map" data-test="dashboard-map" :class="{ 'parallel-toolbar-expanded': simulationMode === 'parallel' }">
     <div ref="headerToolbar" class="dashboard-top-toolbar" data-test="floating-toolbar">
+      <div class="dashboard-toolbar-row toolbar-primary-row" data-test="toolbar-primary-row">
+      <div class="simulation-primary-actions">
+        <el-radio-group v-model="simulationMode" data-test="simulation-mode-select" size="small">
+          <el-radio-button label="single">单风向</el-radio-button>
+          <el-radio-button label="parallel">多风向</el-radio-button>
+        </el-radio-group>
+        <el-button
+          v-if="simulationMode === 'parallel'"
+          data-test="wind-profile-import"
+          size="small"
+          :type="parallelWindProfile ? 'success' : 'primary'"
+          plain
+          icon="el-icon-upload2"
+          @click="showWindProfileDialog = true"
+        >{{ parallelWindProfile ? `已导入 ${parallelWindProfile.directionCount} 方位` : '导入风频 XLSX' }}</el-button>
+      </div>
       <el-radio-group v-model="currentRegionKey" data-test="region-selector" size="small" class="toolbar-region">
         <el-radio-button v-for="r in regions" :key="r.key" :label="r.key">{{ r.name }}</el-radio-button>
       </el-radio-group>
@@ -17,13 +33,12 @@
           :label="`${m.name} - 风速:${m.windSpeed} 风向:${m.windDirection}°`"
         />
       </el-select>
-      <el-radio-group v-model="simulationMode" data-test="simulation-mode-select" size="small">
-        <el-radio-button label="single">单风向</el-radio-button>
-        <el-radio-button label="parallel">多风向</el-radio-button>
-      </el-radio-group>
+      </div>
+      <div class="dashboard-toolbar-row toolbar-secondary-row" data-test="toolbar-secondary-row">
       <template v-if="simulationMode === 'parallel'">
         <span class="parallel-note" data-test="parallel-mode-note">多风向按来风方向聚合</span>
-        <el-select v-model="parallelDirectionCount" data-test="parallel-direction-count" size="small" class="toolbar-compact">
+        <el-select v-model="parallelDirectionCount" data-test="parallel-direction-count" size="small" class="toolbar-compact" :disabled="Boolean(parallelWindProfile)" @change="clearParallelWindProfile">
+          <el-option v-if="parallelWindProfile && ![8, 16, 32, 64, 72].includes(parallelWindProfile.directionCount)" :value="parallelWindProfile.directionCount" :label="`${parallelWindProfile.directionCount} 导入`" />
           <el-option v-for="n in [8, 16, 32, 64, 72]" :key="n" :value="n" :label="`${n} 风向`" />
         </el-select>
         <el-input-number
@@ -34,7 +49,12 @@
           :min="0.1"
           :max="20"
           :step="0.1"
+          :disabled="Boolean(parallelWindProfile)"
+          @change="clearParallelWindProfile"
         />
+        <el-tag v-if="parallelWindProfile" data-test="wind-profile-summary" size="small" type="success" closable @close="clearParallelWindProfile">
+          已导入 {{ parallelWindProfile.directionCount }} 方位 · 权重和 {{ parallelWindProfile.weightSum.toFixed(4) }}
+        </el-tag>
       </template>
       <el-select v-model="calculationPollutant" data-test="calculation-pollutant-select" size="small" clearable placeholder="计算全部污染物" class="toolbar-select">
         <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
@@ -52,6 +72,7 @@
       </el-button>
       <el-button data-test="clear-result" size="small" icon="el-icon-delete" @click="clearResult">清除结果</el-button>
       <el-button data-test="formula-info" size="small" icon="el-icon-document" @click="showFormula = true">公式说明</el-button>
+      </div>
     </div>
 
     <MapPanel
@@ -177,7 +198,7 @@
           <label class="full-field">
             显示污染物
             <el-select v-model="selectedPollutant" clearable placeholder="全部污染物" style="width:100%;margin-top:6px">
-              <el-option v-for="p in pollutantOptions" :key="p" :value="p" :label="p" />
+              <el-option v-for="p in resultPollutantOptions" :key="p" :value="p" :label="p" />
             </el-select>
           </label>
         </section>
@@ -253,6 +274,53 @@
 
     <ContributionPanel :visible.sync="showContribution" :result="displayedResult" />
     <FormulaDrawer :visible.sync="showFormula" />
+
+    <el-dialog
+      :visible.sync="showWindProfileDialog"
+      title="导入多风向风频数据"
+      width="min(760px, 94vw)"
+      :close-on-click-modal="false"
+      data-test="wind-profile-dialog"
+    >
+      <el-alert
+        title="按照模板填写风向中心角度、平均风速(m/s)、加权值；导入后，全局模拟会逐行使用对应风速和权重。"
+        type="info"
+        :closable="false"
+        show-icon
+      />
+      <div class="wind-profile-actions">
+        <el-upload
+          data-test="wind-profile-file"
+          action="#"
+          :auto-upload="true"
+          :show-file-list="false"
+          accept=".xlsx"
+          :before-upload="importWindProfile"
+        >
+          <el-button type="primary" icon="el-icon-upload2" :loading="windProfileUploading">选择 XLSX 文件并导入</el-button>
+        </el-upload>
+        <el-button data-test="wind-profile-template" icon="el-icon-download" @click="downloadWindProfileTemplate">下载 72 方位模板</el-button>
+        <el-button v-if="parallelWindProfile" type="danger" plain icon="el-icon-delete" @click="clearParallelWindProfile">清除已导入数据</el-button>
+      </div>
+      <div v-if="parallelWindProfile" class="wind-profile-loaded" data-test="wind-profile-loaded">
+        <el-alert
+          :title="`导入成功：${parallelWindProfile.directionCount} 个方位，权重和 ${parallelWindProfile.weightSum.toFixed(4)}。以下数据将用于下一次全局模拟。`"
+          type="success"
+          :closable="false"
+          show-icon
+        />
+        <el-table :data="windProfileRows" height="360" border size="mini" class="wind-profile-table">
+          <el-table-column prop="windDirection" label="风向中心角度" width="150" />
+          <el-table-column prop="windSpeed" label="平均风速(m/s)" width="150" />
+          <el-table-column prop="weight" label="加权值" />
+        </el-table>
+      </div>
+      <el-empty v-else description="尚未导入风频数据，请先选择 XLSX 文件" :image-size="80" />
+      <span slot="footer">
+        <el-button @click="showWindProfileDialog = false">关闭</el-button>
+        <el-button v-if="parallelWindProfile" type="primary" @click="showWindProfileDialog = false">使用此数据</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -265,9 +333,11 @@ import FormulaDrawer from '@/components/FormulaDrawer.vue'
 import { sourcesApi, receptorsApi, meteorologyApi, simulationApi, mapApi } from '@/api'
 import { filterEntitiesByBounds } from '@/utils/selection'
 import { wgs84ToGcj02 } from '@/utils/coords'
-import type { EmissionSource, Receptor, Meteorology, SimulationResult, ReceptorContributionEntry } from '@/types'
+import { downloadBlob } from '@/utils/download'
+import { errorMessage } from '@/utils/error'
+import type { EmissionSource, Receptor, Meteorology, SimulationResult, ReceptorContributionEntry, WindProfileImportResult } from '@/types'
 
-const defaultCalculationPollutants = ['PM2.5', 'PM10', 'TSP', 'VOCs', 'NOx', 'O3']
+const defaultCalculationPollutants = ['PM2.5', 'PM10', 'TSP', 'VOCs', 'NOx', 'SO2', 'O3']
 
 type LastSimulationInputs =
   | {
@@ -285,6 +355,8 @@ type LastSimulationInputs =
       meteorologyId: number
       windSpeed: number
       windDirections: number[]
+      windSpeeds: number[]
+      weights: number[]
       gridResolution: number
       domainSize: number
       receptorHeight: number
@@ -311,6 +383,8 @@ export default Vue.extend({
     selectionBounds: null as any,
     showContribution: false,
     showFormula: false,
+    showWindProfileDialog: false,
+    windProfileUploading: false,
     customMin: null as number | null,
     customMax: null as number | null,
     selectedRankingPollutant: '',
@@ -320,6 +394,7 @@ export default Vue.extend({
     simulationMode: 'single' as 'single' | 'parallel',
     parallelDirectionCount: 16,
     parallelWindSpeed: 3,
+    parallelWindProfile: null as WindProfileImportResult | null,
     draftWindDirection: 0,
     draftWindSpeed: 0.1,
     calculationPollutant: '',
@@ -361,13 +436,31 @@ export default Vue.extend({
       return this.draftWindDirection !== met.windDirection || this.draftWindSpeed !== met.windSpeed
     },
     parallelWindDirections(): number[] {
+      if (this.parallelWindProfile) return this.parallelWindProfile.windDirections
       return Array.from({ length: this.parallelDirectionCount }, (_, i) => (360 / this.parallelDirectionCount) * i)
+    },
+    parallelWindSpeeds(): number[] {
+      return this.parallelWindProfile?.windSpeeds || this.parallelWindDirections.map(() => this.parallelWindSpeed)
+    },
+    parallelWeights(): number[] | undefined {
+      return this.parallelWindProfile?.weights
+    },
+    windProfileRows(): Array<{ windDirection: number; windSpeed: number; weight: number }> {
+      if (!this.parallelWindProfile) return []
+      return this.parallelWindProfile.windDirections.map((windDirection, index) => ({
+        windDirection,
+        windSpeed: this.parallelWindProfile!.windSpeeds[index],
+        weight: this.parallelWindProfile!.weights[index],
+      }))
     },
     resultWeatherOutdated(): boolean {
       const last = this.lastSimulationInputs
       if (!this.result || !last || !this.selectedMeteorologyId) return false
       if (last.mode === 'parallel') {
-        return this.selectedMeteorologyId !== last.meteorologyId || this.parallelWindSpeed !== last.windSpeed || !sameNumberArray(this.parallelWindDirections, last.windDirections)
+        return this.selectedMeteorologyId !== last.meteorologyId
+          || !sameNumberArray(this.parallelWindDirections, last.windDirections)
+          || !sameNumberArray(this.parallelWindSpeeds, last.windSpeeds)
+          || !sameNumberArray(this.parallelWeights || [], last.weights)
       }
       return this.selectedMeteorologyId !== last.meteorologyId || this.draftWindSpeed !== last.windSpeed || this.draftWindDirection !== last.windDirection
     },
@@ -395,6 +488,11 @@ export default Vue.extend({
       ;(this.result?.availablePollutants || []).forEach((p) => s.add(p))
       this.activeSources.forEach((src) => (src.pollutants || []).forEach((p) => s.add(p.pollutantType)))
       return [...s]
+    },
+    resultPollutantOptions(): string[] {
+      if (!this.result) return []
+      const fields = Object.keys(this.result.pollutantConcentrations || {})
+      return fields.length ? fields : (this.result.availablePollutants || [])
     },
     displayedResult(): SimulationResult | null {
       if (!this.result || !this.selectedPollutant || !this.result.pollutantConcentrations?.[this.selectedPollutant]) return this.result
@@ -508,6 +606,37 @@ export default Vue.extend({
       this.parallelWindSpeed = m.windSpeed
     },
     resetColorRange() { this.customMin = null; this.customMax = null },
+    clearParallelWindProfile() { this.parallelWindProfile = null },
+    async downloadWindProfileTemplate() {
+      try {
+        const blob = await simulationApi.downloadWindProfileTemplate()
+        downloadBlob(blob, 'wind_profile_72_template.xlsx')
+      } catch (e) {
+        this.$message.error(errorMessage(e, '下载风频模板失败'))
+      }
+    },
+    importWindProfile(file: File) {
+      void this.processWindProfile(file)
+      return false
+    },
+    async processWindProfile(file: File) {
+      this.windProfileUploading = true
+      try {
+        const profile = await simulationApi.importWindProfile(file)
+        this.parallelWindProfile = profile
+        this.parallelDirectionCount = profile.directionCount
+        const weightedSpeed = profile.windSpeeds.reduce(
+          (sum, speed, index) => sum + speed * profile.weights[index],
+          0,
+        ) / profile.weightSum
+        this.parallelWindSpeed = Number(weightedSpeed.toFixed(3))
+        this.$message.success(`已导入 ${profile.directionCount} 个风向的平均风速与权重`)
+      } catch (e) {
+        this.$message.error(errorMessage(e, '导入风频数据失败'))
+      } finally {
+        this.windProfileUploading = false
+      }
+    },
     async onBoundaryEnabledChange() {
       if (!this.boundaryEnabled) return
       if (this.boundaryGeoJson) return
@@ -599,6 +728,8 @@ export default Vue.extend({
           pollutantType: this.calculationPollutant || undefined,
           windSpeed: this.parallelWindSpeed,
           windDirections: this.parallelWindDirections,
+          windSpeeds: this.parallelWindSpeeds,
+          weights: this.parallelWeights,
           gridResolution: this.gridResolution,
           domainSize: this.domainSize,
           receptorHeight: this.simulationHeight,
@@ -620,6 +751,8 @@ export default Vue.extend({
           meteorologyId: request.meteorologyId,
           windSpeed: request.windSpeed,
           windDirections: request.windDirections,
+          windSpeeds: request.windSpeeds,
+          weights: request.weights || [],
           gridResolution: request.gridResolution,
           domainSize: request.domainSize,
           receptorHeight: request.receptorHeight,
@@ -656,6 +789,9 @@ export default Vue.extend({
 </script>
 
 <style scoped>
-.dashboard-map{position:relative;height:calc(100vh - 104px);min-height:620px;overflow:hidden;border:1px solid #cfdde4;border-radius:8px;background:#eef3f4}.dashboard-top-toolbar{display:flex;align-items:center;justify-content:flex-end;flex:1 1 auto;flex-wrap:wrap;gap:8px;min-width:0}.toolbar-select{width:128px}.toolbar-wind{width:230px}.toolbar-compact{width:96px}.toolbar-speed{width:108px}.parallel-note{font-size:12px;color:#64748b}.floating-card{border:1px solid #dfe7ee;border-radius:8px;background:rgba(255,255,255,.96);box-shadow:0 10px 28px rgba(15,46,60,.12)}.range-panel{position:absolute;left:18px;bottom:18px;z-index:1000;width:230px;padding:16px 16px 10px}.range-row{display:flex;justify-content:space-between;color:#64748b;font-size:12px}.range-row strong{color:#1677ff}.right-stack{position:absolute;right:14px;top:76px;bottom:14px;z-index:1000;display:flex;width:320px;flex-direction:column;gap:10px;overflow-y:auto}.right-stack .floating-card{padding:14px}.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #edf2f5;font-weight:800}.card-icon{color:#1677ff}.hint{color:#64748b;font-size:12px;line-height:1.6}.warning{color:#d97706}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats-grid div{padding:12px;border-radius:8px;background:#f8fafc}.stats-grid strong{display:block;font-size:22px;color:#1677ff}.stats-grid span{font-size:12px;color:#64748b}.quick-actions{position:absolute;left:18px;top:92px;z-index:1000;display:flex;flex-direction:column;gap:8px}.selection-summary{margin-top:8px;color:#475569;font-size:12px}.wind-rose{position:relative;width:150px;height:150px;margin:16px auto 10px}.wind-rose svg{display:block;width:100%;height:100%;cursor:crosshair}.wind-rose text{fill:#64748b;font-size:11px}.wind-ring,.wind-axis{fill:none;stroke:#dbe6ec;stroke-width:1}.wind-ring:nth-child(2),.wind-ring:nth-child(3){stroke:#e8eef2;stroke-width:3}.wind-pointer{stroke:#1677ff;stroke-linecap:round;stroke-width:4}.wind-pointer-tip{fill:#1677ff}.field-grid{display:grid;gap:10px;margin-top:12px}.weather-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.weather-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.weather-fields .el-input-number{width:100%}.full-field{display:flex;flex-direction:column;gap:6px;margin-top:10px;color:#31545c;font-size:12px}.complete{color:#16a34a;font-size:12px}.range-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:10px;color:#31545c;font-size:12px}.range-header small{display:block;color:#64748b;margin-top:3px}.color-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.color-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.color-fields .el-input-number,.color-fields .el-select{width:100%}.ranking-controls{margin-top:10px}.ranking-summary{margin-top:10px;padding:8px 10px;border-radius:8px;background:#f0f7ff;color:#31545c;font-size:12px}.station-summary-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}.station-summary-card{padding:10px;border:1px solid #edf2f5;border-radius:10px;background:#f8fafc}.station-summary-title{display:flex;justify-content:space-between;gap:8px;color:#31545c;font-size:12px}.station-summary-title strong{font-size:13px;color:#0f172a}.station-pollutant-block{margin-top:8px}.pollutant-summary-row,.ranking-item{display:grid;grid-template-columns:52px minmax(0,1fr) 48px 86px;gap:6px;align-items:center;font-size:12px;color:#475569}.ranking-item{grid-template-columns:20px minmax(0,1fr) 48px 86px;margin-top:6px}.ranking-main{min-width:0}.ranking-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ranking-bar{height:6px;overflow:hidden;border-radius:999px;background:#e2e8f0}.ranking-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#1677ff)}.ranking-index,.ranking-percent{color:#64748b;text-align:right}.ranking-item strong,.pollutant-summary-row strong{text-align:right;color:#0f172a;font-size:11px}
+.dashboard-map{position:relative;height:calc(100vh - 104px);min-height:620px;overflow:hidden;border:1px solid #cfdde4;border-radius:8px;background:#eef3f4}.dashboard-top-toolbar{display:flex;flex:1 1 auto;min-width:0;width:100%;flex-direction:column;align-items:stretch;gap:8px;white-space:normal}.dashboard-top-toolbar>*{flex:0 0 auto}.toolbar-select{width:128px}.toolbar-wind{width:230px}.toolbar-compact{width:96px}.toolbar-speed{width:108px}.parallel-note{font-size:12px;color:#64748b}.floating-card{border:1px solid #dfe7ee;border-radius:8px;background:rgba(255,255,255,.96);box-shadow:0 10px 28px rgba(15,46,60,.12)}.range-panel{position:absolute;left:18px;bottom:18px;z-index:1000;width:230px;padding:16px 16px 10px}.range-row{display:flex;justify-content:space-between;color:#64748b;font-size:12px}.range-row strong{color:#1677ff}.right-stack{position:absolute;right:14px;top:76px;bottom:14px;z-index:1000;display:flex;width:320px;flex-direction:column;gap:10px;overflow-y:auto}.right-stack .floating-card{padding:14px}.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #edf2f5;font-weight:800}.card-icon{color:#1677ff}.hint{color:#64748b;font-size:12px;line-height:1.6}.warning{color:#d97706}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats-grid div{padding:12px;border-radius:8px;background:#f8fafc}.stats-grid strong{display:block;font-size:22px;color:#1677ff}.stats-grid span{font-size:12px;color:#64748b}.quick-actions{position:absolute;left:18px;top:92px;z-index:1000;display:flex;flex-direction:column;gap:8px}.selection-summary{margin-top:8px;color:#475569;font-size:12px}.wind-rose{position:relative;width:150px;height:150px;margin:16px auto 10px}.wind-rose svg{display:block;width:100%;height:100%;cursor:crosshair}.wind-rose text{fill:#64748b;font-size:11px}.wind-ring,.wind-axis{fill:none;stroke:#dbe6ec;stroke-width:1}.wind-ring:nth-child(2),.wind-ring:nth-child(3){stroke:#e8eef2;stroke-width:3}.wind-pointer{stroke:#1677ff;stroke-linecap:round;stroke-width:4}.wind-pointer-tip{fill:#1677ff}.field-grid{display:grid;gap:10px;margin-top:12px}.weather-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.weather-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.weather-fields .el-input-number{width:100%}.full-field{display:flex;flex-direction:column;gap:6px;margin-top:10px;color:#31545c;font-size:12px}.complete{color:#16a34a;font-size:12px}.range-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:10px;color:#31545c;font-size:12px}.range-header small{display:block;color:#64748b;margin-top:3px}.color-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.color-fields label{display:flex;flex-direction:column;gap:6px;color:#31545c;font-size:12px}.color-fields .el-input-number,.color-fields .el-select{width:100%}.ranking-controls{margin-top:10px}.ranking-summary{margin-top:10px;padding:8px 10px;border-radius:8px;background:#f0f7ff;color:#31545c;font-size:12px}.station-summary-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}.station-summary-card{padding:10px;border:1px solid #edf2f5;border-radius:10px;background:#f8fafc}.station-summary-title{display:flex;justify-content:space-between;gap:8px;color:#31545c;font-size:12px}.station-summary-title strong{font-size:13px;color:#0f172a}.station-pollutant-block{margin-top:8px}.pollutant-summary-row,.ranking-item{display:grid;grid-template-columns:52px minmax(0,1fr) 48px 86px;gap:6px;align-items:center;font-size:12px;color:#475569}.ranking-item{grid-template-columns:20px minmax(0,1fr) 48px 86px;margin-top:6px}.ranking-main{min-width:0}.ranking-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ranking-bar{height:6px;overflow:hidden;border-radius:999px;background:#e2e8f0}.ranking-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#1677ff)}.ranking-index,.ranking-percent{color:#64748b;text-align:right}.ranking-item strong,.pollutant-summary-row strong{text-align:right;color:#0f172a;font-size:11px}
 @media (max-width: 1100px){.dashboard-map{display:flex;height:auto;min-height:0;flex-direction:column;gap:10px;overflow:visible;padding:10px}.dashboard-map>.map-panel{height:460px;min-height:460px;flex:0 0 auto;border-radius:8px}.range-panel,.right-stack,.quick-actions{position:static;z-index:auto;width:auto}.range-panel{order:2;padding:14px}.right-stack{order:3;display:flex;max-height:none;flex-direction:column;overflow:visible}.quick-actions{order:1;flex-direction:row;align-self:flex-start}.dashboard-top-toolbar{justify-content:flex-start}.toolbar-region,.toolbar-select,.toolbar-wind,.toolbar-compact,.toolbar-speed{width:100%}.weather-fields,.color-fields{grid-template-columns:1fr}.pollutant-summary-row,.ranking-item{grid-template-columns:28px minmax(0,1fr) 44px}.pollutant-summary-row strong,.ranking-item strong{grid-column:2 / 4;text-align:left}}
+.wind-profile-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0}.wind-profile-loaded{display:flex;flex-direction:column;gap:12px}.wind-profile-table{width:100%}
+.dashboard-toolbar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.simulation-primary-actions{display:flex;align-items:center;gap:8px}
+@media (max-width:1100px){.toolbar-region{width:auto!important}.toolbar-select{width:128px!important}.toolbar-wind{width:230px!important}.toolbar-compact{width:96px!important}.toolbar-speed{width:108px!important}}
 </style>
