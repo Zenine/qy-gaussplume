@@ -130,8 +130,8 @@ npm run test:watch
 
 ### 改线源计算或显示
 
-1. 线源浓度场与受体贡献必须沿起终点连续积分，不能把各分段中点当成多个离散点源展示。
-2. `lineSegmentLength` 只控制数值积分区间；每个区间使用 Gauss-Legendre 求积，内部积分区间最长 50 m，并直接累加到同一浓度矩阵，避免粗分段跳变和逐求积点分配完整网格。
+1. 线源浓度场与受体贡献必须使用有限长线源积分法（FLSI），按 `C = ∫₀ᴸ q′K(s)ds` 沿完整起终点连续积分，不能把各分段中点当成多个离散点源。
+2. `lineSegmentLength` 是兼容旧数据的字段名，实际仅控制 FLSI 数值积分面板的最大步长；每个面板使用 Gauss-Legendre 求积，最长 50 m，求积元素直接累加到同一浓度矩阵，不构造临时点源或分段面源。
 3. Vue2 地图使用连续圆角线带显示线源，不在线上或端点叠加点源样式 marker。
 4. 修改后至少运行 `GaussianPlumeModelTests`、Vue2 `npm run test:static` 和 `npm run build`。
 

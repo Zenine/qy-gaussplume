@@ -114,7 +114,7 @@
           <el-row :gutter="12">
             <el-col :span="8"><el-form-item label="线宽 (m)"><el-input-number v-model="form.lineWidth" :min="0.5" :step="1" /></el-form-item></el-col>
             <el-col :span="8"><el-form-item label="线高 (m)"><el-input-number v-model="form.lineHeight" :min="0" :step="0.5" /></el-form-item></el-col>
-            <el-col :span="8"><el-form-item label="分段长度 (m)"><el-input-number v-model="form.lineSegmentLength" :min="1" :step="1" /></el-form-item></el-col>
+            <el-col :span="8"><el-form-item label="FLSI 积分步长 (m)"><el-input-number v-model="form.lineSegmentLength" :min="1" :step="1" /></el-form-item></el-col>
           </el-row>
         </template>
 

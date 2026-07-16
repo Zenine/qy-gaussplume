@@ -49,6 +49,7 @@ export default Vue.extend({
   },
   mounted() {
     this.map = L.map(this.$refs.mapEl as HTMLElement, { zoomControl: true }).setView(this.initialCenter as [number, number], this.initialZoom)
+    this.initializeDisplayPanes()
     this.setTileLayer(this.tileLayer)
     this.map.on('moveend zoomend', this.emitViewChange)
     this.map.on('mousedown', this.startSelection)
@@ -77,6 +78,14 @@ export default Vue.extend({
     tileLayer(value: string) { this.setTileLayer(value) },
   },
   methods: {
+    initializeDisplayPanes() {
+      if (!this.map) return
+      const heatmapPane = this.map.getPane('heatmapPane') || this.map.createPane('heatmapPane')
+      const sourceGeometryPane = this.map.getPane('sourceGeometryPane') || this.map.createPane('sourceGeometryPane')
+      heatmapPane.style.zIndex = '390'
+      heatmapPane.style.pointerEvents = 'none'
+      sourceGeometryPane.style.zIndex = '460'
+    },
     setTileLayer(kind: string) {
       if (!this.map) return
       if (this.baseLayer) this.baseLayer.remove()
@@ -135,11 +144,33 @@ export default Vue.extend({
       for (const s of this.sources as EmissionSource[]) {
         const geometry = sourceMapGeometry(s)
         if (geometry.kind === 'polygon') {
-          const layer = L.polygon(geometry.corners.map(this.toGcj), { color: geometry.equivalent ? '#7c3aed' : safeCssColor(s.markerColor), weight: 2, dashArray: geometry.equivalent ? '6 4' : undefined, fillColor: safeCssColor(s.markerColor), fillOpacity: 0.18 }).bindPopup(this.sourcePopup(s))
+          const layer = L.polygon(geometry.corners.map(this.toGcj), { pane: 'sourceGeometryPane', color: geometry.equivalent ? '#7c3aed' : safeCssColor(s.markerColor), weight: 2, dashArray: geometry.equivalent ? '6 4' : undefined, fillColor: safeCssColor(s.markerColor), fillOpacity: 0.18 }).bindPopup(this.sourcePopup(s))
           layer.addTo(this.map); this.entityLayers.push(layer)
         } else if (geometry.kind === 'polyline') {
-          const line = L.polyline(geometry.points.map(this.toGcj), { color: safeCssColor(s.markerColor), weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).bindPopup(this.sourcePopup(s))
-          line.addTo(this.map); this.entityLayers.push(line)
+          const points = geometry.points.map(this.toGcj)
+          const color = safeCssColor(s.markerColor)
+          const coreWeight = Math.max(6, Math.min(10, 4 + Math.sqrt(Math.max(1, s.lineWidth ?? 4))))
+          const halo = L.polyline(points, {
+            pane: 'sourceGeometryPane',
+            className: 'gnn-line-source-halo',
+            color: '#ffffff',
+            weight: coreWeight + 6,
+            opacity: 0.72,
+            lineCap: 'round',
+            lineJoin: 'round',
+            interactive: false,
+          })
+          const line = L.polyline(points, {
+            pane: 'sourceGeometryPane',
+            className: 'gnn-line-source-band',
+            color,
+            weight: coreWeight,
+            opacity: 0.96,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }).bindPopup(this.sourcePopup(s))
+          halo.addTo(this.map); line.addTo(this.map)
+          this.entityLayers.push(halo, line)
         } else {
           const marker = this.sourcePointMarker(s, geometry.center); marker.addTo(this.map); this.entityLayers.push(marker)
         }
@@ -181,7 +212,17 @@ export default Vue.extend({
         sourceOrigins: this.resultSourceOrigins(),
         windDirection: this.heatmapWindDirection as number | null,
       })
-      this.heatmapOverlay = L.imageOverlay(canvas.toDataURL('image/png'), computeAnchoredBounds(result.gridLat, result.gridLon, this.resultAnchorPoint(), true), { opacity: 1, interactive: false }).addTo(this.map)
+      const anchorSources = (this.heatmapSources as EmissionSource[]).length
+        ? this.heatmapSources as EmissionSource[]
+        : this.sources as EmissionSource[]
+      const className = anchorSources.some((source) => source.sourceType === 'line')
+        ? 'gnn-heatmap-overlay gnn-line-source-heatmap'
+        : 'gnn-heatmap-overlay'
+      this.heatmapOverlay = L.imageOverlay(
+        canvas.toDataURL('image/png'),
+        computeAnchoredBounds(result.gridLat, result.gridLon, this.resultAnchorPoint(), true),
+        { pane: 'heatmapPane', className, opacity: 1, interactive: false },
+      ).addTo(this.map)
     },
     clearBoundaryLayer() { if (this.boundaryLayer) { this.boundaryLayer.remove(); this.boundaryLayer = null } },
     renderBoundaryLayer() {
@@ -224,4 +265,11 @@ export default Vue.extend({
 
 <style scoped>
 .map-panel { width: 100%; height: 100%; }
+</style>
+
+<style>
+.gnn-heatmap-overlay { image-rendering: auto; }
+.gnn-line-source-heatmap { filter: blur(1.15px) saturate(1.04); }
+.gnn-line-source-halo { filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.32)); }
+.gnn-line-source-band { filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.2)); }
 </style>

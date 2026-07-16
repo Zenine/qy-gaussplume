@@ -85,8 +85,8 @@ public class SimulationController : ControllerBase
                 {
                     Type = "line",
                     Name = "线源",
-                    Formula = "C_line = ∫₀ᴸ q′ · K_line(s) ds，q′ = Q_total / L",
-                    Notes = "沿起终点连续积分；segmentLength 仅控制数值积分区间，区间内使用 Gauss-Legendre 求积，不再退化为相连点源。",
+                    Formula = "FLSI：C_line = ∫₀ᴸ q′ · K_gaussian(x(s), y(s), z) ds，q′ = Q_total / L",
+                    Notes = "有限长线源积分法（FLSI）沿完整起终点连续积分；segmentLength 仅控制 Gauss-Legendre 数值积分面板的最大步长，不表示物理分段点源。",
                 },
                 new()
                 {

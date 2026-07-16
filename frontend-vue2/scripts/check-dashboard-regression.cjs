@@ -93,6 +93,11 @@ assertIncludes(mapPanel, ".filter((source) => source.sourceType === 'point')", '
 if (mapPanel.includes('geometry.points.forEach((p) =>')) {
   throw new Error('Vue2 线源地图图形必须显示为连续线带，不能在线上叠加点源样式标记')
 }
+assertIncludes(mapPanel, "createPane('heatmapPane')", 'Vue2 热力图必须使用独立图层，避免覆盖连续线源图形')
+assertIncludes(mapPanel, "createPane('sourceGeometryPane')", 'Vue2 线源必须使用高于热力图的连续几何图层')
+assertIncludes(mapPanel, "className: 'gnn-line-source-halo'", 'Vue2 线源必须有连续轮廓带，遮蔽网格峰值的点状视觉')
+assertIncludes(mapPanel, "className: 'gnn-line-source-band'", 'Vue2 线源必须有连续实心线带')
+assertIncludes(mapPanel, 'gnn-line-source-heatmap', 'Vue2 线源热力图必须启用轻微柔化样式，减少积分采样的点状感')
 assertIncludes(fs.readFileSync(path.join(root, 'src/composables/useHeatmapRenderer.ts'), 'utf8'), 'drawSourceOriginPlumes', 'Vue2 热力图渲染器必须保留污染源源头可见段绘制')
 if (mapPanel.includes('Math.max(...result.concentrations.flat())')) {
   throw new Error('Vue2 地图禁止用 Math.max(...concentrations.flat()) 计算最大浓度，大网格会触发 Maximum call stack size exceeded')

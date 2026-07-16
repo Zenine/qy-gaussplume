@@ -328,6 +328,33 @@ public class GaussianPlumeModelTests
     }
 
     [Fact]
+    public void 线源受体贡献_超过最大扩散距离时与网格路径一致返回0()
+    {
+        var model = new GaussianPlumeModel(3.0, 90.0, "D");
+        const double centerLat = 39.90;
+        const double centerLon = 116.40;
+        var startLon = centerLon - MetersToLonDegrees(50, centerLat);
+        var endLon = centerLon + MetersToLonDegrees(50, centerLat);
+        var receptorLon = centerLon - MetersToLonDegrees(
+            model.CalculateMaxDiffusionDistance() + 1_000,
+            centerLat);
+
+        var receptor = model.CalculateLineSourceReceptorConcentration(
+            centerLat, startLon, centerLat, endLon,
+            lineWidth: 5, lineHeight: 1, emissionRate: 10,
+            receptorLat: centerLat, receptorLon: receptorLon,
+            segmentLength: 10, pollutant: "NOx");
+        var field = model.CalculateLineSourceConcentrationField(
+            centerLat, startLon, centerLat, endLon,
+            lineWidth: 5, lineHeight: 1, emissionRate: 10,
+            gridLat: [centerLat], gridLon: [receptorLon],
+            segmentLength: 10, pollutant: "NOx");
+
+        receptor.Should().Be(0);
+        field[0, 0].Should().Be(0);
+    }
+
+    [Fact]
     public void 线源浓度场_求积点不应逐个分配完整网格矩阵()
     {
         var model = new GaussianPlumeModel(3.0, 0.0, "D");

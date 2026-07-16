@@ -23,7 +23,7 @@ backend-dotnet/
 │   └── Program.cs                  # DI、CORS、启动自愈
 ├── GnnSimulation.Core/             # 无依赖核心算法库
 │   └── Atmosphere/
-│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发 + 线源连续积分
+│       ├── GaussianPlumeModel.cs           # 高斯烟羽方程 + 四源派发 + 线源 FLSI 连续积分
 │       ├── PasquillGifford.cs              # A-F 稳定度 σ 参数
 │       ├── PollutantProperties.cs          # 八种污染物沉降/化学参数
 │       ├── StabilityClassifier.cs          # 风速+辐照分类

@@ -22,8 +22,8 @@ public sealed class GaussianPlumeModel
 
     private readonly PasquillGiffordParams _sigmaParams;
 
-    // 4 点 Gauss-Legendre 求积：在每个最长 50 m 的积分区间内对连续线源核函数积分，
-    // 避免仅取分段中点导致热力图呈现一串离散点源。
+    // 有限长线源积分法（FLSI）使用 4 点 Gauss-Legendre 数值求积。
+    // 积分面板只用于控制误差，求积点是连续线积分的数值采样，不是物理点源。
     private static readonly double[] LineQuadratureNodes =
     [
         -0.8611363115940526, -0.3399810435848563,
@@ -586,12 +586,13 @@ public sealed class GaussianPlumeModel
         return result;
     }
 
-    // ================== 线源（连续积分带状源法） ==================
+    // ================== 线源（有限长线源积分法 FLSI） ==================
 
     /// <summary>
     /// 计算线源浓度场。
-    /// 沿线源对带状源核函数做复合 Gauss-Legendre 数值积分。
-    /// segmentLength 只控制积分区间长度，不再把每个区间退化成一个点源。
+    /// 使用有限长线源积分法（FLSI）求解
+    /// <c>C = ∫₀ᴸ q′ K(s) ds</c>，其中 <c>q′ = Q/L</c>。
+    /// segmentLength 仅是 Gauss-Legendre 数值积分面板的最大步长，不代表物理分段点源。
     /// </summary>
     /// <returns>二维浓度场，索引顺序为 [latIndex, lonIndex]。</returns>
     public double[,] CalculateLineSourceConcentrationField(
@@ -610,37 +611,42 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
-        var integrationStep = Math.Min(Math.Max(segmentLength, 1.0), 50.0);
-        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
-        var actualSegmentLength = lineLength / numSegments;
-        var panelEmission = emissionRate / numSegments;
-
-        var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
-
         var nLat = gridLat.Length;
         var nLon = gridLon.Length;
         var field = new double[nLat, nLon];
+        if (lineLength <= 1e-9 || emissionRate <= 0) return field;
 
-        for (var panel = 0; panel < numSegments; panel++)
+        var integrationStep = Math.Min(Math.Max(segmentLength, 1.0), 50.0);
+        var panelCount = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
+        var panelLength = lineLength / panelCount;
+        var halfPanelLength = panelLength / 2.0;
+        var linearEmissionRate = emissionRate / lineLength;
+
+        var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
+        var sigmaY0 = Math.Max(lineWidth, 0.0) / 4.3;
+
+        for (var panel = 0; panel < panelCount; panel++)
         {
             for (var q = 0; q < LineQuadratureNodes.Length; q++)
             {
-                var localT = (LineQuadratureNodes[q] + 1.0) / 2.0;
-                var t = (panel + localT) / numSegments;
+                var distanceAlongLine = (panel + 0.5) * panelLength
+                    + halfPanelLength * LineQuadratureNodes[q];
+                var t = distanceAlongLine / lineLength;
                 var sampleLat = startLat + t * (endLat - startLat);
                 var sampleLon = startLon + t * (endLon - startLon);
-                var sampleEmission = panelEmission * LineQuadratureWeights[q] / 2.0;
+                var differentialEmission = linearEmissionRate
+                    * halfPanelLength
+                    * LineQuadratureWeights[q];
 
-                AccumulateAreaSourceConcentrationField(
+                AccumulateFiniteLineElementConcentrationField(
                     field,
-                    centerLat: sampleLat,
-                    centerLon: sampleLon,
-                    areaLength: actualSegmentLength,
-                    areaWidth: lineWidth,
-                    areaHeight: lineHeight,
-                    emissionRate: sampleEmission,
+                    sourceLat: sampleLat,
+                    sourceLon: sampleLon,
+                    sourceHeight: lineHeight,
+                    differentialEmissionRate: differentialEmission,
                     gridLat: gridLat,
                     gridLon: gridLon,
+                    sigmaY0: sigmaY0,
                     sigmaZ0: sZ0,
                     receptorHeight: receptorHeight,
                     pollutant: pollutant);
@@ -652,7 +658,7 @@ public sealed class GaussianPlumeModel
 
     /// <summary>
     /// 计算线源对单个受体点的浓度贡献。
-    /// 沿线源对带状源核函数做复合 Gauss-Legendre 数值积分。
+    /// 使用与网格浓度场相同的 FLSI 核函数计算单个受体点。
     /// </summary>
     /// <returns>受体点浓度，单位 μg/m³。</returns>
     public double CalculateLineSourceReceptorConcentration(
@@ -671,38 +677,152 @@ public sealed class GaussianPlumeModel
         var dy = (endLat - startLat) * MetersPerLatDegree;
         var lineLength = Math.Sqrt(dx * dx + dy * dy);
 
+        if (lineLength <= 1e-9 || emissionRate <= 0) return 0.0;
+
         var integrationStep = Math.Min(Math.Max(segmentLength, 1.0), 50.0);
-        var numSegments = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
-        var actualSegmentLength = lineLength / numSegments;
-        var panelEmission = emissionRate / numSegments;
+        var panelCount = Math.Max(1, (int)Math.Ceiling(lineLength / integrationStep));
+        var panelLength = lineLength / panelCount;
+        var halfPanelLength = panelLength / 2.0;
+        var linearEmissionRate = emissionRate / lineLength;
         var sZ0 = sigmaZ0 ?? (lineHeight > 0 ? lineHeight / 2.15 : 2.0);
+        var sigmaY0 = Math.Max(lineWidth, 0.0) / 4.3;
 
         var total = 0.0;
-        for (var panel = 0; panel < numSegments; panel++)
+        for (var panel = 0; panel < panelCount; panel++)
         {
             for (var q = 0; q < LineQuadratureNodes.Length; q++)
             {
-                var localT = (LineQuadratureNodes[q] + 1.0) / 2.0;
-                var t = (panel + localT) / numSegments;
+                var distanceAlongLine = (panel + 0.5) * panelLength
+                    + halfPanelLength * LineQuadratureNodes[q];
+                var t = distanceAlongLine / lineLength;
                 var sampleLat = startLat + t * (endLat - startLat);
                 var sampleLon = startLon + t * (endLon - startLon);
-                var sampleEmission = panelEmission * LineQuadratureWeights[q] / 2.0;
+                var differentialEmission = linearEmissionRate
+                    * halfPanelLength
+                    * LineQuadratureWeights[q];
 
-                total += CalculateAreaSourceReceptorConcentration(
-                    centerLat: sampleLat,
-                    centerLon: sampleLon,
-                    areaLength: actualSegmentLength,
-                    areaWidth: lineWidth,
-                    areaHeight: lineHeight,
-                    emissionRate: sampleEmission,
+                total += CalculateFiniteLineElementReceptorConcentration(
+                    sourceLat: sampleLat,
+                    sourceLon: sampleLon,
+                    sourceHeight: lineHeight,
+                    differentialEmissionRate: differentialEmission,
                     receptorLat: receptorLat,
                     receptorLon: receptorLon,
+                    sigmaY0: sigmaY0,
                     sigmaZ0: sZ0,
                     receptorHeight: receptorHeight,
                     pollutant: pollutant);
             }
         }
         return total;
+    }
+
+    /// <summary>
+    /// 将 FLSI 的一个加权求积元素直接累加到结果网格。
+    /// differentialEmissionRate 已包含 <c>q′ ds</c> 与 Gauss-Legendre 权重；
+    /// 该元素不是独立点源，也不构造分段面源。
+    /// </summary>
+    private void AccumulateFiniteLineElementConcentrationField(
+        double[,] field,
+        double sourceLat,
+        double sourceLon,
+        double sourceHeight,
+        double differentialEmissionRate,
+        double[] gridLat,
+        double[] gridLon,
+        double sigmaY0,
+        double sigmaZ0,
+        double receptorHeight,
+        string pollutant)
+    {
+        var windAngle = (270 - WindDirection) * Math.PI / 180.0;
+        var cos = Math.Cos(windAngle);
+        var sin = Math.Sin(windAngle);
+        var lonToM = MetersPerLatDegree * Math.Cos(sourceLat * Math.PI / 180.0);
+        var maxDist = CalculateMaxDiffusionDistance();
+        var xVirtual = CalculateFiniteLineVirtualDistance(sigmaY0, sigmaZ0);
+        var emissionRateUg = differentialEmissionRate * 1e6;
+
+        for (var i = 0; i < gridLat.Length; i++)
+        {
+            var dyLat = (gridLat[i] - sourceLat) * MetersPerLatDegree;
+            for (var j = 0; j < gridLon.Length; j++)
+            {
+                var dxLon = (gridLon[j] - sourceLon) * lonToM;
+                var xRot = dxLon * cos + dyLat * sin;
+                var xEff = xRot + xVirtual;
+                if (xEff <= 0 || xEff > maxDist) continue;
+
+                var yRot = -dxLon * sin + dyLat * cos;
+                var (sigmaY, sigmaZ) = CalculateSigma(xEff);
+                var sigmaYEff = Math.Sqrt(sigmaY * sigmaY + sigmaY0 * sigmaY0);
+                if (Math.Abs(yRot) >= 4 * sigmaYEff) continue;
+
+                var sigmaZEff = Math.Sqrt(sigmaZ * sigmaZ + sigmaZ0 * sigmaZ0);
+                var horizontal = Math.Exp(-yRot * yRot / (2 * sigmaYEff * sigmaYEff));
+                var lowerHeight = receptorHeight - sourceHeight;
+                var upperHeight = receptorHeight + sourceHeight;
+                var vertical = Math.Exp(-lowerHeight * lowerHeight / (2 * sigmaZEff * sigmaZEff))
+                    + Math.Exp(-upperHeight * upperHeight / (2 * sigmaZEff * sigmaZEff));
+                var concentration = emissionRateUg
+                    / (2 * Math.PI * WindSpeed * sigmaYEff * sigmaZEff)
+                    * horizontal
+                    * vertical
+                    * CalculateTotalDecay(xEff, pollutant);
+
+                field[i, j] += concentration;
+            }
+        }
+    }
+
+    private double CalculateFiniteLineElementReceptorConcentration(
+        double sourceLat,
+        double sourceLon,
+        double sourceHeight,
+        double differentialEmissionRate,
+        double receptorLat,
+        double receptorLon,
+        double sigmaY0,
+        double sigmaZ0,
+        double receptorHeight,
+        string pollutant)
+    {
+        var lonToM = MetersPerLatDegree * Math.Cos(sourceLat * Math.PI / 180.0);
+        var dy = (receptorLat - sourceLat) * MetersPerLatDegree;
+        var dx = (receptorLon - sourceLon) * lonToM;
+        var windAngle = (270 - WindDirection) * Math.PI / 180.0;
+        var xRot = dx * Math.Cos(windAngle) + dy * Math.Sin(windAngle);
+        var yRot = -dx * Math.Sin(windAngle) + dy * Math.Cos(windAngle);
+        var xEff = xRot + CalculateFiniteLineVirtualDistance(sigmaY0, sigmaZ0);
+        if (xEff <= 0 || xEff > CalculateMaxDiffusionDistance()) return 0.0;
+
+        var (sigmaY, sigmaZ) = CalculateSigma(xEff);
+        var sigmaYEff = Math.Sqrt(sigmaY * sigmaY + sigmaY0 * sigmaY0);
+        if (Math.Abs(yRot) >= 4 * sigmaYEff) return 0.0;
+
+        var sigmaZEff = Math.Sqrt(sigmaZ * sigmaZ + sigmaZ0 * sigmaZ0);
+        var horizontal = Math.Exp(-yRot * yRot / (2 * sigmaYEff * sigmaYEff));
+        var lowerHeight = receptorHeight - sourceHeight;
+        var upperHeight = receptorHeight + sourceHeight;
+        var vertical = Math.Exp(-lowerHeight * lowerHeight / (2 * sigmaZEff * sigmaZEff))
+            + Math.Exp(-upperHeight * upperHeight / (2 * sigmaZEff * sigmaZEff));
+
+        return differentialEmissionRate * 1e6
+            / (2 * Math.PI * WindSpeed * sigmaYEff * sigmaZEff)
+            * horizontal
+            * vertical
+            * CalculateTotalDecay(xEff, pollutant);
+    }
+
+    private double CalculateFiniteLineVirtualDistance(double sigmaY0, double sigmaZ0)
+    {
+        var xVirtualY = _sigmaParams.Ay > 0
+            ? Math.Pow(sigmaY0 / _sigmaParams.Ay, 1.0 / _sigmaParams.By)
+            : 0.0;
+        var xVirtualZ = _sigmaParams.Az > 0
+            ? Math.Pow(sigmaZ0 / _sigmaParams.Az, 1.0 / _sigmaParams.Bz)
+            : 0.0;
+        return Math.Max(xVirtualY, xVirtualZ);
     }
 
     // ================== 反推排放速率 ==================

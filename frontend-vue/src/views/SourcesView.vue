@@ -560,7 +560,7 @@ watch(() => regionStore.currentRegionKey, () => { void refresh() })
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item label="分段长度 (m)">
+              <el-form-item label="FLSI 积分步长 (m)">
                 <el-input-number v-model="form.lineSegmentLength" :min="1" :step="1" />
               </el-form-item>
             </el-col>

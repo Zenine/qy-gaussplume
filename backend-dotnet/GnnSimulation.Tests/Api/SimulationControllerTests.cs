@@ -124,7 +124,11 @@ public class SimulationControllerTests : IDisposable
             && p.ChemicalHumidityMultiplier == 1.3
             && p.ChemicalEnhanced);
         dto.SourceTypes.Should().Contain(s => s.Type == "area" && s.Formula.Contains("σ_eff"));
-        dto.SourceTypes.Should().Contain(s => s.Type == "line" && s.Formula.Contains("∫") && s.Notes.Contains("Gauss-Legendre"));
+        dto.SourceTypes.Should().Contain(s => s.Type == "line"
+            && s.Formula.Contains("∫")
+            && s.Formula.Contains("FLSI")
+            && s.Notes.Contains("有限长线源积分法")
+            && s.Notes.Contains("Gauss-Legendre"));
         dto.SourceTypes.Should().Contain(s => s.Type == "equivalent_area" && s.Formula.Contains("concentration"));
     }
 

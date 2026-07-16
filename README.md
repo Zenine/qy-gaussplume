@@ -10,7 +10,7 @@
 |---|---|
 | 版本 | **开发版（基于 3.0.9）** |
 | 更新日期 | **2026-07-14** |
-| 主要范围 | Vue2 全局模拟 XLSX 风频导入、逐方位风速/权重聚合、SO2 和线源连续积分 |
+| 主要范围 | Vue2 全局模拟 XLSX 风频导入、逐方位风速/权重聚合、SO2 和线源 FLSI 连续积分 |
 | 验证结果 | 后端 192 个用例、前端 123 个用例，`scripts/verify.sh` 通过 |
 
 ## 本次修改说明
@@ -39,7 +39,7 @@
 ## 功能概览
 
 - **扩散模拟**：高斯烟羽模型，Pasquill-Gifford 扩散参数，Briggs 抬升，干沉降、湿清除和化学衰减。
-- **源类型**：点源、面源、线源、等效面源；线源沿起终点做 Gauss-Legendre 连续积分，不按离散点源拼接。
+- **源类型**：点源、面源、线源、等效面源；线源使用有限长线源积分法（FLSI）沿完整起终点做 Gauss-Legendre 连续积分，不按离散点源拼接。
 - **污染物**：PM2.5、PM10、TSP、VOCs、NOx、SO2、O3。
 - **并行计算**：支持 8 / 16 / 32 / 64 / 72 风向加权聚合，也支持 XLSX 导入有效方位及对应平均风速/权重；后端并行计算并可只返回聚合结果。
 - **地图可视化**：Leaflet + 高德瓦片，WGS84 / GCJ02 自动转换，Canvas 浓度热力图。
@@ -186,6 +186,7 @@ qy-gaussplume/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、数据流、演进说明 |
 | [docs/API.md](docs/API.md) | API 端点参考 |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | 日常开发、验证、常见陷阱 |
+| [docs/VUE2_INTEGRATION_DIFF_20260707_TO_20260714.md](docs/VUE2_INTEGRATION_DIFF_20260707_TO_20260714.md) | Vue2 7 月 7 日版升级到 7 月 14 日版的差异、兼容性和验收清单 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本与里程碑 |
 
 ## 参考

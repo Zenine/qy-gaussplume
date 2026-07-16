@@ -85,7 +85,7 @@ SimulationService.RunAsync
    │       point           → CalculateConcentrationField
    │       area            → CalculateAreaSourceConcentrationField
    │       equivalent_area → 带 isEquivalent=true 的面源，浓度夹紧
-   │       line            → CalculateLineSourceConcentrationField (Gauss-Legendre 连续线积分/带状源法)
+   │       line            → CalculateLineSourceConcentrationField (FLSI 有限长线源 + Gauss-Legendre 数值积分)
    │     AddInPlace → 累加到总浓度场
    │     每污染物独立再算一次 → pollutantConcentrations dict
    │

@@ -23,6 +23,7 @@ assertIncludes(sources, 'Promise.allSettled', '排放源页批量操作应允许
 assertIncludes(sources, "form.sourceType === 'point'", '排放源表单必须有点源专属字段')
 assertIncludes(sources, "form.sourceType === 'area' || form.sourceType === 'equivalent_area'", '排放源表单必须有面源/等效面源专属字段')
 assertIncludes(sources, "form.sourceType === 'line'", '排放源表单必须有线源专属字段')
+assertIncludes(sources, 'FLSI 积分步长 (m)', '线源参数必须明确表示数值积分步长，不得误导为分段点源')
 assertIncludes(sources, 'data-test="pollutant-emission-rate-input"', '普通源污染物必须使用排放速率输入')
 assertIncludes(sources, 'data-test="pollutant-concentration-input"', '等效面源污染物必须使用测量浓度输入')
 assertIncludes(sources, 'v-else', '等效面源污染物数值框必须与普通源排放速率框严格互斥，不能同时显示两列数值输入')
